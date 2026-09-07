@@ -14,18 +14,23 @@ Sizes are relative: **S** ≈ a sitting, **M** ≈ a few, **L** ≈ the stage is
 
 ---
 
-## Stage 0 — Repo hygiene · S
+## Stage 0 — Repo hygiene · S — **complete**
 
-The package is currently the `usethis` template. Clear it before building on it.
+The package arrived as the `usethis` template; cleared before building on it.
 
-**Do**
-- Fill in `DESCRIPTION`: real `Title`, `Description`, `Authors@R` (currently `First Last <first.last@example.com>`), `URL`, `BugReports`.
-- Add to `.Rbuildignore`: `^\.agents$`, `^tools$`, `^design-zuxml\.md$`, `^_pkgdown\.yml$`.
-- Delete `design-zuxml.md` — superseded by the consolidated design. (Untracked, so copy it aside first if you want the history.)
-- Commit the current state so the vendored-Expat import is a reviewable diff against a clean baseline.
-- Extend `.github/workflows/R-CMD-check.yaml` to the release matrix now: windows/macos/ubuntu × release, plus ubuntu × devel and oldrel-1.
+- `DESCRIPTION` filled in: real `Title`, `Description`, `Authors@R` (Pedro Baltazar, `aut`/`cre`/`cph`), `URL`, `BugReports`, `Depends: R (>= 4.1)`.
+- `LICENSE` and `LICENSE.md` name a real copyright holder instead of "zuxml authors".
+- `.Rbuildignore` extended with `^\.agents$` and `^tools$`.
+- `design-zuxml.md` deleted, superseded by the consolidated design.
+- Initial commit made, so the Stage 1 Expat import lands as a reviewable diff against a clean baseline.
+- CI: the matrix was **already** correct (windows/macos/ubuntu x release, ubuntu x devel and oldrel-1). The real gap was the trigger — it fired only on `main`/`master` while work happens on `develop`, so nothing ran at all. Fixed.
 
-**Exit:** `R CMD check` clean on the empty package, on all three platforms.
+Two further fixes, found only by actually running the check rather than by planning:
+
+- `src/init.c` with `R_registerRoutines()` / `R_useDynamicSymbols(dll, FALSE)` / `R_forceSymbols(dll, TRUE)`, replacing the symbol-less `usethis` stub — otherwise `R CMD check` NOTEs on unregistered native routines. Registration is therefore correct from the first commit instead of being retrofitted at Stage 1. `NAMESPACE` regenerated to `useDynLib(zuxml, .registration = TRUE)`.
+- `tests/testthat/test-init.R` — `tests/testthat.R` with an empty `testthat/` directory is a hard check **ERROR**, and the empty directory is silently dropped at build time.
+
+**Exit:** `R CMD check --as-cran` passes with 2 NOTEs, neither a package defect: the development version string `0.0.0.9000` (clears at release) and a local HTML Tidy version warning (environmental; absent on CI). Verified on macOS; CI covers the other platforms.
 
 ---
 
@@ -42,12 +47,19 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
   - `src/Makevars` with no GNU-make-only syntax and no `-Wno-*` overrides.
 - `src/init.c` with `R_useDynamicSymbols(dll, FALSE)` and one smoke entry point that creates and frees a parser.
 - `tools/update-expat` and `tools/verify-vendor`; write `src/vendor/expat/PROVENANCE`.
+- **Licensing and attribution.** CRAN policy requires copyright held by anyone other than the package authors to be declared. Expat's `COPYING` names three holders; the notice is, verbatim:
+
+      Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
+      Copyright (c) 2001-2025 Expat maintainers
+
+  Add all three as `cph` in `Authors@R`, each with a `comment` naming the bundled component; write `inst/COPYRIGHTS` recording zuxml's and Expat's notices separately; keep Expat's unmodified `COPYING` in the vendor tree; write `LICENSE.note`. This is deliberately **not** done before Stage 1 — declaring copyright holders for code the package does not yet contain would be false.
 - `zuxml_info()` reporting the Expat version and the compiled-in policy.
 
 **Exit**
 - Installs from source on Windows, macOS, and Linux with no system Expat, no CMake, no autotools.
 - `tools/verify-vendor` reproduces the committed tree from the pinned release.
 - `zuxml_info()` reports `DTD: disabled`, `External entities: unavailable`.
+- `Authors@R` lists the three Expat copyright holders; `inst/COPYRIGHTS`, `LICENSE.note`, and `src/vendor/expat/COPYING` are present.
 - `R CMD check --as-cran` clean.
 
 **Trap:** if Windows fights the entropy probe, fix the probe — do not reach for `XML_POOR_ENTROPY` unconditionally. `XML_SetHashSalt` (Stage 2) mitigates it, but only if the probe is honest about what it chose.

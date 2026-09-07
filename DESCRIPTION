@@ -1,13 +1,27 @@
 Package: zuxml
-Title: What the Package Does (One Line, Title Case)
+Title: Small and Secure XML Parser and Document Tree
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
+           role = c("aut", "cre", "cph"))
+Description: Reads, navigates, and writes XML documents using a bundled
+    copy of the 'Expat' parser (<https://libexpat.github.io/>), so that no
+    system XML library is required. Documents are parsed into a faithful
+    immutable tree exposed through a small vectorized navigation
+    interface, and large inputs can be parsed incrementally from a
+    stream. Parsing is strict and secure by default: document type
+    declarations are rejected, external entity resolution is not compiled
+    in, and configurable limits bound nesting depth and memory use. A
+    registered C interface allows other packages to parse XML without
+    linking against the parser themselves.
 License: MIT + file LICENSE
-Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.0.0
+URL: https://github.com/pedrobtz/zuxml
+BugReports: https://github.com/pedrobtz/zuxml/issues
+Depends: 
+    R (>= 4.1)
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
