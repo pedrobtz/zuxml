@@ -177,7 +177,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
-## Stage 5 — Serializer and round-trip · M
+## Stage 5 — Serializer and round-trip · M — **complete**
 
 **Do**
 - `src/zux_write.c` + `src/zux_escape.c`; `R/write.R` with `xml_serialize`, `xml_write`, `as.character`.
@@ -190,6 +190,18 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Namespace round-trip is semantically correct including shadowing and same-URI-different-prefix.
 - Escaping test vectors pass, including `]]>` in text and quotes in attribute values.
 - Serializing a 100k-node document does not recurse (small-stack test).
+
+**What actually happened**
+
+- Went in clean: the round-trip property passed over the whole 20-fixture corpus on the first run, and no design change was needed. Suite is now 695 assertions and, with the harness fix, runs in 11 s.
+- Two escaping details that the design's "minimal set" table implies but does not spell out, both of which would silently break round-tripping:
+  - **Tabs, newlines and carriage returns in attribute values must become character references.** Attribute-value normalization turns a literal tab or newline into a space on re-parse, so `t="x&#10;y"` would come back as `x y`. Tested.
+  - **An unqualified element inside a default namespace needs an explicit `xmlns=""` reset**, or re-parsing silently puts it into the enclosing namespace.
+- Namespace declarations are re-emitted where first needed rather than where they originally appeared, so `<r xmlns:x="urn:s" xmlns:y="urn:s"><x:i/><y:i/></r>` comes back as `<r><x:i xmlns:x="urn:s"/><y:i xmlns:y="urn:s"/></r>`. Semantically identical, lexically different — exactly the guarantee §13 states, and the reason round-trip is asserted structurally rather than textually.
+- Serialization is iterative like everything else; the sanitizer driver now serializes a 100k-deep document under a 1 MB stack (699,997 bytes out) as well as building and freeing it.
+
+---
+
 
 ---
 

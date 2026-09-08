@@ -42,6 +42,18 @@ static void tree_run(const char*doc,zux_options*o){
       if(sp<256) st[sp++]=c;
   }
   (void)zux_root(d); (void)zux_doc_version(d); (void)zux_doc_encoding(d);
+  /* serialize, then re-parse the output and serialize again: the round trip
+   * is the property the test suite asserts, exercised here under ASan. */
+  { char*out=NULL; size_t len=0;
+    if(zux_serialize(d,0,&out,&len)==ZUX_OK && out!=NULL){
+      zux_document*d2=NULL; zux_error e2;
+      if(zux_tree_parse(&d2,out,len,o,&e2)==ZUX_OK && d2!=NULL){
+        char*out2=NULL; size_t l2=0;
+        if(zux_serialize(d2,0,&out2,&l2)==ZUX_OK) free(out2);
+        zux_document_free(d2);
+      }
+      free(out);
+    } }
   zux_document_free(d);
 }
 
@@ -61,6 +73,10 @@ static int deep_mode(void){
   { zux_id id=zux_root(d); size_t walked=0;
     while(id!=ZUX_NONE){ walked++; id=zux_first_child(d,id); }
     printf("deep: walked %zu levels iteratively\n", walked); }
+  { char*out=NULL; size_t len=0;
+    if(zux_serialize(d,0,&out,&len)==ZUX_OK && out!=NULL){
+      printf("deep: serialized %zu bytes iteratively\n", len); free(out);
+    } else printf("deep: serialize FAILED\n"); }
   zux_document_free(d);
   free(doc);
   printf("deep: freed without recursion\n");

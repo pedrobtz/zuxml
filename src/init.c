@@ -87,6 +87,7 @@ extern SEXP C_zux_text(SEXP, SEXP, SEXP);
 extern SEXP C_zux_attrs(SEXP, SEXP);
 extern SEXP C_zux_attr(SEXP, SEXP, SEXP, SEXP);
 extern SEXP C_zux_doc_meta(SEXP);
+extern SEXP C_zux_serialize(SEXP, SEXP);
 
 
 static const R_CallMethodDef call_methods[] = {
@@ -102,6 +103,7 @@ static const R_CallMethodDef call_methods[] = {
     {"C_zux_attrs", (DL_FUNC)&C_zux_attrs, 2},
     {"C_zux_attr", (DL_FUNC)&C_zux_attr, 4},
     {"C_zux_doc_meta", (DL_FUNC)&C_zux_doc_meta, 1},
+    {"C_zux_serialize", (DL_FUNC)&C_zux_serialize, 2},
     {NULL, NULL, 0}};
 
 attribute_visible void

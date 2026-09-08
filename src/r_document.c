@@ -588,3 +588,25 @@ C_zux_doc_meta(SEXP xp) {
   UNPROTECT(2);
   return out;
 }
+
+SEXP
+C_zux_serialize(SEXP xp, SEXP ids) {
+  zux_document *d = doc_ptr(xp);
+  R_xlen_t n = Rf_xlength(ids), i;
+  SEXP out = PROTECT(Rf_allocVector(STRSXP, n));
+  for (i = 0; i < n; i++) {
+    zux_id id = check_id(d, INTEGER(ids)[i]);
+    char *s = NULL;
+    size_t len = 0;
+    zux_status st = zux_serialize(d, id, &s, &len);
+    if (st != ZUX_OK) {
+      free(s);
+      UNPROTECT(1);
+      Rf_error("zuxml: cannot serialize: %s", zux_status_string(st));
+    }
+    SET_STRING_ELT(out, i, Rf_mkCharLenCE(s, (int)len, CE_UTF8));
+    free(s);
+  }
+  UNPROTECT(1);
+  return out;
+}

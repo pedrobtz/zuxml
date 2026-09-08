@@ -160,6 +160,11 @@ zux_str zux_node_text(const zux_document *d, zux_id id);
 uint32_t zux_attr_count(const zux_document *d, zux_id id);
 zux_attr zux_attr_at(const zux_document *d, zux_id id, uint32_t i);
 
+/* Serialize a node and its subtree to UTF-8. Caller frees *out with free().
+ * Iterative: safe on arbitrarily deep documents. */
+zux_status zux_serialize(const zux_document *d, zux_id id, char **out,
+                         size_t *out_len);
+
 zux_str zux_doc_version(const zux_document *d);
 zux_str zux_doc_encoding(const zux_document *d);
 int zux_doc_standalone(const zux_document *d);

@@ -13,7 +13,7 @@ trap 'rm -rf "$OUT"' EXIT
   -Wall -Wextra \
   -I src -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
   -o "$OUT/driver" tools/sanitize/driver.c \
-  src/zux_parser.c src/zux_tree.c src/zux_expat_random.c \
+  src/zux_parser.c src/zux_tree.c src/zux_write.c src/zux_expat_random.c \
   src/vendor/expat/xmlparse.c src/vendor/expat/xmltok.c src/vendor/expat/xmlrole.c
 
 # detect_leaks is deliberately NOT forced here: macOS ASan does not support
@@ -27,7 +27,7 @@ echo "==> sanitizers clean"
 "$CC" -std=c99 -O2 -Wall -Wextra \
   -I src -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
   -o "$OUT/deep" tools/sanitize/driver.c \
-  src/zux_parser.c src/zux_tree.c src/zux_expat_random.c \
+  src/zux_parser.c src/zux_tree.c src/zux_write.c src/zux_expat_random.c \
   src/vendor/expat/xmlparse.c src/vendor/expat/xmltok.c src/vendor/expat/xmlrole.c
 
 ( ulimit -s 1024 2>/dev/null || true; "$OUT/deep" deep )
