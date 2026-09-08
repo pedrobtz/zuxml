@@ -132,6 +132,17 @@ typedef struct zux_document zux_document;
 
 zux_status zux_tree_parse(zux_document **out, const void *data, size_t n,
                           const zux_options *opt, zux_error *err);
+
+/* Incremental form. Lets a caller feed arbitrary chunks -- so that R can
+ * check for interrupts at a safe boundary between them, and so that zuhttp
+ * can build a tree from response chunks without materializing the body. */
+typedef struct zux_tree_builder zux_tree_builder;
+zux_status zux_tree_begin(zux_tree_builder **out, const zux_options *opt);
+zux_status zux_tree_feed(zux_tree_builder *b, const void *data, size_t n);
+zux_status zux_tree_end(zux_tree_builder *b, zux_document **out,
+                        zux_error *err);
+void zux_tree_error(const zux_tree_builder *b, zux_error *out);
+void zux_tree_abort(zux_tree_builder *b);
 void zux_document_free(zux_document *doc);
 
 zux_id zux_root(const zux_document *d);

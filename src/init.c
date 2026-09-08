@@ -78,11 +78,30 @@ C_zuxml_info(void) {
  * first commit rather than being retrofitted later. */
 extern SEXP C_zux_event_log(SEXP, SEXP, SEXP, SEXP);
 extern SEXP C_zux_tree_info(SEXP, SEXP);
+extern SEXP C_zux_parse(SEXP, SEXP);
+extern SEXP C_zux_root(SEXP);
+extern SEXP C_zux_node_info(SEXP, SEXP, SEXP);
+extern SEXP C_zux_parent(SEXP, SEXP);
+extern SEXP C_zux_select(SEXP, SEXP, SEXP, SEXP, SEXP);
+extern SEXP C_zux_text(SEXP, SEXP, SEXP);
+extern SEXP C_zux_attrs(SEXP, SEXP);
+extern SEXP C_zux_attr(SEXP, SEXP, SEXP, SEXP);
+extern SEXP C_zux_doc_meta(SEXP);
+
 
 static const R_CallMethodDef call_methods[] = {
     {"C_zuxml_info", (DL_FUNC)&C_zuxml_info, 0},
     {"C_zux_event_log", (DL_FUNC)&C_zux_event_log, 4},
     {"C_zux_tree_info", (DL_FUNC)&C_zux_tree_info, 2},
+    {"C_zux_parse", (DL_FUNC)&C_zux_parse, 2},
+    {"C_zux_root", (DL_FUNC)&C_zux_root, 1},
+    {"C_zux_node_info", (DL_FUNC)&C_zux_node_info, 3},
+    {"C_zux_parent", (DL_FUNC)&C_zux_parent, 2},
+    {"C_zux_select", (DL_FUNC)&C_zux_select, 5},
+    {"C_zux_text", (DL_FUNC)&C_zux_text, 3},
+    {"C_zux_attrs", (DL_FUNC)&C_zux_attrs, 2},
+    {"C_zux_attr", (DL_FUNC)&C_zux_attr, 4},
+    {"C_zux_doc_meta", (DL_FUNC)&C_zux_doc_meta, 1},
     {NULL, NULL, 0}};
 
 attribute_visible void

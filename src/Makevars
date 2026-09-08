@@ -19,6 +19,7 @@ PKG_CPPFLAGS = -I. -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
 OBJECTS = \
 	init.o \
 	r_api.o \
+	r_document.o \
 	zux_parser.o \
 	zux_tree.o \
 	zux_expat_random.o \

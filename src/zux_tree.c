@@ -438,13 +438,17 @@ t_decl(void *ctx, zux_str version, zux_str encoding, int standalone) {
 
 /* ---- parse ------------------------------------------------------------- */
 
-zux_status
-zux_tree_parse(zux_document **out, const void *data, size_t n,
-               const zux_options *opt, zux_error *err) {
+struct zux_tree_builder {
   zux_document *d;
   zux_build b;
+  zux_parser *p;
+};
+
+zux_status
+zux_tree_begin(zux_tree_builder **out, const zux_options *opt) {
+  zux_tree_builder *tb;
+  zux_document *d;
   zux_handlers h;
-  zux_parser *p = NULL;
   zux_options defaults;
   zux_status st;
   int ok = 1;
@@ -457,23 +461,30 @@ zux_tree_parse(zux_document **out, const void *data, size_t n,
     opt = &defaults;
   }
 
-  d = (zux_document *)calloc(1, sizeof(*d));
-  if (d == NULL)
+  tb = (zux_tree_builder *)calloc(1, sizeof(*tb));
+  if (tb == NULL)
     return ZUX_ERR_MEMORY;
+
+  d = (zux_document *)calloc(1, sizeof(*d));
+  if (d == NULL) {
+    free(tb);
+    return ZUX_ERR_MEMORY;
+  }
   d->max_memory = opt->max_memory;
   d->status = ZUX_OK;
   d->standalone = -1;
 
-  b.d = d;
-  b.cur = ZUX_NONE;
+  tb->d = d;
+  tb->b.d = d;
+  tb->b.cur = ZUX_NONE;
   /* Node 0 is always the document node, and always exists. */
-  (void)node_add(d, &b, ZUX_DOCUMENT, &ok);
+  (void)node_add(d, &tb->b, ZUX_DOCUMENT, &ok);
   if (! ok) {
     st = d->status;
-    zux_document_free(d);
+    zux_tree_abort(tb);
     return st;
   }
-  b.cur = 0;
+  tb->b.cur = 0;
 
   memset(&h, 0, sizeof(h));
   h.start_element = t_start;
@@ -483,25 +494,76 @@ zux_tree_parse(zux_document **out, const void *data, size_t n,
   h.pi = t_pi;
   h.xml_decl = t_decl;
 
-  st = zux_parser_new(&p, opt, &h, &b);
+  st = zux_parser_new(&tb->p, opt, &h, &tb->b);
   if (st != ZUX_OK) {
-    zux_document_free(d);
+    zux_tree_abort(tb);
     return st;
   }
-
-  st = zux_parser_feed(p, data, n);
-  if (st == ZUX_OK)
-    st = zux_parser_finish(p);
-  if (err != NULL)
-    zux_parser_error(p, err);
-  zux_parser_free(p);
-
-  if (st != ZUX_OK && st != ZUX_DONE) {
-    zux_document_free(d);
-    return st;
-  }
-  *out = d;
+  *out = tb;
   return ZUX_OK;
+}
+
+zux_status
+zux_tree_feed(zux_tree_builder *b, const void *data, size_t n) {
+  if (b == NULL)
+    return ZUX_ERR_INVALID_ARGUMENT;
+  return zux_parser_feed(b->p, data, n);
+}
+
+zux_status
+zux_tree_end(zux_tree_builder *b, zux_document **out, zux_error *err) {
+  zux_status st;
+  if (b == NULL || out == NULL)
+    return ZUX_ERR_INVALID_ARGUMENT;
+  *out = NULL;
+  st = zux_parser_finish(b->p);
+  if (err != NULL)
+    zux_parser_error(b->p, err);
+  zux_parser_free(b->p);
+  b->p = NULL;
+  if (st != ZUX_OK && st != ZUX_DONE) {
+    zux_tree_abort(b);
+    return st;
+  }
+  *out = b->d;
+  b->d = NULL;
+  free(b);
+  return ZUX_OK;
+}
+
+void
+zux_tree_error(const zux_tree_builder *b, zux_error *out) {
+  if (b == NULL || out == NULL)
+    return;
+  if (b->p != NULL)
+    zux_parser_error(b->p, out);
+}
+
+void
+zux_tree_abort(zux_tree_builder *b) {
+  if (b == NULL)
+    return;
+  if (b->p != NULL)
+    zux_parser_free(b->p);
+  zux_document_free(b->d);
+  free(b);
+}
+
+zux_status
+zux_tree_parse(zux_document **out, const void *data, size_t n,
+               const zux_options *opt, zux_error *err) {
+  zux_tree_builder *b = NULL;
+  zux_status st = zux_tree_begin(&b, opt);
+  if (st != ZUX_OK)
+    return st;
+  st = zux_tree_feed(b, data, n);
+  if (st != ZUX_OK) {
+    if (err != NULL)
+      zux_parser_error(b->p, err);
+    zux_tree_abort(b);
+    return st;
+  }
+  return zux_tree_end(b, out, err);
 }
 
 void

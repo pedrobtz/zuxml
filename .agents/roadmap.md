@@ -143,7 +143,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
-## Stage 4 — R document and node API · M
+## Stage 4 — R document and node API · M — **complete, with one criterion unverifiable**
 
 **Do**
 - `R/parse.R`, `R/node.R`, `R/nodeset.R`, `R/conditions.R`; `src/r_api.c`.
@@ -160,6 +160,19 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - `Ctrl-C` during a 100 MiB parse interrupts cleanly with no leak (ASan-clean).
 - A `windows-1252` fixture parses correctly through the `iconv` path.
 - Every condition class in §12 is reachable from R and carries its metadata.
+
+**What actually happened**
+
+- 594 assertions pass; sanitizers stay clean; `R CMD check --as-cran` holds at the same 3 NOTEs. The Atom example from design §7 runs verbatim.
+- The node-handle design paid off exactly as argued: an integer vector with the document as an attribute means R's GC keeps the document reachable with no protection list, verified by a test that drops every reference to the document and calls `gc()` twice before using the nodes.
+- **Two real bugs, both found by tests rather than review.** `xml_find()` returned descendants in *reverse* document order — the initial stack seeding pushed children forward while every later push reversed them. And a failure part-way through a chunked feed lost its line/column/byte offset, because the builder was torn down before the parser's position was read; fixed by adding `zux_tree_error()`.
+- Chunked feeding forced a useful refactor: `zux_tree_begin/feed/end/abort` now exists as a real incremental API, which is what Stage 6 and `zuhttp` streaming need anyway.
+- `iconv()` *raises* on an unknown encoding rather than returning `NULL`, so the classed `zuxml_encoding_error` needed a `tryCatch` around it.
+
+**Unverifiable here: the interrupt criterion.** Chunked feeding with `R_CheckUserInterrupt()` between 64 KiB chunks is implemented, and `R_UnwindProtect` cleanup releases the in-flight builder. The call site is demonstrably reached — documents well over 64 KiB parse correctly through the loop. But **whether R honours the interrupt could not be tested in this environment**: a control experiment with no zuxml involved showed that plain batch `Rscript` ignores `SIGINT` entirely (a pure R `repeat {}` loop survived it and needed `SIGKILL`), and `setTimeLimit()` did not fire either. So this criterion is met by construction and code review, **not** by test. Validate it in an interactive session, or from a CI job able to deliver signals to a foreground R, before claiming it at Stage 7.
+
+---
+
 
 ---
 
@@ -203,6 +216,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Full security test suite as permanent regressions (§20), including namespace-separator injection.
 - `-Wall -Wextra -Wpedantic` as CI failures for project-owned code only; clang-tidy pass.
 - Small-stack tests for every iterative claim: free, descendant search, text concat, serialization.
+- **Validate the Stage 4 interrupt criterion**, which could not be tested there: batch `Rscript` ignores `SIGINT`. Needs an interactive R session or a CI job that can signal a foreground R.
 
 **Exit**
 - 24h+ of fuzzing per target with no crash, leak, or UB in project-owned code.
