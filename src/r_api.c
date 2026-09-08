@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "zux.h"
+#include "zux_r.h"
 
 typedef struct {
   char **v;

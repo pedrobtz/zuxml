@@ -1,0 +1,59 @@
+#!/bin/sh
+# Fuzz zuxml with libFuzzer under ASan+UBSan.
+#
+#   tools/run-fuzz [seconds-per-target] [target ...]
+#
+# Default 60s per target for a quick gate; CI runs a long scheduled job.
+# Findings are written to fuzz/artifacts/ and the corpus in fuzz/corpus is
+# grown in place, so re-runs start from what previous runs discovered.
+set -eu
+# Apple's Command Line Tools clang ships no libFuzzer runtime, so prefer a
+# full LLVM when one is present. Override with CC=... if needed.
+if [ -z "${CC:-}" ]; then
+  for c in /opt/homebrew/opt/llvm/bin/clang /usr/local/opt/llvm/bin/clang \
+           clang-19 clang-18 clang-17 clang; do
+    command -v "$c" >/dev/null 2>&1 || continue
+    if echo 'int LLVMFuzzerTestOneInput(const unsigned char*d,unsigned long s){(void)d;(void)s;return 0;}' \
+       | "$c" -x c -fsanitize=fuzzer -o /dev/null - >/dev/null 2>&1; then
+      CC=$c; break
+    fi
+  done
+fi
+if [ -z "${CC:-}" ]; then
+  echo "no libFuzzer-capable compiler found (try: brew install llvm)" >&2
+  exit 2
+fi
+echo "==> using $CC"
+SECS=${1:-60}
+[ $# -gt 0 ] && shift || true
+TARGETS=${*:-"fuzz_tree fuzz_feed fuzz_roundtrip"}
+
+mkdir -p fuzz/artifacts fuzz/corpus
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT
+
+SRC="src/zux_parser.c src/zux_tree.c src/zux_write.c src/zux_expat_random.c \
+     src/vendor/expat/xmlparse.c src/vendor/expat/xmltok.c \
+     src/vendor/expat/xmlrole.c"
+
+rc=0
+for t in $TARGETS; do
+  echo "==> building $t"
+  # shellcheck disable=SC2086
+  "$CC" -std=c99 -g -O1 -fsanitize=fuzzer,address,undefined \
+    -fno-omit-frame-pointer \
+    -I src -I inst/include -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
+    -o "$OUT/$t" "fuzz/$t.c" $SRC
+
+  echo "==> fuzzing $t for ${SECS}s"
+  if ! UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+       "$OUT/$t" fuzz/corpus \
+         -max_total_time="$SECS" -max_len=65536 -rss_limit_mb=2048 \
+         -artifact_prefix=fuzz/artifacts/ -print_final_stats=1 2>&1 |
+       tail -12; then
+    echo "FAIL: $t found something -- see fuzz/artifacts/" >&2
+    rc=1
+  fi
+done
+[ "$rc" -eq 0 ] && echo "==> fuzzing clean"
+exit "$rc"

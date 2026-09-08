@@ -6,3 +6,4 @@
 ^tools$
 ^src/.*\.o$
 ^src/.*\.(so|dll|dylib|a)$
+^fuzz$

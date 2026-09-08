@@ -230,7 +230,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
-## Stage 7 — Hardening · L
+## Stage 7 — Hardening · L — **complete, except the interrupt criterion**
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -246,6 +246,21 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Every §20 security fixture passes; none can pass vacuously (verify each fails when its guard is deliberately removed).
 - Zero warnings from project-owned sources.
 - No test performs network I/O — assert this, do not assume it.
+
+**What actually happened**
+
+- **Fuzzing: 5.4M executions across three targets, all clean.** `fuzz_tree` (1.3M), `fuzz_feed` (1.6M, with the first byte choosing the chunk size so boundaries are explored adversarially rather than by enumeration) and `fuzz_roundtrip` (2.5M). The round-trip target `abort()`s if zuxml produces output it cannot itself re-parse, or if a second serialize is not a fixed point — that property survived 2.5M hostile inputs.
+- Apple's Command Line Tools clang ships **no libFuzzer runtime**; `tools/run-fuzz` probes for a capable compiler (Homebrew LLVM locally, `clang` on CI) and says so rather than failing obscurely.
+- **The strict-warning gate was initially broken and passing vacuously.** `-fsyntax-only` exits 0 on warnings, so `|| fail=1` caught nothing; it needed `-Werror`. Verified by deliberately introducing a warning and confirming the gate now fails. The parser core (`zux_parser.c`, `zux_tree.c`, `zux_write.c`) is clean even under `-Wconversion -Wshadow -Wcast-qual -Wwrite-strings`.
+- Wiring the prototypes header surfaced a **name collision**: `init.c` had a static helper called `zux_str`, which is also the public *string type*. Invisible until the public header was included there. Renamed.
+- **`tools/run-mutation-check` proves the security tests are not vacuous.** It deletes each guard from a throwaway copy and requires the hostile input to stop being rejected. All six — DOCTYPE, internal subset, `max_depth`, `max_nodes`, `max_attrs`, `max_text` — flip from their specific error to `ok` when removed. A guard whose removal changes nothing was never doing anything.
+- Small-stack coverage now spans every operation the design claims is iterative: build, walk, **descendant search**, **text concatenation**, serialize and free, all at 100k depth under a 1 MB stack.
+- New `hardening.yaml` workflow runs lint, sanitizers with **LeakSanitizer** (the Linux-only gap called out at Stage 2), mutation, downstream and fuzz on every push, plus a nightly 30-minutes-per-target fuzz run.
+
+**Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. Validate by pressing Ctrl-C during a large `xml_parse()` in a real terminal.
+
+---
+
 
 ---
 

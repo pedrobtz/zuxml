@@ -73,6 +73,23 @@ static int deep_mode(void){
   { zux_id id=zux_root(d); size_t walked=0;
     while(id!=ZUX_NONE){ walked++; id=zux_first_child(d,id); }
     printf("deep: walked %zu levels iteratively\n", walked); }
+  /* Descendant search and text concatenation are the other two operations
+   * the design claims are iterative; exercise both at full depth. */
+  { size_t seen=0; zux_id *stk=malloc(sizeof(zux_id)*(n+8)); size_t sp=0;
+    if(stk){ stk[sp++]=0;
+      while(sp>0){ zux_id id=stk[--sp], c; seen++;
+        for(c=zux_first_child(d,id);c!=ZUX_NONE;c=zux_next_sibling(d,c)) stk[sp++]=c; }
+      printf("deep: descendant search visited %zu nodes iteratively\n", seen);
+      free(stk); } }
+  { size_t total=0; zux_id id=0;
+    /* concatenate all descendant text without recursion */
+    zux_id *stk=malloc(sizeof(zux_id)*(n+8)); size_t sp=0;
+    if(stk){ stk[sp++]=id;
+      while(sp>0){ zux_id q=stk[--sp], c;
+        if(zux_node_kind(d,q)==ZUX_TEXT) total+=zux_node_text(d,q).len;
+        for(c=zux_first_child(d,q);c!=ZUX_NONE;c=zux_next_sibling(d,c)) stk[sp++]=c; }
+      printf("deep: text concat measured %zu bytes iteratively\n", total);
+      free(stk); } }
   { char*out=NULL; size_t len=0;
     if(zux_serialize(d,0,&out,&len)==ZUX_OK && out!=NULL){
       printf("deep: serialized %zu bytes iteratively\n", len); free(out);

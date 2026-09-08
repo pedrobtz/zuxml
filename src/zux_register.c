@@ -11,6 +11,7 @@
 #include <R_ext/Rdynload.h>
 
 #include "zux.h"
+#include "zux_r.h"
 
 static const zuxml_api zuxml_api_table = {
     (uint32_t)sizeof(zuxml_api),
@@ -52,5 +53,7 @@ zuxml_api_v1(void) {
 
 void
 zuxml_register_api(DllInfo *dll) {
+  /* R_RegisterCCallable is keyed on the package name, not the DllInfo. */
+  (void)dll;
   R_RegisterCCallable("zuxml", "zuxml_api_v1", (DL_FUNC)zuxml_api_v1);
 }

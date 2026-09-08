@@ -1,1 +1,4 @@
 .Rproj.user
+fuzz/artifacts/
+fuzz/corpus/*
+!fuzz/corpus/seed*.xml

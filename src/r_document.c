@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "zux.h"
+#include "zux_r.h"
 
 static SEXP zux_doc_tag = NULL;
 

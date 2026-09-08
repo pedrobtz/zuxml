@@ -6,6 +6,7 @@
 
 #include "expat_config.h"
 #include "vendor/expat/expat.h"
+#include "zux_r.h"
 
 /* Name of the entropy backend src/expat_config.h selected. Reported by
  * zuxml_info() so that a weak source can never be shipped unnoticed. */
@@ -43,7 +44,7 @@ zux_parser_roundtrip(void) {
 }
 
 static SEXP
-zux_str(const char *s) {
+mk_scalar_utf8(const char *s) {
   return Rf_ScalarString(Rf_mkCharCE(s, CE_UTF8));
 }
 
@@ -55,7 +56,7 @@ C_zuxml_info(void) {
                          ""};
   SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
 
-  SET_VECTOR_ELT(out, 0, zux_str(XML_ExpatVersion()));
+  SET_VECTOR_ELT(out, 0, mk_scalar_utf8(XML_ExpatVersion()));
   SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(XML_NS ? TRUE : FALSE));
 #if defined(XML_DTD)
   SET_VECTOR_ELT(out, 2, Rf_ScalarLogical(TRUE));
@@ -65,8 +66,8 @@ C_zuxml_info(void) {
   SET_VECTOR_ELT(out, 3, Rf_ScalarLogical(XML_GE == 1 ? TRUE : FALSE));
   SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(XML_CONTEXT_BYTES));
   SET_VECTOR_ELT(out, 5, Rf_ScalarInteger((int)sizeof(XML_Char)));
-  SET_VECTOR_ELT(out, 6, zux_str(BYTEORDER == 1234 ? "little" : "big"));
-  SET_VECTOR_ELT(out, 7, zux_str(zux_entropy_source()));
+  SET_VECTOR_ELT(out, 6, mk_scalar_utf8(BYTEORDER == 1234 ? "little" : "big"));
+  SET_VECTOR_ELT(out, 7, mk_scalar_utf8(zux_entropy_source()));
   SET_VECTOR_ELT(out, 8, Rf_ScalarLogical(zux_parser_roundtrip() ? TRUE : FALSE));
 
   UNPROTECT(1);
@@ -76,18 +77,6 @@ C_zuxml_info(void) {
 /* Entry points are added here as they are implemented; see
  * .agents/roadmap.md. Symbol search is off and symbols are forced from the
  * first commit rather than being retrofitted later. */
-extern SEXP C_zux_event_log(SEXP, SEXP, SEXP, SEXP);
-extern SEXP C_zux_tree_info(SEXP, SEXP);
-extern SEXP C_zux_parse(SEXP, SEXP);
-extern SEXP C_zux_root(SEXP);
-extern SEXP C_zux_node_info(SEXP, SEXP, SEXP);
-extern SEXP C_zux_parent(SEXP, SEXP);
-extern SEXP C_zux_select(SEXP, SEXP, SEXP, SEXP, SEXP);
-extern SEXP C_zux_text(SEXP, SEXP, SEXP);
-extern SEXP C_zux_attrs(SEXP, SEXP);
-extern SEXP C_zux_attr(SEXP, SEXP, SEXP, SEXP);
-extern SEXP C_zux_doc_meta(SEXP);
-extern SEXP C_zux_serialize(SEXP, SEXP);
 
 
 static const R_CallMethodDef call_methods[] = {
