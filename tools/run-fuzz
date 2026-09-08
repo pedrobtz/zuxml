@@ -4,8 +4,15 @@
 #   tools/run-fuzz [seconds-per-target] [target ...]
 #
 # Default 60s per target for a quick gate; CI runs a long scheduled job.
-# Findings are written to fuzz/artifacts/ and the corpus in fuzz/corpus is
-# grown in place, so re-runs start from what previous runs discovered.
+# Findings are written to fuzz/artifacts/.
+#
+# Two corpus directories, and the split matters. libFuzzer grows its FIRST
+# corpus directory in place, so that one lives outside the package root:
+# 13k+ generated entries under it make `R CMD build` walk every one of them
+# on every run -- over half an hour, versus under a second without them --
+# and .Rbuildignore does not help, because the walk happens before it
+# applies. fuzz/corpus holds only the 20 tracked seeds and is passed as a
+# read-only second directory. Override the writable one with ZUX_FUZZ_CORPUS.
 set -eu
 # Apple's Command Line Tools clang ships no libFuzzer runtime, so prefer a
 # full LLVM when one is present. Override with CC=... if needed.
@@ -28,7 +35,9 @@ SECS=${1:-60}
 [ $# -gt 0 ] && shift || true
 TARGETS=${*:-"fuzz_tree fuzz_feed fuzz_roundtrip"}
 
-mkdir -p fuzz/artifacts fuzz/corpus
+CORPUS=${ZUX_FUZZ_CORPUS:-${XDG_CACHE_HOME:-$HOME/.cache}/zuxml/fuzz-corpus}
+mkdir -p fuzz/artifacts "$CORPUS"
+echo "==> growing corpus in $CORPUS (seeds: fuzz/corpus)"
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
 
@@ -47,7 +56,7 @@ for t in $TARGETS; do
 
   echo "==> fuzzing $t for ${SECS}s"
   if ! UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
-       "$OUT/$t" fuzz/corpus \
+       "$OUT/$t" "$CORPUS" fuzz/corpus \
          -max_total_time="$SECS" -max_len=65536 -rss_limit_mb=2048 \
          -artifact_prefix=fuzz/artifacts/ -print_final_stats=1 2>&1 |
        tail -12; then

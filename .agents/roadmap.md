@@ -269,26 +269,31 @@ The core of the package. Everything downstream is a consumer of what this stage 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
 - ~~Getting-started article~~ **done**: `vignettes/articles/zuxml.Rmd`, pkgdown-only (excluded from the tarball via `.Rbuildignore`, so it never reaches CRAN or slows `R CMD check`). Writing it found a use-after-free that the fuzzers could not — they never read `zux_error.message`.
-- Vignettes: *Getting started with zuxml*, *Parsing untrusted XML* (the security model, and what `zuxml` deliberately refuses), *Streaming large documents*.
-- README rewrite — currently "The goal of zuxml is to ...". State plainly that this is XML, **not HTML** (§17), before anyone files the issue.
+- Remaining vignettes: *Parsing untrusted XML* (the security model, and what `zuxml` deliberately refuses), *Streaming large documents*. Getting started is covered by the pkgdown article above and does not need a second, shipped copy.
+- ~~README rewrite~~ **done**: states plainly that this is XML, **not HTML** (§17), with the `<br>` failure shown rather than described.
 - Benchmarks against the §21 fixtures and targets, versus `xml2` for context.
-- `cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance.
-- Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1): either a minimal, documented patch under `tools/patches/` with `tools/verify-vendor` taught to apply it, or a written justification in `cran-comments.md` that the call is debug-only and environment-gated.
+- ~~`cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance~~ **done**. `cran-comments.md` is `.Rbuildignore`d; it still needs the win-builder/R-hub results pasted in before submitting.
+- ~~Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1)~~ **done**, via the justification route: `cran-comments.md` quotes the `getDebugLevel("EXPAT_ENTROPY_DEBUG", 0) >= 1u` guard and argues that a local patch would cost more than it buys, because `tools/verify-vendor` compares the vendored tree byte-for-byte against upstream and a patch would weaken that. Offer to patch if CRAN asks.
 - `R CMD check --as-cran` on win-builder (release + devel) and R-hub.
 
 **Exit**
-- Zero NOTEs beyond the unavoidable "installed size" from vendored sources.
+- Zero NOTEs beyond "New submission" and the `___stderrp` one from vendored Expat. (The anticipated "installed size" NOTE does not in fact appear.)
 - Every example runs under `--run-donttest`.
 - Benchmarks meet the §21 targets, or the gap is documented with a reason.
 - The `_R_CHECK_*` compiled-code checks pass, including `--use-valgrind` on one Linux run.
 
 ---
 
-## Stage 9 — v1.0.0 · S
+## Stage 9 — first CRAN release · S
 
+- **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
+  bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
+  promising API stability before `zuhttp` has actually used it would be
+  premature, and CRAN version numbers only go up.
 - Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`.
 - Tag, submit, respond to CRAN.
-- Only then start `zuhttp`'s `resp_xml()`.
+- Then start `zuhttp`'s `resp_xml()`. v1.0.0 follows once the public R and C
+  APIs have survived a real downstream consumer.
 
 ---
 
