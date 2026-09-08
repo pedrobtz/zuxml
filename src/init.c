@@ -77,10 +77,12 @@ C_zuxml_info(void) {
  * .agents/roadmap.md. Symbol search is off and symbols are forced from the
  * first commit rather than being retrofitted later. */
 extern SEXP C_zux_event_log(SEXP, SEXP, SEXP, SEXP);
+extern SEXP C_zux_tree_info(SEXP, SEXP);
 
 static const R_CallMethodDef call_methods[] = {
     {"C_zuxml_info", (DL_FUNC)&C_zuxml_info, 0},
     {"C_zux_event_log", (DL_FUNC)&C_zux_event_log, 4},
+    {"C_zux_tree_info", (DL_FUNC)&C_zux_tree_info, 2},
     {NULL, NULL, 0}};
 
 attribute_visible void

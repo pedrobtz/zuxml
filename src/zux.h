@@ -107,6 +107,53 @@ void zux_parser_error(const zux_parser *p, zux_error *out);
 
 const char *zux_status_string(zux_status s);
 
+/* ---- document tree -------------------------------------------------------
+ * One document owns everything. Three growable arrays plus a string buffer,
+ * all addressed by index or offset and never by pointer, so realloc is always
+ * safe and pointer stability never has to be reasoned about.
+ *
+ * Strings returned by these accessors are owned by the document, are
+ * NUL-terminated, and stay valid for its lifetime -- the opposite of the
+ * borrowed, non-terminated strings handlers receive.
+ * ------------------------------------------------------------------------ */
+
+typedef uint32_t zux_id;
+#define ZUX_NONE 0xFFFFFFFFu
+
+typedef enum {
+  ZUX_DOCUMENT = 0,
+  ZUX_ELEMENT,
+  ZUX_TEXT,
+  ZUX_COMMENT,
+  ZUX_PI
+} zux_node_type;
+
+typedef struct zux_document zux_document;
+
+zux_status zux_tree_parse(zux_document **out, const void *data, size_t n,
+                          const zux_options *opt, zux_error *err);
+void zux_document_free(zux_document *doc);
+
+zux_id zux_root(const zux_document *d);
+uint32_t zux_node_count(const zux_document *d);
+uint32_t zux_name_count(const zux_document *d);
+uint32_t zux_attr_total(const zux_document *d);
+size_t zux_document_bytes(const zux_document *d);
+
+int zux_node_kind(const zux_document *d, zux_id id);
+zux_id zux_parent(const zux_document *d, zux_id id);
+zux_id zux_first_child(const zux_document *d, zux_id id);
+zux_id zux_next_sibling(const zux_document *d, zux_id id);
+zux_name zux_node_name(const zux_document *d, zux_id id);
+zux_str zux_node_text(const zux_document *d, zux_id id);
+uint32_t zux_attr_count(const zux_document *d, zux_id id);
+zux_attr zux_attr_at(const zux_document *d, zux_id id, uint32_t i);
+
+zux_str zux_doc_version(const zux_document *d);
+zux_str zux_doc_encoding(const zux_document *d);
+int zux_doc_standalone(const zux_document *d);
+
+
 #ifdef __cplusplus
 }
 #endif

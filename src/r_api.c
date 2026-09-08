@@ -282,3 +282,163 @@ C_zux_event_log(SEXP x, SEXP chunk_, SEXP opts, SEXP cancel_) {
   UNPROTECT(3);
   return out;
 }
+
+/* ---- Stage 3 harness: build a tree and describe it -----------------------
+ * Dumps the tree in document order with explicit depth, so ordering and mixed
+ * content are verifiable, alongside the counters the memory budget is stated
+ * in. Traversal is iterative for the same reason construction is. */
+
+static char *
+tree_line(const zux_document *d, zux_id id, int depth) {
+  zux_name nm = zux_node_name(d, id);
+  zux_str tx = zux_node_text(d, id);
+  int kind = zux_node_kind(d, id);
+  const char *k = kind == ZUX_DOCUMENT  ? "document"
+                  : kind == ZUX_ELEMENT ? "element"
+                  : kind == ZUX_TEXT    ? "text"
+                  : kind == ZUX_COMMENT ? "comment"
+                                        : "pi";
+  if (kind == ZUX_ELEMENT)
+    return ev_fmt("%*s%s|{%.*s}%.*s^%.*s|n=%u", depth * 2, "", k,
+                  (int)nm.uri.len, nm.uri.ptr, (int)nm.local.len, nm.local.ptr,
+                  (int)nm.prefix.len, nm.prefix.ptr, zux_attr_count(d, id));
+  if (kind == ZUX_PI)
+    return ev_fmt("%*s%s|%.*s|%.*s", depth * 2, "", k, (int)nm.local.len,
+                  nm.local.ptr, (int)tx.len, tx.ptr);
+  if (kind == ZUX_DOCUMENT)
+    return ev_fmt("%*s%s", depth * 2, "", k);
+  return ev_fmt("%*s%s|%.*s", depth * 2, "", k, (int)tx.len, tx.ptr);
+}
+
+SEXP
+C_zux_tree_info(SEXP x, SEXP opts) {
+  zux_options opt;
+  zux_document *d = NULL;
+  zux_error err;
+  zux_status st;
+  evlog e;
+  SEXP out, dump, nms;
+  size_t i;
+  zux_id stack_small[64];
+  zux_id *stack = stack_small;
+  size_t sp = 0, stack_cap = 64;
+  int depth_small[64];
+  int *depths = depth_small;
+
+  if (TYPEOF(x) != RAWSXP)
+    Rf_error("zuxml: expected a raw vector");
+
+  memset(&e, 0, sizeof(e));
+  memset(&err, 0, sizeof(err));
+
+  zux_options_init(&opt);
+  opt.max_depth = (uint32_t)opt_size(opts, "max_depth", opt.max_depth);
+  opt.max_nodes = (uint32_t)opt_size(opts, "max_nodes", opt.max_nodes);
+  opt.max_attrs = (uint32_t)opt_size(opts, "max_attrs", opt.max_attrs);
+  opt.max_text = opt_size(opts, "max_text", opt.max_text);
+  opt.max_memory = opt_size(opts, "max_memory", opt.max_memory);
+  opt.allow_doctype = opt_flag(opts, "allow_doctype", opt.allow_doctype);
+  opt.keep_comments = opt_flag(opts, "comments", opt.keep_comments);
+  opt.keep_pis = opt_flag(opts, "pis", opt.keep_pis);
+
+  st = zux_tree_parse(&d, RAW(x), (size_t)Rf_xlength(x), &opt, &err);
+
+  if (d != NULL) {
+    /* Explicit worklist, never recursion: a 100k-deep document must not be
+     * able to exhaust the C stack during traversal any more than during
+     * construction. */
+    stack = (zux_id *)malloc(stack_cap * sizeof(zux_id));
+    depths = (int *)malloc(stack_cap * sizeof(int));
+    if (stack == NULL || depths == NULL) {
+      e.oom = 1;
+    } else {
+      stack[sp] = 0;
+      depths[sp] = 0;
+      sp++;
+      while (sp > 0) {
+        zux_id id;
+        int dep;
+        zux_id c;
+        sp--;
+        id = stack[sp];
+        dep = depths[sp];
+        if (! ev_push(&e, tree_line(d, id, dep)))
+          break;
+        /* Push children in reverse so they pop in document order. */
+        {
+          zux_id kids[64];
+          size_t nk = 0, j;
+          zux_id *big = NULL;
+          size_t cap = 64;
+          zux_id *arr = kids;
+          for (c = zux_first_child(d, id); c != ZUX_NONE;
+               c = zux_next_sibling(d, c)) {
+            if (nk == cap) {
+              cap *= 2;
+              big = (zux_id *)realloc(big == NULL ? NULL : big,
+                                      cap * sizeof(zux_id));
+              if (big == NULL) { e.oom = 1; break; }
+              if (arr == kids) memcpy(big, kids, nk * sizeof(zux_id));
+              arr = big;
+            }
+            arr[nk++] = c;
+          }
+          while (sp + nk > stack_cap) {
+            zux_id *s2;
+            int *d2;
+            stack_cap *= 2;
+            s2 = (zux_id *)realloc(stack, stack_cap * sizeof(zux_id));
+            d2 = (int *)realloc(depths, stack_cap * sizeof(int));
+            if (s2 == NULL || d2 == NULL) { e.oom = 1; break; }
+            stack = s2;
+            depths = d2;
+          }
+          if (e.oom) { free(big); break; }
+          for (j = nk; j > 0; j--) {
+            stack[sp] = arr[j - 1];
+            depths[sp] = dep + 1;
+            sp++;
+          }
+          free(big);
+        }
+      }
+    }
+  }
+
+  out = PROTECT(Rf_allocVector(VECSXP, 8));
+  dump = PROTECT(Rf_allocVector(STRSXP, (R_xlen_t)e.n));
+  for (i = 0; i < e.n; i++)
+    SET_STRING_ELT(dump, (R_xlen_t)i, Rf_mkCharCE(e.v[i], CE_UTF8));
+  SET_VECTOR_ELT(out, 0, Rf_mkString(zux_status_string(
+                             st != ZUX_OK ? st : err.status)));
+  SET_VECTOR_ELT(out, 1, dump);
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)zux_node_count(d)));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)zux_name_count(d)));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)zux_attr_total(d)));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal((double)zux_document_bytes(d)));
+  SET_VECTOR_ELT(out, 6, d ? Rf_mkString(
+                                 zux_doc_encoding(d).len
+                                     ? zux_doc_encoding(d).ptr : "")
+                           : Rf_mkString(""));
+  SET_VECTOR_ELT(out, 7, Rf_ScalarInteger(d ? zux_doc_standalone(d) : -1));
+  nms = PROTECT(Rf_allocVector(STRSXP, 8));
+  SET_STRING_ELT(nms, 0, Rf_mkChar("status"));
+  SET_STRING_ELT(nms, 1, Rf_mkChar("dump"));
+  SET_STRING_ELT(nms, 2, Rf_mkChar("n_nodes"));
+  SET_STRING_ELT(nms, 3, Rf_mkChar("n_names"));
+  SET_STRING_ELT(nms, 4, Rf_mkChar("n_attrs"));
+  SET_STRING_ELT(nms, 5, Rf_mkChar("bytes"));
+  SET_STRING_ELT(nms, 6, Rf_mkChar("encoding"));
+  SET_STRING_ELT(nms, 7, Rf_mkChar("standalone"));
+  Rf_setAttrib(out, R_NamesSymbol, nms);
+
+  for (i = 0; i < e.n; i++)
+    free(e.v[i]);
+  free(e.v);
+  if (stack != stack_small) free(stack);
+  if (depths != depth_small) free(depths);
+  zux_document_free(d);
+
+  UNPROTECT(3);
+  return out;
+}

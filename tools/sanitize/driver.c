@@ -27,7 +27,49 @@ static zux_status run(const char*doc,size_t chunk,long cancel,zux_options*o){
   return st;
 }
 
-int main(void){
+static void tree_run(const char*doc,zux_options*o){
+  zux_document*d=NULL; zux_error e; zux_id st[256]; size_t sp=0;
+  if(zux_tree_parse(&d,doc,strlen(doc),o,&e)!=ZUX_OK||d==NULL) return;
+  /* iterative walk, touching every accessor */
+  st[sp++]=0;
+  while(sp>0){
+    zux_id id=st[--sp], c; uint32_t i,na;
+    (void)zux_node_kind(d,id); (void)zux_parent(d,id);
+    (void)zux_node_name(d,id); (void)zux_node_text(d,id);
+    na=zux_attr_count(d,id);
+    for(i=0;i<na;i++) (void)zux_attr_at(d,id,i);
+    for(c=zux_first_child(d,id);c!=ZUX_NONE;c=zux_next_sibling(d,c))
+      if(sp<256) st[sp++]=c;
+  }
+  (void)zux_root(d); (void)zux_doc_version(d); (void)zux_doc_encoding(d);
+  zux_document_free(d);
+}
+
+/* Build, walk and free a very deep document. Run under a small stack by
+ * tools/run-sanitizers to prove construction, traversal and teardown are all
+ * iterative -- a recursive implementation would crash here. */
+static int deep_mode(void){
+  size_t n=100000,i; zux_options o; zux_document*d=NULL; zux_error e;
+  char*doc=malloc(n*7+16); char*p=doc;
+  for(i=0;i<n;i++){memcpy(p,"<a>",3);p+=3;}
+  for(i=0;i<n;i++){memcpy(p,"</a>",4);p+=4;}
+  *p=0;
+  zux_options_init(&o); o.max_depth=(uint32_t)n+10; o.max_memory=(size_t)512*1024*1024;
+  if(zux_tree_parse(&d,doc,strlen(doc),&o,&e)!=ZUX_OK||d==NULL){
+    printf("deep: parse failed (%s)\n", zux_status_string(e.status)); free(doc); return 1;}
+  printf("deep: built %u nodes, %u names\n", zux_node_count(d), zux_name_count(d));
+  { zux_id id=zux_root(d); size_t walked=0;
+    while(id!=ZUX_NONE){ walked++; id=zux_first_child(d,id); }
+    printf("deep: walked %zu levels iteratively\n", walked); }
+  zux_document_free(d);
+  free(doc);
+  printf("deep: freed without recursion\n");
+  return 0;
+}
+
+int main(int argc,char**argv){
+  if(argc>1 && strcmp(argv[1],"deep")==0) return deep_mode();
+  {
   static const char*docs[]={
     "<a/>","<p>Hi <em>X</em> there</p>","<a><![CDATA[x<y]]>t</a>",
     "<f:a xmlns:f=\"urn:a\" xmlns=\"urn:d\"><b id=\"1\">t</b></f:a>",
@@ -58,6 +100,15 @@ int main(void){
     zux_options_init(&o); o.max_depth=5;  run(deep,3,0,&o); total++;
     zux_options_init(&o); o.max_nodes=7;  run(deep,3,0,&o); total++;
     zux_options_init(&o); o.max_attrs=1;  run("<a x=\"1\" y=\"2\" z=\"3\"/>",1,0,&o); total++; }
+  /* same fixtures again, this time building trees */
+  for(i=0;i<nd;i++){
+    zux_options_init(&o); tree_run(docs[i],&o); total++;
+    zux_options_init(&o); o.allow_doctype=1; tree_run(docs[i],&o); total++;
+    zux_options_init(&o); o.keep_comments=0; o.keep_pis=0; tree_run(docs[i],&o); total++;
+    zux_options_init(&o); o.max_memory=128; tree_run(docs[i],&o); total++;
+    zux_options_init(&o); o.max_nodes=2; tree_run(docs[i],&o); total++;
+  }
   printf("driver completed %ld parses\n", total);
   return 0;
+  }
 }

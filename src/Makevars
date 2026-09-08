@@ -20,6 +20,7 @@ OBJECTS = \
 	init.o \
 	r_api.o \
 	zux_parser.o \
+	zux_tree.o \
 	zux_expat_random.o \
 	vendor/expat/xmlparse.o \
 	vendor/expat/xmltok.o \

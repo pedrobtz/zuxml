@@ -114,7 +114,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
-## Stage 3 — Tree builder · M
+## Stage 3 — Tree builder · M — **complete**
 
 **Do**
 - `src/zux_tree.c` — the three growable arrays, name interning with an open-addressed hash, and `zux_tree_parse` (§5). Iterative construction and iterative free; no recursion anywhere.
@@ -128,6 +128,18 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Mixed content preserves order exactly.
 - Name interning verified: a fixture with 50k elements over 12 distinct names allocates ~12 qname entries.
 - Memory within the §21 budget (~40 bytes/node + text + 12 bytes/attribute).
+
+**What actually happened**
+
+- Went in clean, no design changes needed — the index-addressed layout from §5 worked as specified on the first attempt.
+- The tree is built as an ordinary consumer of `zux_handlers`, with no privileged access to Expat, so the seam really is the boundary the design claims and an HTML producer could reuse everything above it.
+- Interning verified: 100,002 nodes over 11 element names plus one attribute name and a root collapse to **13 distinct qnames**. 50k elements parse in ~0.04 s.
+- Measured **~63 bytes/node** on a mixed element+text+attribute document, consistent with the ~40 bytes/node plus text and attributes budget.
+- `tools/run-sanitizers` now also builds, walks and frees trees (1344 parses, ASan+UBSan clean) and separately builds a **100k-deep document under a 1 MB stack** without sanitizers, proving construction, traversal and teardown are all genuinely iterative. A recursive implementation crashes that test.
+- Test suite is 507 assertions; `R CMD check` holds at the same 3 NOTEs.
+
+---
+
 
 ---
 
