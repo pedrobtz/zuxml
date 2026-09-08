@@ -657,13 +657,14 @@ Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA,
 | `BYTEORDER` | 1234/4321, set portably | see below |
 | Allocator | libc default | Expat frees individually; routing through the arena does not fit, and routing through R risks `longjmp`. `XML_Memory_Handling_Suite` reserved for future accounting. |
 
-### The three portability traps
+### The four portability traps
 
 These are the specific things that break Expat vendoring, named so CI does not have to discover them:
 
 1. **`BYTEORDER`.** Expat's `expat_config.h` requires it. Do not copy a generated header from one machine. Derive it in a project-owned header from `__BYTE_ORDER__`/`_WIN32`/`__BIG_ENDIAN__`, with a compile-time `#error` on the unknown case rather than a silent wrong default.
 2. **Entropy source.** Expat wants `getrandom`/`arc4random_buf`/`RtlGenRandom`, and availability differs per platform and glibc version. Getting this wrong is the most common vendoring build failure. Probe in a project-owned header and fall back to `XML_POOR_ENTROPY` with a documented consequence (weaker hash-salt only — mitigated by `XML_SetHashSalt` in §11).
-3. **`src/Makevars`.** No GNU-make-only syntax unless `SystemRequirements: GNU make` is declared — and it is cleaner not to need it. Do not attempt `-Wno-*` suppression for vendored sources; CRAN rejects compiler-flag overrides. Vendor only the parser sources (`xmlparse.c`, `xmltok*.c`, `xmlrole.c`) plus headers. Never vendor `xmlwf`, examples, tests, benchmarks, or the CMake/autotools build.
+3. **MinGW printf formats.** Expat's `internal.h` selects MSVC-style `"%I64x"` / `"%I64u"` whenever `_WIN32` is defined and `__USE_MINGW_ANSI_STDIO` is not. Rtools' GCC rejects those under `-Wformat`, which R CMD check escalates to a WARNING and CI to a hard failure. Define `-D__USE_MINGW_ANSI_STDIO=1` in `Makevars` — Expat supports the macro explicitly, so this is configuration, not a patch — and set it there rather than in a header so it precedes any system `stdio.h` in every translation unit.
+4. **`src/Makevars`.** No GNU-make-only syntax unless `SystemRequirements: GNU make` is declared — and it is cleaner not to need it. Do not attempt `-Wno-*` suppression for vendored sources; CRAN rejects compiler-flag overrides. Vendor only the parser sources (`xmlparse.c`, `xmltok*.c`, `xmlrole.c`) plus headers. Never vendor `xmlwf`, examples, tests, benchmarks, or the CMake/autotools build.
 
 `R CMD INSTALL` compiles plain `.c` files through R's own toolchain. No CMake, no autotools, at any point.
 
