@@ -110,7 +110,9 @@ test_that("deep nesting builds and frees without recursion", {
   # standalone small-stack check in tools/run-sanitizers proves it for the C
   # layer under a 1 MB stack.
   deep <- paste0(strrep("<a>", 100000), strrep("</a>", 100000))
-  r <- ti(deep, max_depth = 200000L, max_memory = 512 * 1024^2)
+  # dump = FALSE: this test is about node counts, and rendering a 100k-deep
+  # tree as indented text is a harness cost, not a library one.
+  r <- ti(deep, max_depth = 200000L, max_memory = 512 * 1024^2, dump = FALSE)
   expect_identical(r$status, "ok")
   expect_identical(r$n_nodes, 100001)
   expect_identical(r$n_names, 1)
@@ -118,7 +120,7 @@ test_that("deep nesting builds and frees without recursion", {
 
 test_that("a wide document is handled as easily as a deep one", {
   wide <- paste0("<r>", strrep("<a/>", 50000), "</r>")
-  r <- ti(wide)
+  r <- ti(wide, dump = FALSE)
   expect_identical(r$status, "ok")
   expect_identical(r$n_nodes, 50002)
 })

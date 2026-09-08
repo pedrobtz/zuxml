@@ -288,26 +288,33 @@ C_zux_event_log(SEXP x, SEXP chunk_, SEXP opts, SEXP cancel_) {
  * content are verifiable, alongside the counters the memory budget is stated
  * in. Traversal is iterative for the same reason construction is. */
 
+/* Indentation is capped: "%*s" at depth*2 makes dumping a deeply nested
+ * document O(depth^2) in memory, which on a 100k-deep fixture is about 10 GB.
+ * That cost is entirely in this test harness, but it was enough to get a CI
+ * runner OOM-killed, so the cap stays. */
+#define ZUX_DUMP_MAX_INDENT 40
+
 static char *
 tree_line(const zux_document *d, zux_id id, int depth) {
   zux_name nm = zux_node_name(d, id);
   zux_str tx = zux_node_text(d, id);
   int kind = zux_node_kind(d, id);
+  int ind = (depth > ZUX_DUMP_MAX_INDENT ? ZUX_DUMP_MAX_INDENT : depth) * 2;
   const char *k = kind == ZUX_DOCUMENT  ? "document"
                   : kind == ZUX_ELEMENT ? "element"
                   : kind == ZUX_TEXT    ? "text"
                   : kind == ZUX_COMMENT ? "comment"
                                         : "pi";
   if (kind == ZUX_ELEMENT)
-    return ev_fmt("%*s%s|{%.*s}%.*s^%.*s|n=%u", depth * 2, "", k,
+    return ev_fmt("%*s%s|{%.*s}%.*s^%.*s|n=%u", ind, "", k,
                   (int)nm.uri.len, nm.uri.ptr, (int)nm.local.len, nm.local.ptr,
                   (int)nm.prefix.len, nm.prefix.ptr, zux_attr_count(d, id));
   if (kind == ZUX_PI)
-    return ev_fmt("%*s%s|%.*s|%.*s", depth * 2, "", k, (int)nm.local.len,
+    return ev_fmt("%*s%s|%.*s|%.*s", ind, "", k, (int)nm.local.len,
                   nm.local.ptr, (int)tx.len, tx.ptr);
   if (kind == ZUX_DOCUMENT)
-    return ev_fmt("%*s%s", depth * 2, "", k);
-  return ev_fmt("%*s%s|%.*s", depth * 2, "", k, (int)tx.len, tx.ptr);
+    return ev_fmt("%*s%s", ind, "", k);
+  return ev_fmt("%*s%s|%.*s", ind, "", k, (int)tx.len, tx.ptr);
 }
 
 SEXP
@@ -343,7 +350,7 @@ C_zux_tree_info(SEXP x, SEXP opts) {
 
   st = zux_tree_parse(&d, RAW(x), (size_t)Rf_xlength(x), &opt, &err);
 
-  if (d != NULL) {
+  if (d != NULL && opt_flag(opts, "dump", 1)) {
     /* Explicit worklist, never recursion: a 100k-deep document must not be
      * able to exhaust the C stack during traversal any more than during
      * construction. */
