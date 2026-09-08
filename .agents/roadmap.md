@@ -34,7 +34,7 @@ Two further fixes, found only by actually running the check rather than by plann
 
 ---
 
-## Stage 1 — Vendor Expat and prove it builds · L — **complete (pending Windows CI)**
+## Stage 1 — Vendor Expat and prove it builds · L — **complete**
 
 The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
@@ -219,7 +219,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 | Risk | Stage | Mitigation |
 |---|---|---|
-| Expat vendoring fails on Windows | 1 | Front-loaded to Stage 1. macOS builds warning-free; **Windows and Linux still unproven** until CI reports |
+| Expat vendoring fails on Windows | 1 | ~~Resolved.~~ Four traps hit, all fixed in configuration; green on all five CI jobs |
 | Namespace triplet splitting is subtly wrong | 2 | Split-from-right rule specified; injection test written alongside the splitter |
 | Undefined-entity errors on real feeds (`&nbsp;`) | post-v1 | Known and documented (§22 Q4). Decide the phase-2 answer from actual user reports, not speculation |
 | C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it |
