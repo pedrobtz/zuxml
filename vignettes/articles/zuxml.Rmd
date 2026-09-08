@@ -30,9 +30,12 @@ doc
 
 ## Navigating
 
-Four functions cover traversal. `xml_children()` returns *every* child node,
+Five functions cover traversal. `xml_root()` gets the document element and
+`xml_parent()` goes back up. `xml_children()` returns *every* child node,
 including text and comments; `xml_elements()` returns only element children;
-`xml_find()` searches descendants. All three take an optional name filter.
+`xml_find()` searches descendants. The last two take an optional name filter —
+`xml_children()` does not, because it is the "everything directly under here"
+call.
 
 ```{r}
 root <- xml_root(doc)
@@ -40,6 +43,7 @@ books <- xml_elements(root, "book")
 books
 
 xml_find(doc, "title")      # descendants, in document order
+xml_name(xml_parent(books)) # and back up again
 ```
 
 Note that `xml_children()` and `xml_elements()` differ — the whitespace
@@ -145,7 +149,25 @@ twice <- xml_serialize(xml_parse(once))
 identical(once, twice)
 ```
 
-`xml_write()` sends the same output to a file.
+`xml_write()` sends the same output to a file, and `xml_read()` reads one
+back:
+
+```{r}
+f <- tempfile(fileext = ".xml")
+xml_write(doc, f)
+identical(xml_serialize(xml_read(f)), xml_serialize(doc))
+```
+
+## Document metadata
+
+The XML declaration is kept, so its three fields are readable off the
+document:
+
+```{r}
+decl <- xml_parse('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a/>')
+c(version = xml_version(decl), encoding = xml_encoding(decl))
+xml_standalone(decl)
+```
 
 ## Errors are typed
 

@@ -28,9 +28,17 @@ R_LIBS="$LIB" Rscript -e '
   stopifnot(identical(base$status, "ok"), base$elements == 2, base$attrs == 1)
   for (k in c(1, 2, 3, 7, 31, 4096))
     stopifnot(identical(consume_xml(doc, chunk = k), base))
-  stopifnot(identical(consume_xml("<a><b></a>")$status, "invalid XML"))
-  stopifnot(identical(consume_xml("<!DOCTYPE a><a/>")$status,
-                      "document type declaration is not allowed"))
+  # The message has to survive the trip across the table, not just the
+  # status: when zux_error.message was a pointer into the freed parser, every
+  # status here was still correct and every message was empty.
+  bad <- consume_xml("<a><b></a>")
+  stopifnot(identical(bad$status, "invalid XML"),
+            nzchar(bad$message),
+            grepl("[A-Za-z]{4,}", bad$message),
+            !grepl("XML_ERROR", bad$message))
+  dt <- consume_xml("<!DOCTYPE a><a/>")
+  stopifnot(identical(dt$status, "document type declaration is not allowed"),
+            nzchar(dt$message))
   cat("==> downstream C API works, chunk-independently\n")
 '
 

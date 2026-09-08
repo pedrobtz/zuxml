@@ -32,7 +32,9 @@ struct zux_parser {
   zux_status status;
   int expat_code;
   uint64_t line, column, byte_offset;
-  char message[256];
+  /* Sized by the public constant, not by a literal: this buffer and
+   * zux_error.message are copied between, so they must not drift. */
+  char message[ZUX_MESSAGE_MAX];
 
   uint32_t depth;
   uint32_t nodes;
