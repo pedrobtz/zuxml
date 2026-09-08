@@ -205,7 +205,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
-## Stage 6 — Streaming C API and downstream contract · M
+## Stage 6 — Streaming C API and downstream contract · M — **complete**
 
 **Do**
 - Finalize `inst/include/zuxml.h` (§14) and the `zuxml_api` table with `struct_size` as the sole discriminator (§15); register via `R_RegisterCCallable`.
@@ -217,6 +217,16 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - `grep -riE 'XML_Parser|XML_Char|XML_ERROR' inst/include/` returns nothing.
 - Feeding arbitrary chunk sizes through the C API matches the whole-buffer tree.
 - `struct_size` degradation works: a consumer compiled against a shorter table still runs.
+
+**What actually happened**
+
+- The fixture package earned its place immediately. It failed at run time with `function 'zuxml_api_v1' not provided by package 'zuxml'` despite `Imports: zuxml` in `DESCRIPTION` and the symbols being present and registered in the shared object. **`Imports:` guarantees only that the package is installed; `R_GetCCallable()` resolves nothing until the namespace is actually loaded**, which needs an `importFrom()`/`import()` directive in the consumer's `NAMESPACE`. The design's claim that `Imports` ensures the package is "installed/loaded" was wrong on the second half and is now corrected. Finding this here rather than in `zuhttp` is exactly why this stage exists.
+- `inst/include/zuxml.h` is now the single source of truth: `src/zux.h` includes it rather than redeclaring the types, so the public and internal views cannot drift.
+- The consumer exercises streaming events, the tree and the serializer through the table, is chunk-independent, and links **zero** Expat symbols (`nm -u` count is 0).
+- `tools/run-downstream-check` makes the whole thing re-runnable, including the header-purity grep and the Expat-symbol check.
+
+---
+
 
 ---
 

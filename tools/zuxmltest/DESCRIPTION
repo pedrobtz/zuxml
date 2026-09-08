@@ -1,0 +1,11 @@
+Package: zuxmltest
+Title: Downstream Consumer Fixture for zuxml
+Version: 0.0.1
+Authors@R: person("Pedro", "Baltazar", , "pedrobtz@gmail.com", role = c("aut", "cre"))
+Description: Not for release. Consumes the zuxml C API exactly as zuhttp will,
+    through Imports plus LinkingTo and the registered function table, so that
+    an unusable public header is discovered here rather than downstream.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: zuxml
+LinkingTo: zuxml

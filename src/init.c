@@ -106,9 +106,12 @@ static const R_CallMethodDef call_methods[] = {
     {"C_zux_serialize", (DL_FUNC)&C_zux_serialize, 2},
     {NULL, NULL, 0}};
 
+extern void zuxml_register_api(DllInfo *dll);
+
 attribute_visible void
 R_init_zuxml(DllInfo *dll) {
   R_registerRoutines(dll, NULL, call_methods, NULL, NULL);
+  zuxml_register_api(dll);
   R_useDynamicSymbols(dll, FALSE);
   R_forceSymbols(dll, TRUE);
 }

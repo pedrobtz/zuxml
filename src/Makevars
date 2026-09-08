@@ -11,7 +11,7 @@
 # R CMD check into a WARNING. Expat supports this macro explicitly; setting
 # it here rather than in a header guarantees it is seen before any system
 # stdio.h in every translation unit. Inert on non-Windows platforms.
-PKG_CPPFLAGS = -I. -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
+PKG_CPPFLAGS = -I. -I../inst/include -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
 
 # xmltok_impl.c, xmltok_ns.c and xcsinc.c are #included by their parents and
 # must never be compiled as separate units. One random_*.c is selected by
@@ -23,6 +23,7 @@ OBJECTS = \
 	zux_parser.o \
 	zux_tree.o \
 	zux_write.o \
+	zux_register.o \
 	zux_expat_random.o \
 	vendor/expat/xmlparse.o \
 	vendor/expat/xmltok.o \
