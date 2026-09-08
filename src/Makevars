@@ -1,0 +1,30 @@
+# Portable make only: no GNU-make conditionals, and no -W* overrides, both of
+# which CRAN rejects. See .agents/zuxml-design.md section 18.
+#
+# -I. resolves the vendored sources' unconditional #include "expat_config.h"
+# to the project-owned src/expat_config.h, since the vendor directory
+# deliberately contains no configuration header of its own.
+
+# __USE_MINGW_ANSI_STDIO=1 is required on Windows/Rtools. Expat's internal.h
+# otherwise selects MSVC-style "%I64x" printf formats, which Rtools' GCC
+# rejects with -Wformat ("unknown conversion type character 'I'"), turning
+# R CMD check into a WARNING. Expat supports this macro explicitly; setting
+# it here rather than in a header guarantees it is seen before any system
+# stdio.h in every translation unit. Inert on non-Windows platforms.
+PKG_CPPFLAGS = -I. -I../inst/include -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
+
+# xmltok_impl.c, xmltok_ns.c and xcsinc.c are #included by their parents and
+# must never be compiled as separate units. One random_*.c is selected by
+# zux_expat_random.c rather than listed here.
+OBJECTS = \
+	init.o \
+	r_api.o \
+	r_document.o \
+	zux_parser.o \
+	zux_tree.o \
+	zux_write.o \
+	zux_register.o \
+	zux_expat_random.o \
+	vendor/expat/xmlparse.o \
+	vendor/expat/xmltok.o \
+	vendor/expat/xmlrole.o

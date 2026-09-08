@@ -1,0 +1,87 @@
+#!/bin/sh
+# Prove the security tests are not vacuous.
+#
+# For each guard, delete it from a throwaway copy of the source and confirm
+# that the corresponding hostile input STOPS being rejected. A guard whose
+# removal changes nothing was never doing anything, and a test that passes
+# either way is testing nothing.
+set -eu
+CC=${CC:-clang}
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+SRC="zux_parser.c zux_tree.c zux_write.c zux_expat_random.c"
+VEND="vendor/expat/xmlparse.c vendor/expat/xmltok.c vendor/expat/xmlrole.c"
+
+build() { # $1 = source dir, $2 = output
+  # shellcheck disable=SC2086
+  "$CC" -std=c99 -O1 -I "$1" -I inst/include -I "$1/vendor/expat" \
+    -D__USE_MINGW_ANSI_STDIO=1 -o "$2" tools/mutation/probe.c \
+    $(for f in $SRC $VEND; do printf '%s/%s ' "$1" "$f"; done)
+}
+
+cp -R src "$WORK/pristine"
+build "$WORK/pristine" "$WORK/probe-pristine"
+
+fail=0
+check() { # name, sed-expr, file, probe-args, doc, expected-when-guarded
+  name=$1; expr=$2; file=$3; args=$4; doc=$5; want=$6
+  rm -rf "$WORK/m"; cp -R src "$WORK/m"
+  sed -i.bak "$expr" "$WORK/m/$file"
+
+  before=$(printf '%s' "$doc" | "$WORK/probe-pristine" $args)
+  if [ "$before" != "$want" ]; then
+    echo "FAIL[$name]: guarded build gave '$before', expected '$want'" >&2
+    fail=1; return
+  fi
+  if ! build "$WORK/m" "$WORK/probe-m" 2>/dev/null; then
+    echo "FAIL[$name]: mutated source did not compile" >&2
+    fail=1; return
+  fi
+  after=$(printf '%s' "$doc" | "$WORK/probe-m" $args)
+  if [ "$after" = "$before" ]; then
+    echo "FAIL[$name]: removing the guard changed nothing (still '$after')" >&2
+    echo "             the test for this guard is vacuous" >&2
+    fail=1; return
+  fi
+  printf '  %-22s guarded=%-42s unguarded=%s\n' "$name" "$before" "$after"
+}
+
+echo "==> removing each guard must change behaviour"
+
+check doctype \
+  's/zux_fail(p, ZUX_ERR_DOCTYPE, NULL);\n    return;/return;/; s/^  if (! p->opt.allow_doctype) {$/  if (0) {/' \
+  zux_parser.c "" '<!DOCTYPE a><a>hi</a>' \
+  'document type declaration is not allowed'
+
+check internal_subset \
+  's/^  if (has_internal_subset)$/  if (0)/' \
+  zux_parser.c "--allow-doctype" '<!DOCTYPE a [<!ENTITY e "x">]><a>hi</a>' \
+  'document type declaration is not allowed'
+
+check max_depth \
+  's/^  if ((uint32_t)(p->depth + 1u) > p->opt.max_depth) {$/  if (0) {/' \
+  zux_parser.c "--max-depth=3" '<a><b><c><d><e/></d></c></b></a>' \
+  'maximum nesting depth exceeded'
+
+check max_nodes \
+  's/^  if (p->nodes >= p->opt.max_nodes) {$/  if (0) {/' \
+  zux_parser.c "--max-nodes=2" '<r><a/><b/><c/></r>' \
+  'maximum node count exceeded'
+
+check max_attrs \
+  's/^  if (n > (size_t)p->opt.max_attrs) {$/  if (0) {/' \
+  zux_parser.c "--max-attrs=1" '<a x="1" y="2" z="3"/>' \
+  'maximum attribute count exceeded'
+
+check max_text \
+  's|^  if ((size_t)len > p->opt.max_text - p->text_len) {$|  if (0) {|' \
+  zux_parser.c "--max-text=4" '<a>hello world this is long</a>' \
+  'maximum text size exceeded'
+
+if [ "$fail" -eq 0 ]; then
+  echo "==> every guard demonstrably does something"
+else
+  echo "==> mutation check FAILED" >&2
+fi
+exit "$fail"

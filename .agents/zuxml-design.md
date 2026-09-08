@@ -360,9 +360,9 @@ Expat is compiled **without `XML_DTD`**. This is the central decision. It remove
 - Billion-laughs is structurally impossible; `XML_SetBillionLaughsAttackProtection*` is not needed. (If `XML_DTD` is ever enabled, those APIs become mandatory, not optional.)
 - The five built-in entities (`&amp; &lt; &gt; &quot; &apos;`) and all numeric character references work normally.
 - **Any other entity reference is a hard error.** `&nbsp;` in an undeclared document fails. This is spec-correct — such documents are not well-formed XML — but it will surprise people parsing feeds. It is a known, documented v1 limitation with a phase-2 answer (§22, Q4).
-- `DOCTYPE` is rejected by default via `XML_SetStartDoctypeDeclHandler` → `zuxml_doctype_error`. `doctype = TRUE` accepts and *ignores* the declaration; it never defines entities.
+- `DOCTYPE` is rejected by default via `XML_SetStartDoctypeDeclHandler` → `zuxml_doctype_error`. `doctype = TRUE` accepts a bare or `PUBLIC`/`SYSTEM` declaration — what real feeds carry — but **an internal subset is always rejected, even then**. Reason, found by testing rather than by reasoning: with `XML_GE 0` Expat does not record entity declarations, and a reference to one in a DTD-bearing document is passed through as *literal text* (`&e;` as four characters) rather than erroring, which is silent corruption. The internal subset is the only place a document can declare entities, so refusing it closes the hole; entity bombs are refused by the same rule.
 
-Additionally: call `XML_SetHashSalt()` with per-parser entropy to blunt hash-flooding.
+Hash-flooding: **do not call `XML_SetHashSalt()`.** Expat already derives its own per-parser salt from the OS entropy backend selected in `src/expat_config.h`, which is the strongest source available to us; overriding it could only substitute something weaker. `XML_POOR_ENTROPY` is never an acceptable fallback, and an unknown platform is a compile error instead. (Earlier drafts of this document called for `XML_SetHashSalt()`; that was redundant at best and harmful at worst.)
 
 ### Limits
 
@@ -592,7 +592,13 @@ typedef struct {
 
 `struct_size` is the sole version discriminator — the previous draft carried three overlapping schemes (`ZUXML_API_VERSION`, `abi_version`, `struct_size`). A consumer compares `struct_size` against the offset of the member it wants and degrades gracefully. Fields are only ever appended, never reordered or removed.
 
-Downstream declares `Imports: zuxml` (guarantees the package is installed and loaded, so the symbols are registered) and `LinkingTo: zuxml` (exposes `inst/include/zuxml.h`). No downstream package ever links against Expat.
+Downstream declares `Imports: zuxml` **and** `LinkingTo: zuxml` — and, critically, must also carry an actual import directive in its `NAMESPACE`:
+
+```r
+importFrom(zuxml, zuxml_info)   # or import(zuxml)
+```
+
+`Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v1' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h`. No downstream package ever links against Expat.
 
 ---
 
@@ -639,7 +645,9 @@ The cost of this plan is one extra package. The cost of the alternative — bolt
 
 ### Version
 
-Pin **Expat 2.7.x, minimum 2.7.1**. Rationale for the floor: 2.7.0 fixed CVE-2024-8176 (stack overflow via deeply nested entities). Verify the current release at vendoring time and record it. Never track `master`.
+Pinned at **Expat 2.8.4** (2026-08-31), which is also the floor. It is a security release fixing four vulnerabilities: CVE-2026-66046 / CVE-2026-76641 (quadratic runtime in attribute `isCdata` lookups — remote DoS from moderately sized input, CVSS 7.5), CVE-2026-76957 (custom encoding callbacks unprotected against parser re-entry), and CVE-2026-76956 (inverted `getentropy()` return handling allowing hash flooding). The last of these directly informs the entropy choice below. Re-verify the current release at every re-vendoring. Never track `master`.
+
+**Expat is not treated as a trusted component.** Upstream publicly tracks unfixed non-public vulnerabilities at libexpat issue #1160 — seven open at import time, three with reserved CVEs. That is normal for a heavily fuzzed XML parser and is not a reason to prefer a different one; it is the reason the security model does not rest on the parser being correct. `XML_GE 0` with no `XML_DTD` deletes whole vulnerability classes from the binary, and the project-owned limits at the event seam bound what a parser bug can cost. Re-vendor promptly on each upstream release.
 
 Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
 
@@ -650,18 +658,19 @@ Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA,
 | `XML_Char` | `char` (UTF-8) | natural bridge to `mkCharLenCE(CE_UTF8)` |
 | `XML_DTD` | **not defined** | §11 — removes the entire XXE/amplification class |
 | `XML_NS` | defined | §8 |
-| `XML_GE` | not defined | follows from no DTD |
+| `XML_GE` | **`0`** | must be *defined* as 0, not left undefined — Expat tests `XML_GE == 1`. Removes general-entity support outright; `xmlparse.c` enforces that `XML_DTD` must then stay undefined. |
 | `XML_CONTEXT_BYTES` | 1024 | enough for error context, bounded |
 | `BYTEORDER` | 1234/4321, set portably | see below |
 | Allocator | libc default | Expat frees individually; routing through the arena does not fit, and routing through R risks `longjmp`. `XML_Memory_Handling_Suite` reserved for future accounting. |
 
-### The three portability traps
+### The four portability traps
 
 These are the specific things that break Expat vendoring, named so CI does not have to discover them:
 
 1. **`BYTEORDER`.** Expat's `expat_config.h` requires it. Do not copy a generated header from one machine. Derive it in a project-owned header from `__BYTE_ORDER__`/`_WIN32`/`__BIG_ENDIAN__`, with a compile-time `#error` on the unknown case rather than a silent wrong default.
 2. **Entropy source.** Expat wants `getrandom`/`arc4random_buf`/`RtlGenRandom`, and availability differs per platform and glibc version. Getting this wrong is the most common vendoring build failure. Probe in a project-owned header and fall back to `XML_POOR_ENTROPY` with a documented consequence (weaker hash-salt only — mitigated by `XML_SetHashSalt` in §11).
-3. **`src/Makevars`.** No GNU-make-only syntax unless `SystemRequirements: GNU make` is declared — and it is cleaner not to need it. Do not attempt `-Wno-*` suppression for vendored sources; CRAN rejects compiler-flag overrides. Vendor only the parser sources (`xmlparse.c`, `xmltok*.c`, `xmlrole.c`) plus headers. Never vendor `xmlwf`, examples, tests, benchmarks, or the CMake/autotools build.
+3. **MinGW printf formats.** Expat's `internal.h` selects MSVC-style `"%I64x"` / `"%I64u"` whenever `_WIN32` is defined and `__USE_MINGW_ANSI_STDIO` is not. Rtools' GCC rejects those under `-Wformat`, which R CMD check escalates to a WARNING and CI to a hard failure. Define `-D__USE_MINGW_ANSI_STDIO=1` in `Makevars` — Expat supports the macro explicitly, so this is configuration, not a patch — and set it there rather than in a header so it precedes any system `stdio.h` in every translation unit.
+4. **`src/Makevars`.** No GNU-make-only syntax unless `SystemRequirements: GNU make` is declared — and it is cleaner not to need it. Do not attempt `-Wno-*` suppression for vendored sources; CRAN rejects compiler-flag overrides. Vendor only the parser sources (`xmlparse.c`, `xmltok*.c`, `xmlrole.c`) plus headers. Never vendor `xmlwf`, examples, tests, benchmarks, or the CMake/autotools build.
 
 `R CMD INSTALL` compiles plain `.c` files through R's own toolchain. No CMake, no autotools, at any point.
 
@@ -742,11 +751,11 @@ The real wins are structural and already decided: parse into a compact C arena w
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Expat release | 2.7.x, floor 2.7.1 (CVE-2024-8176) |
+| 1 | Expat release | Pinned 2.8.4; floor 2.8.4 (fixes 4 CVEs, incl. the entropy one) |
 | 2 | Source subset | `xmlparse.c`, `xmltok*.c`, `xmlrole.c` + headers; nothing else |
 | 3 | DTD: compiled out or runtime-rejected | **Both.** `XML_DTD` undefined; DOCTYPE also rejected at runtime |
 | 4 | Entity configuration | Built-ins + numeric refs only. Undefined entity = error. **Open sub-question:** whether phase 2 adds an opt-in HTML named-entity table via a documented lexical pre-pass (Expat cannot do it without `XML_DTD`) or leaves it to `zuhtml`. Decide on user reports. |
-| 5 | Always error on DOCTYPE | Default yes; `doctype = TRUE` accepts and ignores |
+| 5 | Always error on DOCTYPE | Default yes. `doctype = TRUE` accepts a bare/PUBLIC/SYSTEM declaration but never an internal subset |
 | 6 | Limit defaults | §11 table |
 | 7 | Retain comments/PIs | Yes, and **on by default** — general XML library first |
 | 8 | Discard CDATA boundaries | Yes |

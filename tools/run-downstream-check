@@ -1,0 +1,42 @@
+#!/bin/sh
+# Build and exercise tools/zuxmltest, which consumes zuxml exactly as zuhttp
+# will: Imports + LinkingTo + the registered function table, with no Expat
+# header on its include path and no linking against Expat.
+# Run from the package root.
+set -eu
+LIB=$(mktemp -d)
+trap 'rm -rf "$LIB"' EXIT
+
+echo "==> installing zuxml"
+R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
+
+echo "==> installing the downstream fixture"
+R_LIBS="$LIB" R CMD INSTALL --preclean --no-multiarch --library="$LIB" \
+  tools/zuxmltest >/dev/null
+
+echo "==> the public header must expose no Expat type"
+if grep -rnE '\bXML_(Parser|Char|Error|Bool)\b' inst/include/; then
+  echo "FAIL: an Expat type reached the public header" >&2
+  exit 1
+fi
+
+echo "==> exercising the C API"
+R_LIBS="$LIB" Rscript -e '
+  library(zuxmltest)
+  doc <- "<f:a xmlns:f=\"urn:a\"><e id=\"1\">hi</e></f:a>"
+  base <- consume_xml(doc)
+  stopifnot(identical(base$status, "ok"), base$elements == 2, base$attrs == 1)
+  for (k in c(1, 2, 3, 7, 31, 4096))
+    stopifnot(identical(consume_xml(doc, chunk = k), base))
+  stopifnot(identical(consume_xml("<a><b></a>")$status, "invalid XML"))
+  stopifnot(identical(consume_xml("<!DOCTYPE a><a/>")$status,
+                      "document type declaration is not allowed"))
+  cat("==> downstream C API works, chunk-independently\n")
+'
+
+so=$(find "$LIB/zuxmltest/libs" -name 'zuxmltest.*' | head -1)
+if command -v nm >/dev/null 2>&1 && [ -n "$so" ]; then
+  n=$(nm -u "$so" 2>/dev/null | grep -c 'XML_' || true)
+  [ "$n" = "0" ] || { echo "FAIL: consumer references $n Expat symbols" >&2; exit 1; }
+  echo "==> consumer links no Expat symbols"
+fi

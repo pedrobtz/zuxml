@@ -1,0 +1,82 @@
+# Hardening gates that R CMD check cannot express: sanitizers, leak detection,
+# strict warnings, fuzzing, mutation testing and the downstream C API contract.
+# See .agents/roadmap.md stage 7.
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  schedule:
+    # Long fuzz run, nightly. XML parsers are security-sensitive and the
+    # per-push budget is deliberately small.
+    - cron: "17 3 * * *"
+
+name: hardening.yaml
+
+permissions: read-all
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: strict warnings
+    steps:
+      - uses: actions/checkout@v6
+      - uses: r-lib/actions/setup-r@v2
+      - name: project-owned code must be warning-free
+        run: CC=clang ./tools/run-lint
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    name: ASan + UBSan + LSan
+    steps:
+      - uses: actions/checkout@v6
+      - name: sanitizers, with leak detection
+        # LeakSanitizer is unavailable on macOS, so this Linux job is the only
+        # place leaks are actually caught.
+        run: CC=clang ASAN_OPTIONS=detect_leaks=1 ./tools/run-sanitizers
+
+  mutation:
+    runs-on: ubuntu-latest
+    name: guards are load-bearing
+    steps:
+      - uses: actions/checkout@v6
+      - name: removing each security guard must change behaviour
+        run: CC=clang ./tools/run-mutation-check
+
+  downstream:
+    runs-on: ubuntu-latest
+    name: downstream C API
+    steps:
+      - uses: actions/checkout@v6
+      - uses: r-lib/actions/setup-r@v2
+      - name: consume zuxml exactly as zuhttp will
+        run: ./tools/run-downstream-check
+
+  no-network:
+    runs-on: ubuntu-latest
+    name: tests perform no I/O of their own
+    steps:
+      - uses: actions/checkout@v6
+      - name: no test may reach the network
+        run: |
+          if grep -rnE '\b(url|download\.file|curl|socketConnection|nsl)\s*\(' tests/; then
+            echo "FAIL: a test appears to perform network I/O" >&2
+            exit 1
+          fi
+          echo "no network calls in tests"
+
+  fuzz:
+    runs-on: ubuntu-latest
+    name: fuzz
+    steps:
+      - uses: actions/checkout@v6
+      - name: fuzz all targets
+        # 60s per target on push; 30 minutes per target on the nightly cron.
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then SECS=1800; else SECS=60; fi
+          CC=clang ./tools/run-fuzz "$SECS"
+      - name: upload any findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/

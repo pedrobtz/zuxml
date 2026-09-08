@@ -1,0 +1,184 @@
+---
+title: "Getting started with zuxml"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(zuxml)
+```
+
+`zuxml` parses XML into an immutable tree and gives you a small, vectorized
+API to walk it. This article covers the whole public surface — there are only
+about twenty functions.
+
+## Parsing
+
+`xml_parse()` takes a string or a raw vector; `xml_read()` takes a file path.
+
+```{r}
+doc <- xml_parse("
+<catalog>
+  <book id='b1'><title>The Annotated XML</title><price>29.99</price></book>
+  <book id='b2'><title>Parsing for Fun</title><price>17.50</price></book>
+</catalog>")
+
+doc
+```
+
+## Navigating
+
+Four functions cover traversal. `xml_children()` returns *every* child node,
+including text and comments; `xml_elements()` returns only element children;
+`xml_find()` searches descendants. All three take an optional name filter.
+
+```{r}
+root <- xml_root(doc)
+books <- xml_elements(root, "book")
+books
+
+xml_find(doc, "title")      # descendants, in document order
+```
+
+Note that `xml_children()` and `xml_elements()` differ — the whitespace
+between the tags above is real text content:
+
+```{r}
+xml_type(xml_children(root))
+xml_type(xml_elements(root))
+```
+
+## Reading values
+
+**Every accessor is vectorized.** Given a nodeset of length *n* you get a
+result of length *n*, so there is usually no need to loop.
+
+```{r}
+xml_name(books)
+xml_attr(books, "id")
+xml_text(xml_elements(books, "title"))
+as.numeric(xml_text(xml_elements(books, "price")))
+```
+
+`xml_attrs()` returns the full attribute set per node, as a list of named
+character vectors:
+
+```{r}
+xml_attrs(books)
+```
+
+A node and a nodeset are the same object at different lengths, so the usual
+vector operations work:
+
+```{r}
+length(books)
+books[[1]]
+xml_text(rev(books))
+```
+
+## Text and mixed content
+
+`xml_text()` concatenates all descendant text by default. Set
+`recursive = FALSE` to get only the node's own direct text children — the
+distinction that matters for mixed content.
+
+```{r}
+p <- xml_root(xml_parse("<p>Hello <em>XML</em> world</p>"))
+
+xml_text(p)
+xml_text(p, recursive = FALSE)
+xml_text(p, trim = TRUE)
+```
+
+## Namespaces
+
+Names are matched on `(namespace, local name)`. Prefixes are reported but
+never decide identity, so two prefixes bound to the same URI are the same
+name.
+
+```{r}
+feed <- xml_parse('
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry><title>First</title></entry>
+  <entry><title>Second</title></entry>
+</feed>')
+
+ATOM <- "http://www.w3.org/2005/Atom"
+entries <- xml_elements(xml_root(feed), "entry", ns = ATOM)
+xml_text(xml_elements(entries, "title", ns = ATOM))
+```
+
+The `ns` argument has three modes:
+
+```{r}
+ns_doc <- xml_parse('<r xmlns:a="urn:a"><a:i/><i/></r>')
+r <- xml_root(ns_doc)
+
+length(xml_elements(r, "i"))                # NULL: any namespace
+length(xml_elements(r, "i", ns = "urn:a"))  # that URI
+length(xml_elements(r, "i", ns = NA))       # no namespace at all
+```
+
+Individual parts of a name are available separately:
+
+```{r}
+item <- xml_elements(r, "i", ns = "urn:a")
+c(name = xml_name(item), local = xml_local(item),
+  ns = xml_ns(item), prefix = xml_prefix(item))
+```
+
+## Writing
+
+```{r}
+xml_serialize(books[[1]])
+```
+
+Order, attributes, text and namespace *semantics* are preserved, so a
+round trip is stable. Original formatting is not preserved — quote style,
+whitespace between attributes and CDATA boundaries are not retained.
+
+```{r}
+once  <- xml_serialize(xml_parse("<a><b x='1'/></a>"))
+twice <- xml_serialize(xml_parse(once))
+identical(once, twice)
+```
+
+`xml_write()` sends the same output to a file.
+
+## Errors are typed
+
+Parse failures carry a position and a specific condition class, so you can
+catch exactly the case you care about.
+
+```{r, error = TRUE}
+xml_parse("<a>\n  <b>\n</a>")
+```
+
+```{r}
+e <- tryCatch(xml_parse("<r><a/><b/></r>", max_nodes = 2),
+              zuxml_limit_error = function(e) e)
+class(e)[1:3]
+```
+
+## Secure by default
+
+`zuxml` is built for untrusted input. Document type declarations are rejected,
+general-entity support is not compiled in at all, and every resource limit has
+its own error class.
+
+```{r, error = TRUE}
+xml_parse('<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>')
+```
+
+That means external entities cannot be expanded and no file is ever opened —
+the protection is structural, not a setting you have to remember. It also
+means a reference to an entity the document never declared, such as `&nbsp;`,
+is an error rather than silently dropped content.
+
+`zuxml_info()` reports the policy actually compiled into your build:
+
+```{r}
+zuxml_info()
+```

@@ -1,0 +1,46 @@
+#!/bin/sh
+# Warnings in project-owned code are CI failures -- hence -Werror; without
+# it -fsyntax-only exits 0 on warnings and the gate silently passes. Vendored Expat has its own
+# warning policy and is deliberately excluded -- CRAN rejects -Wno-* overrides,
+# so the separation is by file, not by flag.
+set -eu
+CC=${CC:-clang}
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT
+
+# -isystem, not -I: warnings from R's own headers (C23 enums, anonymous
+# structs) are not ours to fix.
+RINC=$(R RHOME)/include
+RFLAGS="-isystem $RINC"
+
+# Non-R sources: the parser core, held to the strictest standard.
+CORE="src/zux_parser.c src/zux_tree.c src/zux_write.c"
+# R-facing sources: same flags, plus R's headers.
+RSRC="src/init.c src/r_api.c src/r_document.c src/zux_register.c"
+
+fail=0
+for f in $CORE; do
+  echo "==> $f"
+  "$CC" -std=c99 -Werror -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
+    -Wstrict-prototypes -Wmissing-prototypes -Wcast-qual -Wwrite-strings \
+    -I src -I inst/include -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
+    -fsyntax-only "$f" || fail=1
+done
+for f in $RSRC; do
+  echo "==> $f"
+  # shellcheck disable=SC2086
+  # The (DL_FUNC) cast in R_CallMethodDef is required by R's own API and is
+  # necessarily a function-type mismatch; nothing else is exempt. The two
+  # suppression flags are spelled differently across compiler versions, so
+  # -Wno-unknown-warning-option keeps -Werror from rejecting whichever one
+  # this compiler has never heard of. (GCC spells that -Wno-unknown-warning.)
+  "$CC" -std=c99 -Werror -Wall -Wextra -Wpedantic -Wshadow \
+    -Wstrict-prototypes -Wmissing-prototypes \
+    -Wno-unknown-warning-option \
+    -Wno-cast-function-type-mismatch -Wno-cast-function-type \
+    -I src -I inst/include -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
+    $RFLAGS -fsyntax-only "$f" || fail=1
+done
+
+[ "$fail" -eq 0 ] && echo "==> project-owned code is warning-free"
+exit "$fail"

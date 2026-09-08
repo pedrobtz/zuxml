@@ -14,22 +14,27 @@ Sizes are relative: **S** ≈ a sitting, **M** ≈ a few, **L** ≈ the stage is
 
 ---
 
-## Stage 0 — Repo hygiene · S
+## Stage 0 — Repo hygiene · S — **complete**
 
-The package is currently the `usethis` template. Clear it before building on it.
+The package arrived as the `usethis` template; cleared before building on it.
 
-**Do**
-- Fill in `DESCRIPTION`: real `Title`, `Description`, `Authors@R` (currently `First Last <first.last@example.com>`), `URL`, `BugReports`.
-- Add to `.Rbuildignore`: `^\.agents$`, `^tools$`, `^design-zuxml\.md$`, `^_pkgdown\.yml$`.
-- Delete `design-zuxml.md` — superseded by the consolidated design. (Untracked, so copy it aside first if you want the history.)
-- Commit the current state so the vendored-Expat import is a reviewable diff against a clean baseline.
-- Extend `.github/workflows/R-CMD-check.yaml` to the release matrix now: windows/macos/ubuntu × release, plus ubuntu × devel and oldrel-1.
+- `DESCRIPTION` filled in: real `Title`, `Description`, `Authors@R` (Pedro Baltazar, `aut`/`cre`/`cph`), `URL`, `BugReports`, `Depends: R (>= 4.1)`.
+- `LICENSE` and `LICENSE.md` name a real copyright holder instead of "zuxml authors".
+- `.Rbuildignore` extended with `^\.agents$` and `^tools$`.
+- `design-zuxml.md` deleted, superseded by the consolidated design.
+- Initial commit made, so the Stage 1 Expat import lands as a reviewable diff against a clean baseline.
+- CI: the matrix was **already** correct (windows/macos/ubuntu x release, ubuntu x devel and oldrel-1). The real gap was the trigger — it fired only on `main`/`master` while work happens on `develop`, so nothing ran at all. Fixed.
 
-**Exit:** `R CMD check` clean on the empty package, on all three platforms.
+Two further fixes, found only by actually running the check rather than by planning:
+
+- `src/init.c` with `R_registerRoutines()` / `R_useDynamicSymbols(dll, FALSE)` / `R_forceSymbols(dll, TRUE)`, replacing the symbol-less `usethis` stub — otherwise `R CMD check` NOTEs on unregistered native routines. Registration is therefore correct from the first commit instead of being retrofitted at Stage 1. `NAMESPACE` regenerated to `useDynLib(zuxml, .registration = TRUE)`.
+- `tests/testthat/test-init.R` — `tests/testthat.R` with an empty `testthat/` directory is a hard check **ERROR**, and the empty directory is silently dropped at build time.
+
+**Exit:** `R CMD check --as-cran` passes with 2 NOTEs, neither a package defect: the development version string `0.0.0.9000` (clears at release) and a local HTML Tidy version warning (environmental; absent on CI). Verified on macOS; CI covers the other platforms.
 
 ---
 
-## Stage 1 — Vendor Expat and prove it builds · L
+## Stage 1 — Vendor Expat and prove it builds · L — **complete**
 
 The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
@@ -42,26 +47,47 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
   - `src/Makevars` with no GNU-make-only syntax and no `-Wno-*` overrides.
 - `src/init.c` with `R_useDynamicSymbols(dll, FALSE)` and one smoke entry point that creates and frees a parser.
 - `tools/update-expat` and `tools/verify-vendor`; write `src/vendor/expat/PROVENANCE`.
+- **Licensing and attribution.** CRAN policy requires copyright held by anyone other than the package authors to be declared. Expat's `COPYING` names three holders; the notice is, verbatim:
+
+      Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
+      Copyright (c) 2001-2025 Expat maintainers
+
+  Add all three as `cph` in `Authors@R`, each with a `comment` naming the bundled component; write `inst/COPYRIGHTS` recording zuxml's and Expat's notices separately; keep Expat's unmodified `COPYING` in the vendor tree; write `LICENSE.note`. This is deliberately **not** done before Stage 1 — declaring copyright holders for code the package does not yet contain would be false.
 - `zuxml_info()` reporting the Expat version and the compiled-in policy.
 
 **Exit**
 - Installs from source on Windows, macOS, and Linux with no system Expat, no CMake, no autotools.
 - `tools/verify-vendor` reproduces the committed tree from the pinned release.
 - `zuxml_info()` reports `DTD: disabled`, `External entities: unavailable`.
+- `Authors@R` lists the three Expat copyright holders; `inst/COPYRIGHTS`, `LICENSE.note`, and `src/vendor/expat/COPYING` are present.
 - `R CMD check --as-cran` clean.
 
 **Trap:** if Windows fights the entropy probe, fix the probe — do not reach for `XML_POOR_ENTROPY` unconditionally. `XML_SetHashSalt` (Stage 2) mitigates it, but only if the probe is honest about what it chose.
 
+**What actually happened**
+
+- Pinned **2.8.4**, not the 2.7.1 the design assumed — four minor releases had shipped, the newest a security release fixing 4 CVEs. Checking upstream rather than trusting the plan was the whole value of that step.
+- `XML_GE` must be *defined as `0`*, not left undefined: Expat tests `XML_GE == 1`, and enforces with its own `#error` that `XML_DTD` stays undefined when it is 0. Stronger than the design specified — general-entity machinery is gone entirely.
+- The 2.8.x entropy backends live in separate `random_*.c` files that are **not** self-guarded, so they cannot all be compiled. A fixed, portable `OBJECTS` list therefore needs `src/zux_expat_random.c`, a shim that `#include`s exactly one of them.
+- Deliberately **not** probing `__GLIBC__` to prefer `getrandom()` over the raw syscall: that needs `<features.h>` from a header included before the `random_*.c` files set `_DEFAULT_SOURCE` / `_POSIX_C_SOURCE`, which would freeze glibc's feature exposure at the wrong level. Linux uses `HAVE_SYSCALL_GETRANDOM`, which works on every libc.
+- Build configuration is kept **outside** the vendor tree (`src/expat_config.h`, not `src/vendor/expat/expat_config.h` as the design sketched), so `src/vendor/expat/` stays byte-identical to upstream and `tools/verify-vendor` can prove it.
+- `R CMD build` cleans only `src/` top level, so vendored `*.o` from a local install leaked into the tarball. Fixed with `.Rbuildignore` patterns.
+- Compiled with **zero warnings** on the first attempt on macOS; Linux (release, devel, oldrel-1) also passed first time.
+- **Windows failed**, exactly as the stage predicted — and on a fourth trap the design had not named. Expat's `internal.h` picks MSVC-style `"%I64x"` printf formats whenever `_WIN32` is set and `__USE_MINGW_ANSI_STDIO` is not; Rtools' GCC 14 rejects them under `-Wformat`, which R CMD check raises to a WARNING and CI treats as failure. Fixed with `-D__USE_MINGW_ANSI_STDIO=1` in `Makevars`, a macro Expat supports explicitly, so the vendor tree stays byte-identical. Everything else on Windows — install, load, tests — had already passed.
+- Both the Windows warning and the macOS `___stderrp` NOTE originate in the *same* function, Expat's `ENTROPY_DEBUG`. That makes a small `tools/patches/` patch removing it more attractive at Stage 8 than it first appeared: one patch would close two findings.
+
+**Carried to Stage 8:** `R CMD check --as-cran` NOTEs `___stderrp` in `xmlparse.o`. `XML_GE 0` already removed five of Expat's six `stderr` sites; the survivor is `ENTROPY_DEBUG`, debug-only behind `getenv("EXPAT_ENTROPY_DEBUG")`. Decide then between a documented `tools/patches/` patch and an explanation in `cran-comments.md` — not now, since a patch would add maintenance cost to every Expat update before there is even a parser.
+
 ---
 
-## Stage 2 — Event seam and security policy · L
+## Stage 2 — Event seam and security policy · L — **complete**
 
 The core of the package. Everything downstream is a consumer of what this stage defines.
 
 **Do**
 - `src/zux_parser.c` — implement `zux_parser_new/feed/finish/free` and `zux_parser_error` (§14) over Expat.
 - Namespace handling: `XML_ParserCreateNS` with `\f`, `XML_SetReturnNSTriplet(TRUE)`, and the **split-from-the-right** logic (§8). Write the URI-contains-separator test at the same time as the splitter, not after.
-- Security policy at the seam: `XML_SetStartDoctypeDeclHandler` → `ZUX_ERR_DOCTYPE`; `XML_SetHashSalt` with per-parser entropy; all five limits with the §11 defaults, `max_text` enforced **on each coalescing append**.
+- Security policy at the seam: `XML_SetStartDoctypeDeclHandler` → `ZUX_ERR_DOCTYPE`; all five limits with the §11 defaults, `max_text` enforced **on each coalescing append**. Do *not* call `XML_SetHashSalt` — Expat's automatic salt already uses the Stage 1 entropy backend and overriding it can only weaken it.
 - Cancellation: handlers return `zux_status`; non-`ZUX_OK` triggers `XML_StopParser` and unwinds through C. No R API is reachable from a handler.
 - `zux_options_init()` filling in the documented defaults.
 - Text coalescing into a bounded buffer at the seam.
@@ -74,9 +100,21 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Cancellation from every handler returns `ZUX_ERR_CANCELLED` and frees the parser (ASan-clean).
 - `zux_parser_error()` returns correct line/column/byte offset for a malformed fixture.
 
+**What actually happened**
+
+- 469 tests pass; `R CMD check --as-cran` holds at the same 3 NOTEs as Stage 1. `tools/run-sanitizers` drives 1279 parses through ASan+UBSan with zero findings.
+- **A real defect was found and fixed in `allow_doctype = TRUE`.** With `XML_GE 0` Expat does not record entity declarations, and a reference to an undeclared entity in a document that *has* a DTD is passed through as **literal text** — `&e;` arrived as four characters of content instead of an error. No XXE, but silently wrong content, and a later serialize would re-escape it to `&amp;e;`. `XML_SetSkippedEntityHandler` does not fire on that path.
+- The fix keys on `has_internal_subset`, which Expat hands to the DOCTYPE handler and the first implementation ignored: an internal subset is now rejected **even when `allow_doctype` is set**, since it is the only place a document can declare entities. Bare and `PUBLIC`/`SYSTEM` DOCTYPEs — what real feeds actually carry — are still accepted, so the option stays useful. Entity bombs need an internal subset, so they fall to the same rule.
+- `XML_ERROR_BAD_CHAR_REF` was initially mapped to `ZUX_ERR_ENCODING`. It is a well-formedness violation, not an encoding fault; remapped to `ZUX_ERR_INVALID_XML`.
+- The namespace-separator argument holds up empirically: `0x0C` is rejected by Expat both literally and as `&#12;`, so the triplet split is unambiguous. Both cases are now permanent tests.
+- macOS ASan has no LeakSanitizer, so **leak coverage still comes only from Linux** — carried to Stage 7 rather than claimed here.
+
 ---
 
-## Stage 3 — Tree builder · M
+
+---
+
+## Stage 3 — Tree builder · M — **complete**
 
 **Do**
 - `src/zux_tree.c` — the three growable arrays, name interning with an open-addressed hash, and `zux_tree_parse` (§5). Iterative construction and iterative free; no recursion anywhere.
@@ -91,9 +129,21 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Name interning verified: a fixture with 50k elements over 12 distinct names allocates ~12 qname entries.
 - Memory within the §21 budget (~40 bytes/node + text + 12 bytes/attribute).
 
+**What actually happened**
+
+- Went in clean, no design changes needed — the index-addressed layout from §5 worked as specified on the first attempt.
+- The tree is built as an ordinary consumer of `zux_handlers`, with no privileged access to Expat, so the seam really is the boundary the design claims and an HTML producer could reuse everything above it.
+- Interning verified: 100,002 nodes over 11 element names plus one attribute name and a root collapse to **13 distinct qnames**. 50k elements parse in ~0.04 s.
+- Measured **~63 bytes/node** on a mixed element+text+attribute document, consistent with the ~40 bytes/node plus text and attributes budget.
+- `tools/run-sanitizers` now also builds, walks and frees trees (1344 parses, ASan+UBSan clean) and separately builds a **100k-deep document under a 1 MB stack** without sanitizers, proving construction, traversal and teardown are all genuinely iterative. A recursive implementation crashes that test.
+- Test suite is 507 assertions; `R CMD check` holds at the same 3 NOTEs.
+
 ---
 
-## Stage 4 — R document and node API · M
+
+---
+
+## Stage 4 — R document and node API · M — **complete, with one criterion unverifiable**
 
 **Do**
 - `R/parse.R`, `R/node.R`, `R/nodeset.R`, `R/conditions.R`; `src/r_api.c`.
@@ -111,9 +161,23 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - A `windows-1252` fixture parses correctly through the `iconv` path.
 - Every condition class in §12 is reachable from R and carries its metadata.
 
+**What actually happened**
+
+- 594 assertions pass; sanitizers stay clean; `R CMD check --as-cran` holds at the same 3 NOTEs. The Atom example from design §7 runs verbatim.
+- The node-handle design paid off exactly as argued: an integer vector with the document as an attribute means R's GC keeps the document reachable with no protection list, verified by a test that drops every reference to the document and calls `gc()` twice before using the nodes.
+- **Two real bugs, both found by tests rather than review.** `xml_find()` returned descendants in *reverse* document order — the initial stack seeding pushed children forward while every later push reversed them. And a failure part-way through a chunked feed lost its line/column/byte offset, because the builder was torn down before the parser's position was read; fixed by adding `zux_tree_error()`.
+- Chunked feeding forced a useful refactor: `zux_tree_begin/feed/end/abort` now exists as a real incremental API, which is what Stage 6 and `zuhttp` streaming need anyway.
+- `iconv()` *raises* on an unknown encoding rather than returning `NULL`, so the classed `zuxml_encoding_error` needed a `tryCatch` around it.
+- **A third bug, visible only on the smallest CI runner.** The Stage 3 test harness indents its tree dump with `"%*s"` at `depth * 2`, making a dump O(depth²) in memory — about 10 GB for the 100k-deep fixture. macOS and Windows hid it: `malloc` simply failed, the harness broke out of its loop, and the test still passed because it only asserted node counts. Ubuntu's 7 GB runner was OOM-killed instead, surfacing as three `cancelled` jobs and exit code 143, with no test failure anywhere to point at it. Fixed by capping the indent and giving the harness a `dump = FALSE` option; whole-suite peak RSS is now 165 MB. Worth remembering that *cancelled* CI jobs meant OOM, not flakiness.
+
+**Unverifiable here: the interrupt criterion.** Chunked feeding with `R_CheckUserInterrupt()` between 64 KiB chunks is implemented, and `R_UnwindProtect` cleanup releases the in-flight builder. The call site is demonstrably reached — documents well over 64 KiB parse correctly through the loop. But **whether R honours the interrupt could not be tested in this environment**: a control experiment with no zuxml involved showed that plain batch `Rscript` ignores `SIGINT` entirely (a pure R `repeat {}` loop survived it and needed `SIGKILL`), and `setTimeLimit()` did not fire either. So this criterion is met by construction and code review, **not** by test. Validate it in an interactive session, or from a CI job able to deliver signals to a foreground R, before claiming it at Stage 7.
+
 ---
 
-## Stage 5 — Serializer and round-trip · M
+
+---
+
+## Stage 5 — Serializer and round-trip · M — **complete**
 
 **Do**
 - `src/zux_write.c` + `src/zux_escape.c`; `R/write.R` with `xml_serialize`, `xml_write`, `as.character`.
@@ -127,9 +191,21 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Escaping test vectors pass, including `]]>` in text and quotes in attribute values.
 - Serializing a 100k-node document does not recurse (small-stack test).
 
+**What actually happened**
+
+- Went in clean: the round-trip property passed over the whole 20-fixture corpus on the first run, and no design change was needed. Suite is now 695 assertions and, with the harness fix, runs in 11 s.
+- Two escaping details that the design's "minimal set" table implies but does not spell out, both of which would silently break round-tripping:
+  - **Tabs, newlines and carriage returns in attribute values must become character references.** Attribute-value normalization turns a literal tab or newline into a space on re-parse, so `t="x&#10;y"` would come back as `x y`. Tested.
+  - **An unqualified element inside a default namespace needs an explicit `xmlns=""` reset**, or re-parsing silently puts it into the enclosing namespace.
+- Namespace declarations are re-emitted where first needed rather than where they originally appeared, so `<r xmlns:x="urn:s" xmlns:y="urn:s"><x:i/><y:i/></r>` comes back as `<r><x:i xmlns:x="urn:s"/><y:i xmlns:y="urn:s"/></r>`. Semantically identical, lexically different — exactly the guarantee §13 states, and the reason round-trip is asserted structurally rather than textually.
+- Serialization is iterative like everything else; the sanitizer driver now serializes a 100k-deep document under a 1 MB stack (699,997 bytes out) as well as building and freeing it.
+
 ---
 
-## Stage 6 — Streaming C API and downstream contract · M
+
+---
+
+## Stage 6 — Streaming C API and downstream contract · M — **complete**
 
 **Do**
 - Finalize `inst/include/zuxml.h` (§14) and the `zuxml_api` table with `struct_size` as the sole discriminator (§15); register via `R_RegisterCCallable`.
@@ -142,9 +218,19 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Feeding arbitrary chunk sizes through the C API matches the whole-buffer tree.
 - `struct_size` degradation works: a consumer compiled against a shorter table still runs.
 
+**What actually happened**
+
+- The fixture package earned its place immediately. It failed at run time with `function 'zuxml_api_v1' not provided by package 'zuxml'` despite `Imports: zuxml` in `DESCRIPTION` and the symbols being present and registered in the shared object. **`Imports:` guarantees only that the package is installed; `R_GetCCallable()` resolves nothing until the namespace is actually loaded**, which needs an `importFrom()`/`import()` directive in the consumer's `NAMESPACE`. The design's claim that `Imports` ensures the package is "installed/loaded" was wrong on the second half and is now corrected. Finding this here rather than in `zuhttp` is exactly why this stage exists.
+- `inst/include/zuxml.h` is now the single source of truth: `src/zux.h` includes it rather than redeclaring the types, so the public and internal views cannot drift.
+- The consumer exercises streaming events, the tree and the serializer through the table, is chunk-independent, and links **zero** Expat symbols (`nm -u` count is 0).
+- `tools/run-downstream-check` makes the whole thing re-runnable, including the header-purity grep and the Expat-symbol check.
+
 ---
 
-## Stage 7 — Hardening · L
+
+---
+
+## Stage 7 — Hardening · L — **complete, except the interrupt criterion**
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -153,6 +239,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Full security test suite as permanent regressions (§20), including namespace-separator injection.
 - `-Wall -Wextra -Wpedantic` as CI failures for project-owned code only; clang-tidy pass.
 - Small-stack tests for every iterative claim: free, descendant search, text concat, serialization.
+- **Validate the Stage 4 interrupt criterion**, which could not be tested there: batch `Rscript` ignores `SIGINT`. Needs an interactive R session or a CI job that can signal a foreground R.
 
 **Exit**
 - 24h+ of fuzzing per target with no crash, leak, or UB in project-owned code.
@@ -160,16 +247,33 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Zero warnings from project-owned sources.
 - No test performs network I/O — assert this, do not assume it.
 
+**What actually happened**
+
+- **Fuzzing: 5.4M executions across three targets, all clean.** `fuzz_tree` (1.3M), `fuzz_feed` (1.6M, with the first byte choosing the chunk size so boundaries are explored adversarially rather than by enumeration) and `fuzz_roundtrip` (2.5M). The round-trip target `abort()`s if zuxml produces output it cannot itself re-parse, or if a second serialize is not a fixed point — that property survived 2.5M hostile inputs.
+- Apple's Command Line Tools clang ships **no libFuzzer runtime**; `tools/run-fuzz` probes for a capable compiler (Homebrew LLVM locally, `clang` on CI) and says so rather than failing obscurely.
+- **The strict-warning gate was initially broken and passing vacuously.** `-fsyntax-only` exits 0 on warnings, so `|| fail=1` caught nothing; it needed `-Werror`. Verified by deliberately introducing a warning and confirming the gate now fails. The parser core (`zux_parser.c`, `zux_tree.c`, `zux_write.c`) is clean even under `-Wconversion -Wshadow -Wcast-qual -Wwrite-strings`.
+- Wiring the prototypes header surfaced a **name collision**: `init.c` had a static helper called `zux_str`, which is also the public *string type*. Invisible until the public header was included there. Renamed.
+- **`tools/run-mutation-check` proves the security tests are not vacuous.** It deletes each guard from a throwaway copy and requires the hostile input to stop being rejected. All six — DOCTYPE, internal subset, `max_depth`, `max_nodes`, `max_attrs`, `max_text` — flip from their specific error to `ok` when removed. A guard whose removal changes nothing was never doing anything.
+- Small-stack coverage now spans every operation the design claims is iterative: build, walk, **descendant search**, **text concatenation**, serialize and free, all at 100k depth under a 1 MB stack.
+- New `hardening.yaml` workflow runs lint, sanitizers with **LeakSanitizer** (the Linux-only gap called out at Stage 2), mutation, downstream and fuzz on every push, plus a nightly 30-minutes-per-target fuzz run.
+
+**Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. Validate by pressing Ctrl-C during a large `xml_parse()` in a real terminal.
+
+---
+
+
 ---
 
 ## Stage 8 — Documentation, benchmarks, CRAN prep · M
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
+- ~~Getting-started article~~ **done**: `vignettes/articles/zuxml.Rmd`, pkgdown-only (excluded from the tarball via `.Rbuildignore`, so it never reaches CRAN or slows `R CMD check`). Writing it found a use-after-free that the fuzzers could not — they never read `zux_error.message`.
 - Vignettes: *Getting started with zuxml*, *Parsing untrusted XML* (the security model, and what `zuxml` deliberately refuses), *Streaming large documents*.
 - README rewrite — currently "The goal of zuxml is to ...". State plainly that this is XML, **not HTML** (§17), before anyone files the issue.
 - Benchmarks against the §21 fixtures and targets, versus `xml2` for context.
 - `cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance.
+- Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1): either a minimal, documented patch under `tools/patches/` with `tools/verify-vendor` taught to apply it, or a written justification in `cran-comments.md` that the call is debug-only and environment-gated.
 - `R CMD check --as-cran` on win-builder (release + devel) and R-hub.
 
 **Exit**
@@ -192,7 +296,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 | Risk | Stage | Mitigation |
 |---|---|---|
-| Expat vendoring fails on Windows | 1 | Front-loaded to Stage 1; three known traps named in §18 rather than discovered |
+| Expat vendoring fails on Windows | 1 | ~~Resolved.~~ Four traps hit, all fixed in configuration; green on all five CI jobs |
 | Namespace triplet splitting is subtly wrong | 2 | Split-from-right rule specified; injection test written alongside the splitter |
 | Undefined-entity errors on real feeds (`&nbsp;`) | post-v1 | Known and documented (§22 Q4). Decide the phase-2 answer from actual user reports, not speculation |
 | C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it |
