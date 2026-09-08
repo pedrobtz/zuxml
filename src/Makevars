@@ -18,6 +18,8 @@ PKG_CPPFLAGS = -I. -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
 # zux_expat_random.c rather than listed here.
 OBJECTS = \
 	init.o \
+	r_api.o \
+	zux_parser.o \
 	zux_expat_random.o \
 	vendor/expat/xmlparse.o \
 	vendor/expat/xmltok.o \

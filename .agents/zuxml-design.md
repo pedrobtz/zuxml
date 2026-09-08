@@ -360,9 +360,9 @@ Expat is compiled **without `XML_DTD`**. This is the central decision. It remove
 - Billion-laughs is structurally impossible; `XML_SetBillionLaughsAttackProtection*` is not needed. (If `XML_DTD` is ever enabled, those APIs become mandatory, not optional.)
 - The five built-in entities (`&amp; &lt; &gt; &quot; &apos;`) and all numeric character references work normally.
 - **Any other entity reference is a hard error.** `&nbsp;` in an undeclared document fails. This is spec-correct — such documents are not well-formed XML — but it will surprise people parsing feeds. It is a known, documented v1 limitation with a phase-2 answer (§22, Q4).
-- `DOCTYPE` is rejected by default via `XML_SetStartDoctypeDeclHandler` → `zuxml_doctype_error`. `doctype = TRUE` accepts and *ignores* the declaration; it never defines entities.
+- `DOCTYPE` is rejected by default via `XML_SetStartDoctypeDeclHandler` → `zuxml_doctype_error`. `doctype = TRUE` accepts a bare or `PUBLIC`/`SYSTEM` declaration — what real feeds carry — but **an internal subset is always rejected, even then**. Reason, found by testing rather than by reasoning: with `XML_GE 0` Expat does not record entity declarations, and a reference to one in a DTD-bearing document is passed through as *literal text* (`&e;` as four characters) rather than erroring, which is silent corruption. The internal subset is the only place a document can declare entities, so refusing it closes the hole; entity bombs are refused by the same rule.
 
-Additionally: call `XML_SetHashSalt()` with per-parser entropy to blunt hash-flooding. Expat's own salt comes from exactly one OS entropy backend selected in `src/expat_config.h`; `XML_POOR_ENTROPY` is never an acceptable fallback and an unknown platform is a compile error instead.
+Hash-flooding: **do not call `XML_SetHashSalt()`.** Expat already derives its own per-parser salt from the OS entropy backend selected in `src/expat_config.h`, which is the strongest source available to us; overriding it could only substitute something weaker. `XML_POOR_ENTROPY` is never an acceptable fallback, and an unknown platform is a compile error instead. (Earlier drafts of this document called for `XML_SetHashSalt()`; that was redundant at best and harmful at worst.)
 
 ### Limits
 
@@ -749,7 +749,7 @@ The real wins are structural and already decided: parse into a compact C arena w
 | 2 | Source subset | `xmlparse.c`, `xmltok*.c`, `xmlrole.c` + headers; nothing else |
 | 3 | DTD: compiled out or runtime-rejected | **Both.** `XML_DTD` undefined; DOCTYPE also rejected at runtime |
 | 4 | Entity configuration | Built-ins + numeric refs only. Undefined entity = error. **Open sub-question:** whether phase 2 adds an opt-in HTML named-entity table via a documented lexical pre-pass (Expat cannot do it without `XML_DTD`) or leaves it to `zuhtml`. Decide on user reports. |
-| 5 | Always error on DOCTYPE | Default yes; `doctype = TRUE` accepts and ignores |
+| 5 | Always error on DOCTYPE | Default yes. `doctype = TRUE` accepts a bare/PUBLIC/SYSTEM declaration but never an internal subset |
 | 6 | Limit defaults | §11 table |
 | 7 | Retain comments/PIs | Yes, and **on by default** — general XML library first |
 | 8 | Discard CDATA boundaries | Yes |

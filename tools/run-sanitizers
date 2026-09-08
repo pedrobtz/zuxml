@@ -1,0 +1,22 @@
+#!/bin/sh
+# Exercise the event seam under AddressSanitizer and UndefinedBehaviorSanitizer,
+# with no R involved. Run from the package root.
+#
+# Note: LeakSanitizer is unavailable on macOS, so leak coverage comes from the
+# Linux runs. See .agents/roadmap.md stage 7.
+set -eu
+CC=${CC:-clang}
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT
+
+"$CC" -std=c99 -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Wall -Wextra \
+  -I src -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
+  -o "$OUT/driver" tools/sanitize/driver.c \
+  src/zux_parser.c src/zux_expat_random.c \
+  src/vendor/expat/xmlparse.c src/vendor/expat/xmltok.c src/vendor/expat/xmlrole.c
+
+# detect_leaks is deliberately NOT forced here: macOS ASan does not support
+# it and aborts if asked. Set ASAN_OPTIONS=detect_leaks=1 explicitly on Linux.
+UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 "$OUT/driver"
+echo "==> sanitizers clean"

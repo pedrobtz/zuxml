@@ -80,14 +80,14 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
 ---
 
-## Stage 2 — Event seam and security policy · L
+## Stage 2 — Event seam and security policy · L — **complete**
 
 The core of the package. Everything downstream is a consumer of what this stage defines.
 
 **Do**
 - `src/zux_parser.c` — implement `zux_parser_new/feed/finish/free` and `zux_parser_error` (§14) over Expat.
 - Namespace handling: `XML_ParserCreateNS` with `\f`, `XML_SetReturnNSTriplet(TRUE)`, and the **split-from-the-right** logic (§8). Write the URI-contains-separator test at the same time as the splitter, not after.
-- Security policy at the seam: `XML_SetStartDoctypeDeclHandler` → `ZUX_ERR_DOCTYPE`; `XML_SetHashSalt` with per-parser entropy; all five limits with the §11 defaults, `max_text` enforced **on each coalescing append**.
+- Security policy at the seam: `XML_SetStartDoctypeDeclHandler` → `ZUX_ERR_DOCTYPE`; all five limits with the §11 defaults, `max_text` enforced **on each coalescing append**. Do *not* call `XML_SetHashSalt` — Expat's automatic salt already uses the Stage 1 entropy backend and overriding it can only weaken it.
 - Cancellation: handlers return `zux_status`; non-`ZUX_OK` triggers `XML_StopParser` and unwinds through C. No R API is reachable from a handler.
 - `zux_options_init()` filling in the documented defaults.
 - Text coalescing into a bounded buffer at the seam.
@@ -99,6 +99,18 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Chunk-independence harness passes at 1/2/3/7/31/4096 bytes and random boundaries, asserting identical event sequences — with forced splits inside UTF-8 sequences, entity refs, CDATA markers, and attribute values.
 - Cancellation from every handler returns `ZUX_ERR_CANCELLED` and frees the parser (ASan-clean).
 - `zux_parser_error()` returns correct line/column/byte offset for a malformed fixture.
+
+**What actually happened**
+
+- 469 tests pass; `R CMD check --as-cran` holds at the same 3 NOTEs as Stage 1. `tools/run-sanitizers` drives 1279 parses through ASan+UBSan with zero findings.
+- **A real defect was found and fixed in `allow_doctype = TRUE`.** With `XML_GE 0` Expat does not record entity declarations, and a reference to an undeclared entity in a document that *has* a DTD is passed through as **literal text** — `&e;` arrived as four characters of content instead of an error. No XXE, but silently wrong content, and a later serialize would re-escape it to `&amp;e;`. `XML_SetSkippedEntityHandler` does not fire on that path.
+- The fix keys on `has_internal_subset`, which Expat hands to the DOCTYPE handler and the first implementation ignored: an internal subset is now rejected **even when `allow_doctype` is set**, since it is the only place a document can declare entities. Bare and `PUBLIC`/`SYSTEM` DOCTYPEs — what real feeds actually carry — are still accepted, so the option stays useful. Entity bombs need an internal subset, so they fall to the same rule.
+- `XML_ERROR_BAD_CHAR_REF` was initially mapped to `ZUX_ERR_ENCODING`. It is a well-formedness violation, not an encoding fault; remapped to `ZUX_ERR_INVALID_XML`.
+- The namespace-separator argument holds up empirically: `0x0C` is rejected by Expat both literally and as `&#12;`, so the triplet split is unambiguous. Both cases are now permanent tests.
+- macOS ASan has no LeakSanitizer, so **leak coverage still comes only from Linux** — carried to Stage 7 rather than claimed here.
+
+---
+
 
 ---
 
