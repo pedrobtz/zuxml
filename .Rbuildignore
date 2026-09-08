@@ -7,3 +7,7 @@
 ^src/.*\.o$
 ^src/.*\.(so|dll|dylib|a)$
 ^fuzz$
+^vignettes/articles$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

@@ -97,13 +97,18 @@ typedef struct {
   int keep_pis;
 } zux_options;
 
+#define ZUX_MESSAGE_MAX 256
+
 typedef struct {
   zux_status status;
   uint64_t line;
   uint64_t column;
   uint64_t byte_offset;
   int expat_code; /* diagnostics only; do not switch on this */
-  const char *message;
+  /* Inline, not a pointer. The tree entry points free their parser before
+   * returning, so a borrowed pointer here would always dangle: the message is
+   * copied in and owned by the caller's own zux_error. */
+  char message[ZUX_MESSAGE_MAX];
 } zux_error;
 
 typedef uint32_t zux_id;

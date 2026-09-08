@@ -27,6 +27,8 @@ BugReports: https://github.com/pedrobtz/zuxml/issues
 Depends: 
     R (>= 4.1)
 Suggests: 
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Encoding: UTF-8

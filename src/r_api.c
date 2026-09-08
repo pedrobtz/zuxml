@@ -245,12 +245,12 @@ C_zux_event_log(SEXP x, SEXP chunk_, SEXP opts, SEXP cancel_) {
   } else {
     memset(&err, 0, sizeof(err));
     err.status = st;
-    err.message = zux_status_string(st);
+    zux_set_message(&err, zux_status_string(st));
   }
 
   if (e.oom) {
     err.status = ZUX_ERR_MEMORY;
-    err.message = "harness out of memory";
+    zux_set_message(&err, "harness out of memory");
   }
 
   /* All C work is complete; only now do we allocate anything R can longjmp
@@ -264,8 +264,7 @@ C_zux_event_log(SEXP x, SEXP chunk_, SEXP opts, SEXP cancel_) {
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)err.line));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)err.column));
   SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)err.byte_offset));
-  SET_VECTOR_ELT(out, 5,
-                 Rf_mkString(err.message == NULL ? "" : err.message));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(err.message));
   nms = PROTECT(Rf_allocVector(STRSXP, 6));
   SET_STRING_ELT(nms, 0, Rf_mkChar("events"));
   SET_STRING_ELT(nms, 1, Rf_mkChar("status"));

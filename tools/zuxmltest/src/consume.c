@@ -89,7 +89,8 @@ C_consume(SEXP x, SEXP chunk_) {
   } else {
     memset(&err, 0, sizeof(err));
     err.status = st;
-    err.message = api->status_string(st);
+    /* message is an inline buffer now; copy it. */
+    strncpy(err.message, api->status_string(st), sizeof(err.message) - 1);
   }
 
   /* Also exercise the tree and serializer paths through the table. */

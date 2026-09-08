@@ -85,6 +85,16 @@ zux_status_string(zux_status s) {
   return "unknown status";
 }
 
+void
+zux_set_message(zux_error *e, const char *msg) {
+  if (e == NULL)
+    return;
+  if (msg == NULL)
+    msg = "";
+  strncpy(e->message, msg, ZUX_MESSAGE_MAX - 1);
+  e->message[ZUX_MESSAGE_MAX - 1] = '\0';
+}
+
 /* Record the first failure and stop Expat. Position is captured here, while
  * the parser still points at the offending construct. */
 static void
@@ -540,7 +550,9 @@ zux_parser_error(const zux_parser *p, zux_error *out) {
   out->column = p->column;
   out->byte_offset = p->byte_offset;
   out->expat_code = p->expat_code;
-  out->message = p->message[0] ? p->message : zux_status_string(p->status);
+  /* Copied, never borrowed: see the note on zux_error in zuxml.h. */
+  zux_set_message(out, p->message[0] ? p->message
+                                     : zux_status_string(p->status));
 }
 
 void

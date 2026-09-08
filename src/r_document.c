@@ -78,7 +78,7 @@ zux_error_of_builder(parse_ctx *c) {
   zux_tree_error(c->builder, &c->err);
   if (c->err.status == ZUX_OK) {
     c->err.status = c->st;
-    c->err.message = zux_status_string(c->st);
+    zux_set_message(&c->err, zux_status_string(c->st));
   }
   zux_tree_abort(c->builder);
   c->builder = NULL;
@@ -113,7 +113,7 @@ parse_body(void *data) {
     /* Failure before any parser exists -- e.g. max_memory too small for the
      * document node itself -- so there is no parser error to borrow. */
     c->err.status = c->st;
-    c->err.message = zux_status_string(c->st);
+    zux_set_message(&c->err, zux_status_string(c->st));
     return R_NilValue;
   }
 
@@ -209,8 +209,7 @@ C_zux_parse(SEXP x, SEXP opts) {
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)c.err.line));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)c.err.column));
   SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)c.err.byte_offset));
-  SET_VECTOR_ELT(out, 5,
-                 Rf_mkString(c.err.message == NULL ? "" : c.err.message));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(c.err.message));
   SET_VECTOR_ELT(out, 6, Rf_ScalarInteger((int)(c.st != ZUX_OK ? c.st
                                                               : c.err.status)));
   nms = PROTECT(Rf_allocVector(STRSXP, 7));

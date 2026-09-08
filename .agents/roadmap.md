@@ -268,6 +268,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
+- ~~Getting-started article~~ **done**: `vignettes/articles/zuxml.Rmd`, pkgdown-only (excluded from the tarball via `.Rbuildignore`, so it never reaches CRAN or slows `R CMD check`). Writing it found a use-after-free that the fuzzers could not — they never read `zux_error.message`.
 - Vignettes: *Getting started with zuxml*, *Parsing untrusted XML* (the security model, and what `zuxml` deliberately refuses), *Streaming large documents*.
 - README rewrite — currently "The goal of zuxml is to ...". State plainly that this is XML, **not HTML** (§17), before anyone files the issue.
 - Benchmarks against the §21 fixtures and targets, versus `xml2` for context.

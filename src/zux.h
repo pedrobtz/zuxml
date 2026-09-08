@@ -24,6 +24,9 @@ extern "C" {
 
 void zux_options_init(zux_options *opt);
 
+/* Copy a message into a zux_error, truncating safely. */
+void zux_set_message(zux_error *e, const char *msg);
+
 zux_status zux_parser_new(zux_parser **out, const zux_options *opt,
                           const zux_handlers *h, void *ctx);
 zux_status zux_parser_feed(zux_parser *p, const void *data, size_t n);
