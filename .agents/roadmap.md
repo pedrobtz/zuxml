@@ -34,7 +34,7 @@ Two further fixes, found only by actually running the check rather than by plann
 
 ---
 
-## Stage 1 — Vendor Expat and prove it builds · L
+## Stage 1 — Vendor Expat and prove it builds · L — **complete (pending Windows CI)**
 
 The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
@@ -63,6 +63,18 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 - `R CMD check --as-cran` clean.
 
 **Trap:** if Windows fights the entropy probe, fix the probe — do not reach for `XML_POOR_ENTROPY` unconditionally. `XML_SetHashSalt` (Stage 2) mitigates it, but only if the probe is honest about what it chose.
+
+**What actually happened**
+
+- Pinned **2.8.4**, not the 2.7.1 the design assumed — four minor releases had shipped, the newest a security release fixing 4 CVEs. Checking upstream rather than trusting the plan was the whole value of that step.
+- `XML_GE` must be *defined as `0`*, not left undefined: Expat tests `XML_GE == 1`, and enforces with its own `#error` that `XML_DTD` stays undefined when it is 0. Stronger than the design specified — general-entity machinery is gone entirely.
+- The 2.8.x entropy backends live in separate `random_*.c` files that are **not** self-guarded, so they cannot all be compiled. A fixed, portable `OBJECTS` list therefore needs `src/zux_expat_random.c`, a shim that `#include`s exactly one of them.
+- Deliberately **not** probing `__GLIBC__` to prefer `getrandom()` over the raw syscall: that needs `<features.h>` from a header included before the `random_*.c` files set `_DEFAULT_SOURCE` / `_POSIX_C_SOURCE`, which would freeze glibc's feature exposure at the wrong level. Linux uses `HAVE_SYSCALL_GETRANDOM`, which works on every libc.
+- Build configuration is kept **outside** the vendor tree (`src/expat_config.h`, not `src/vendor/expat/expat_config.h` as the design sketched), so `src/vendor/expat/` stays byte-identical to upstream and `tools/verify-vendor` can prove it.
+- `R CMD build` cleans only `src/` top level, so vendored `*.o` from a local install leaked into the tarball. Fixed with `.Rbuildignore` patterns.
+- Compiled with **zero warnings** on the first attempt; macOS verified locally.
+
+**Carried to Stage 8:** `R CMD check --as-cran` NOTEs `___stderrp` in `xmlparse.o`. `XML_GE 0` already removed five of Expat's six `stderr` sites; the survivor is `ENTROPY_DEBUG`, debug-only behind `getenv("EXPAT_ENTROPY_DEBUG")`. Decide then between a documented `tools/patches/` patch and an explanation in `cran-comments.md` — not now, since a patch would add maintenance cost to every Expat update before there is even a parser.
 
 ---
 
@@ -182,6 +194,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - README rewrite — currently "The goal of zuxml is to ...". State plainly that this is XML, **not HTML** (§17), before anyone files the issue.
 - Benchmarks against the §21 fixtures and targets, versus `xml2` for context.
 - `cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance.
+- Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1): either a minimal, documented patch under `tools/patches/` with `tools/verify-vendor` taught to apply it, or a written justification in `cran-comments.md` that the call is debug-only and environment-gated.
 - `R CMD check --as-cran` on win-builder (release + devel) and R-hub.
 
 **Exit**
@@ -204,7 +217,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 | Risk | Stage | Mitigation |
 |---|---|---|
-| Expat vendoring fails on Windows | 1 | Front-loaded to Stage 1; three known traps named in §18 rather than discovered |
+| Expat vendoring fails on Windows | 1 | Front-loaded to Stage 1. macOS builds warning-free; **Windows and Linux still unproven** until CI reports |
 | Namespace triplet splitting is subtly wrong | 2 | Split-from-right rule specified; injection test written alongside the splitter |
 | Undefined-entity errors on real feeds (`&nbsp;`) | post-v1 | Known and documented (§22 Q4). Decide the phase-2 answer from actual user reports, not speculation |
 | C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it |

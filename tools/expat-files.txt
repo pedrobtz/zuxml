@@ -1,0 +1,40 @@
+# Files copied verbatim from <tarball>/lib/ into src/vendor/expat/.
+# Used by both tools/update-expat and tools/verify-vendor so the two can
+# never disagree about what the vendor tree should contain.
+lib/xmlparse.c
+lib/xmltok.c
+lib/xmlrole.c
+lib/xmltok_impl.c
+lib/xmltok_ns.c
+lib/xcsinc.c
+lib/random_arc4random.c
+lib/random_arc4random_buf.c
+lib/random_dev_urandom.c
+lib/random_getentropy.c
+lib/random_getrandom.c
+lib/random_rand_s.c
+lib/random_arc4random.h
+lib/random_arc4random_buf.h
+lib/random_dev_urandom.h
+lib/random_getentropy.h
+lib/random_getrandom.h
+lib/random_rand_s.h
+lib/expat.h
+lib/expat_external.h
+lib/xmltok.h
+lib/xmltok_impl.h
+lib/xmlrole.h
+lib/internal.h
+lib/ascii.h
+lib/asciitab.h
+lib/iasciitab.h
+lib/latin1tab.h
+lib/nametab.h
+lib/utf8tab.h
+lib/siphash.h
+lib/winconfig.h
+lib/fallthrough.h
+lib/memory_sanitizer.h
+# License and attribution, from the tarball root.
+COPYING
+AUTHORS

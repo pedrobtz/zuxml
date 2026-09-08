@@ -24,5 +24,12 @@ Authors:
   \item Pedro Baltazar \email{pedrobtz@gmail.com} [copyright holder]
 }
 
+Other contributors:
+\itemize{
+  \item Thai Open Source Software Center Ltd (Expat, bundled in src/vendor/expat) [copyright holder]
+  \item Clark Cooper (Expat, bundled in src/vendor/expat) [copyright holder]
+  \item Expat maintainers (Expat, bundled in src/vendor/expat) [copyright holder]
+}
+
 }
 \keyword{internal}

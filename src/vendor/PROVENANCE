@@ -1,0 +1,55 @@
+Vendored dependency: Expat (libexpat)
+
+  Upstream:      https://github.com/libexpat/libexpat
+  Home page:     https://libexpat.github.io/
+  Release tag:   R_2_8_4
+  Version:       2.8.4
+  Tarball:       https://github.com/libexpat/libexpat/releases/download/R_2_8_4/expat-2.8.4.tar.gz
+  SHA-256:       b8ece2437692dad44d851c4532723390a5a330990007706be9c8d2b90d294f36
+  Imported:      2026-09-08
+  License:       MIT (see src/vendor/expat/COPYING)
+  Local patches: none
+
+Everything in src/vendor/expat/ is a byte-identical copy of the files listed
+in tools/expat-files.txt. Build configuration is NOT vendored: it lives in
+the project-owned src/expat_config.h, so this tree stays verifiable with
+tools/verify-vendor.
+
+Only the parser library is imported. xmlwf, the examples, the test suite,
+the fuzzers, CMake and autotools are all deliberately excluded.
+
+Why this version is the floor
+-----------------------------
+2.8.4 (2026-08-31) is a security release fixing four vulnerabilities:
+
+  CVE-2026-66046, CVE-2026-76641  quadratic runtime in attribute isCdata
+                                  lookups; remote denial of service from
+                                  moderately sized crafted XML (CWE-407),
+                                  upstream CVSS 3.1 score 7.5
+  CVE-2026-76957                  custom encoding callbacks were not
+                                  protected against parser re-entry
+  CVE-2026-76956                  inverted getentropy() return handling,
+                                  allowing hash flooding where getentropy
+                                  is the only high-quality entropy source
+
+The last of these lands directly on the entropy selection in
+src/expat_config.h, which is one reason that header prefers arc4random_buf
+and the getrandom syscall over getentropy.
+
+Known unfixed issues
+--------------------
+Upstream publicly tracks unfixed non-public vulnerabilities at
+https://github.com/libexpat/libexpat/issues/1160 -- at import time seven were
+open, three with reserved CVE identifiers (CVE-2026-77214, CVE-2026-77215,
+CVE-2026-77216). This is normal for a widely fuzzed XML parser and is not a
+reason to prefer another one, but it is the reason zuxml does not treat Expat
+as a trusted component: XML_GE 0 and no XML_DTD remove whole vulnerability
+classes from the binary, and the project-owned limits in the event seam bound
+what a parser bug can cost. Re-vendor promptly when upstream releases.
+
+Hash verification is trust-on-first-use: the SHA-256 above was computed from
+the release asset at import time and is re-checked by tools/verify-vendor on
+every run. It has not been cross-checked against an independently published
+digest. Upstream also ships a detached GPG signature (.asc) next to each
+release asset; verifying that against the maintainer's key would be strictly
+stronger and is worth adding.

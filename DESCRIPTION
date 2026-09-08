@@ -1,9 +1,15 @@
 Package: zuxml
 Title: Small and Secure XML Parser and Document Tree
 Version: 0.0.0.9000
-Authors@R: 
+Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
-           role = c("aut", "cre", "cph"))
+           role = c("aut", "cre", "cph")),
+    person("Thai Open Source Software Center Ltd", role = "cph",
+           comment = "Expat, bundled in src/vendor/expat"),
+    person("Clark", "Cooper", role = "cph",
+           comment = "Expat, bundled in src/vendor/expat"),
+    person("Expat maintainers", role = "cph",
+           comment = "Expat, bundled in src/vendor/expat"))
 Description: Reads, navigates, and writes XML documents using a bundled
     copy of the 'Expat' parser (<https://libexpat.github.io/>), so that no
     system XML library is required. Documents are parsed into a faithful
@@ -15,6 +21,7 @@ Description: Reads, navigates, and writes XML documents using a bundled
     registered C interface allows other packages to parse XML without
     linking against the parser themselves.
 License: MIT + file LICENSE
+Copyright: See inst/COPYRIGHTS and src/vendor/PROVENANCE.
 URL: https://github.com/pedrobtz/zuxml
 BugReports: https://github.com/pedrobtz/zuxml/issues
 Depends: 

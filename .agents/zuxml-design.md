@@ -362,7 +362,7 @@ Expat is compiled **without `XML_DTD`**. This is the central decision. It remove
 - **Any other entity reference is a hard error.** `&nbsp;` in an undeclared document fails. This is spec-correct — such documents are not well-formed XML — but it will surprise people parsing feeds. It is a known, documented v1 limitation with a phase-2 answer (§22, Q4).
 - `DOCTYPE` is rejected by default via `XML_SetStartDoctypeDeclHandler` → `zuxml_doctype_error`. `doctype = TRUE` accepts and *ignores* the declaration; it never defines entities.
 
-Additionally: call `XML_SetHashSalt()` with per-parser entropy to blunt hash-flooding.
+Additionally: call `XML_SetHashSalt()` with per-parser entropy to blunt hash-flooding. Expat's own salt comes from exactly one OS entropy backend selected in `src/expat_config.h`; `XML_POOR_ENTROPY` is never an acceptable fallback and an unknown platform is a compile error instead.
 
 ### Limits
 
@@ -639,7 +639,9 @@ The cost of this plan is one extra package. The cost of the alternative — bolt
 
 ### Version
 
-Pin **Expat 2.7.x, minimum 2.7.1**. Rationale for the floor: 2.7.0 fixed CVE-2024-8176 (stack overflow via deeply nested entities). Verify the current release at vendoring time and record it. Never track `master`.
+Pinned at **Expat 2.8.4** (2026-08-31), which is also the floor. It is a security release fixing four vulnerabilities: CVE-2026-66046 / CVE-2026-76641 (quadratic runtime in attribute `isCdata` lookups — remote DoS from moderately sized input, CVSS 7.5), CVE-2026-76957 (custom encoding callbacks unprotected against parser re-entry), and CVE-2026-76956 (inverted `getentropy()` return handling allowing hash flooding). The last of these directly informs the entropy choice below. Re-verify the current release at every re-vendoring. Never track `master`.
+
+**Expat is not treated as a trusted component.** Upstream publicly tracks unfixed non-public vulnerabilities at libexpat issue #1160 — seven open at import time, three with reserved CVEs. That is normal for a heavily fuzzed XML parser and is not a reason to prefer a different one; it is the reason the security model does not rest on the parser being correct. `XML_GE 0` with no `XML_DTD` deletes whole vulnerability classes from the binary, and the project-owned limits at the event seam bound what a parser bug can cost. Re-vendor promptly on each upstream release.
 
 Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
 
@@ -650,7 +652,7 @@ Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA,
 | `XML_Char` | `char` (UTF-8) | natural bridge to `mkCharLenCE(CE_UTF8)` |
 | `XML_DTD` | **not defined** | §11 — removes the entire XXE/amplification class |
 | `XML_NS` | defined | §8 |
-| `XML_GE` | not defined | follows from no DTD |
+| `XML_GE` | **`0`** | must be *defined* as 0, not left undefined — Expat tests `XML_GE == 1`. Removes general-entity support outright; `xmlparse.c` enforces that `XML_DTD` must then stay undefined. |
 | `XML_CONTEXT_BYTES` | 1024 | enough for error context, bounded |
 | `BYTEORDER` | 1234/4321, set portably | see below |
 | Allocator | libc default | Expat frees individually; routing through the arena does not fit, and routing through R risks `longjmp`. `XML_Memory_Handling_Suite` reserved for future accounting. |
@@ -742,7 +744,7 @@ The real wins are structural and already decided: parse into a compact C arena w
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Expat release | 2.7.x, floor 2.7.1 (CVE-2024-8176) |
+| 1 | Expat release | Pinned 2.8.4; floor 2.8.4 (fixes 4 CVEs, incl. the entropy one) |
 | 2 | Source subset | `xmlparse.c`, `xmltok*.c`, `xmlrole.c` + headers; nothing else |
 | 3 | DTD: compiled out or runtime-rejected | **Both.** `XML_DTD` undefined; DOCTYPE also rejected at runtime |
 | 4 | Entity configuration | Built-ins + numeric refs only. Undefined entity = error. **Open sub-question:** whether phase 2 adds an opt-in HTML named-entity table via a documented lexical pre-pass (Expat cannot do it without `XML_DTD`) or leaves it to `zuhtml`. Decide on user reports. |

@@ -1,0 +1,18 @@
+# Portable make only: no GNU-make conditionals, and no -W* overrides, both of
+# which CRAN rejects. See .agents/zuxml-design.md section 18.
+#
+# -I. resolves the vendored sources' unconditional #include "expat_config.h"
+# to the project-owned src/expat_config.h, since the vendor directory
+# deliberately contains no configuration header of its own.
+
+PKG_CPPFLAGS = -I. -Ivendor/expat
+
+# xmltok_impl.c, xmltok_ns.c and xcsinc.c are #included by their parents and
+# must never be compiled as separate units. One random_*.c is selected by
+# zux_expat_random.c rather than listed here.
+OBJECTS = \
+	init.o \
+	zux_expat_random.o \
+	vendor/expat/xmlparse.o \
+	vendor/expat/xmltok.o \
+	vendor/expat/xmlrole.o

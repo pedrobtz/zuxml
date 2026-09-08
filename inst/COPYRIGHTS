@@ -1,0 +1,34 @@
+The zuxml package bundles a copy of the Expat XML parser. Both zuxml and
+Expat are distributed under the MIT license, but they are held by different
+copyright holders, listed separately below.
+
+
+zuxml
+=====
+
+Copyright (c) 2026 Pedro Baltazar
+
+Covers everything in the package except src/vendor/. Full text in LICENSE.md;
+CRAN's YEAR/COPYRIGHT HOLDER form is in LICENSE.
+
+
+Expat (libexpat)
+================
+
+Bundled verbatim in src/vendor/expat/.
+
+Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
+Copyright (c) 2001-2025 Expat maintainers
+
+Full text in src/vendor/expat/COPYING; contributors in
+src/vendor/expat/AUTHORS. Upstream is https://github.com/libexpat/libexpat
+and the pinned release, its checksum and the import date are recorded in
+src/vendor/PROVENANCE.
+
+The bundled files are unmodified. zuxml adds no code to that directory: the
+build configuration Expat would normally generate with autotools or CMake is
+kept outside it, in the project-owned src/expat_config.h, so that
+tools/verify-vendor can prove the tree is byte-identical to upstream.
+
+Only the parser library is bundled. Expat's xmlwf utility, examples, test
+suite, fuzzers and build systems are not included.

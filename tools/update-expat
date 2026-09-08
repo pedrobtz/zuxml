@@ -1,0 +1,63 @@
+#!/bin/sh
+# Re-vendor Expat. Usage: tools/update-expat <version>   e.g. 2.8.4
+#
+# XML parsers get frequent security releases -- upstream tracks unfixed
+# non-public issues at https://github.com/libexpat/libexpat/issues/1160 --
+# so re-vendoring must stay a ten-minute job. Run from the package root.
+set -eu
+
+VERSION="${1:?usage: tools/update-expat <version>}"
+TAG="R_$(echo "$VERSION" | tr . _)"
+URL="https://github.com/libexpat/libexpat/releases/download/${TAG}/expat-${VERSION}.tar.gz"
+ROOT=$(pwd)
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+echo "==> fetching $URL"
+curl -fsSL -o "$WORK/expat.tar.gz" "$URL"
+
+SHA=$(shasum -a 256 "$WORK/expat.tar.gz" | cut -d' ' -f1)
+echo "==> sha256 $SHA"
+
+echo "==> extracting"
+tar xzf "$WORK/expat.tar.gz" -C "$WORK"
+SRC="$WORK/expat-${VERSION}"
+
+echo "==> replacing src/vendor/expat"
+rm -rf "$ROOT/src/vendor/expat"
+mkdir -p "$ROOT/src/vendor/expat"
+grep -v '^#' "$ROOT/tools/expat-files.txt" | grep -v '^[[:space:]]*$' | while read -r f; do
+  cp "$SRC/$f" "$ROOT/src/vendor/expat/$(basename "$f")"
+done
+
+echo "==> writing src/vendor/PROVENANCE"
+cat > "$ROOT/src/vendor/PROVENANCE" <<PEOF
+Vendored dependency: Expat (libexpat)
+
+  Upstream:      https://github.com/libexpat/libexpat
+  Home page:     https://libexpat.github.io/
+  Release tag:   ${TAG}
+  Version:       ${VERSION}
+  Tarball:       ${URL}
+  SHA-256:       ${SHA}
+  Imported:      $(date -u +%Y-%m-%d)
+  License:       MIT (see src/vendor/expat/COPYING)
+  Local patches: none
+
+Everything in src/vendor/expat/ is a byte-identical copy of the files listed
+in tools/expat-files.txt. Build configuration is NOT vendored: it lives in
+the project-owned src/expat_config.h, so this tree stays verifiable with
+tools/verify-vendor.
+
+Only the parser library is imported. xmlwf, the examples, the test suite,
+the fuzzers, CMake and autotools are all deliberately excluded.
+
+Hash verification is trust-on-first-use: the SHA-256 above was computed from
+the release asset at import time and is re-checked by tools/verify-vendor on
+every run. It has not been cross-checked against an independently published
+digest. Upstream also ships a detached GPG signature (.asc) next to each
+release asset; verifying that against the maintainer's key would be strictly
+stronger and is worth adding.
+PEOF
+
+echo "==> done. Next: tools/verify-vendor, then R CMD check, then fuzz."

@@ -4,3 +4,5 @@
 ^\.github$
 ^\.agents$
 ^tools$
+^src/.*\.o$
+^src/.*\.(so|dll|dylib|a)$
