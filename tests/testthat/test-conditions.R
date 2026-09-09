@@ -43,7 +43,16 @@ test_that("every error message is non-empty prose", {
   # zux_tree_end() and the R error path both free the parser before the
   # caller reads it, so every message was read from freed memory and
   # arrived empty. It is an inline buffer now. Caught by writing the
-  # vignette, not by the fuzzers -- they never read the message.
+  # article, not by the fuzzers -- they never read the message.
+  #
+  # This asserts on the C field, NOT on conditionMessage(): zux_abort()
+  # wraps "<msg> (at line L, column C)" around most statuses, and that
+  # suffix on its own is non-empty and contains the word "line", so a
+  # wrapped message passes every check below even when the C message is "".
+  c_parse <- function(x, ...) {
+    .Call(zuxml:::C_zux_parse, charToRaw(x),
+          c(list(encoding = "UTF-8"), list(...)))
+  }
   cases <- list(
     list(x = "<a>\n  <b>\n</a>"),
     list(x = "<a><b></a>"),
@@ -54,13 +63,18 @@ test_that("every error message is non-empty prose", {
          args = list(max_depth = 3))
   )
   for (cs in cases) {
+    res <- do.call(c_parse, c(list(cs$x), cs$args %||% list()))
+    expect_false(identical(res$status, "ok"), info = cs$x)
+    expect_true(nzchar(res$message), info = cs$x)
+    # not a stray fragment: real words, from the C layer
+    expect_match(res$message, "[A-Za-z]{4,}", info = cs$x)
+
+    # and the condition zux_abort() builds from it is prose too
     e <- tryCatch(do.call(xml_parse, c(list(cs$x), cs$args %||% list())),
                   error = function(e) e)
-    msg <- conditionMessage(e)
-    expect_true(nzchar(msg), info = cs$x)
-    # not just punctuation left over from an empty interpolation
-    expect_match(msg, "[A-Za-z]{4,}", info = cs$x)
-    expect_false(grepl(": *$", msg), info = cs$x)
+    expect_true(grepl(res$message, conditionMessage(e), fixed = TRUE),
+                info = cs$x)
+    expect_false(grepl(": *$", conditionMessage(e)), info = cs$x)
   }
 })
 
@@ -69,4 +83,3 @@ test_that("the message is prose, not an Expat constant", {
   expect_false(grepl("XML_ERROR", conditionMessage(e)))
 })
 
-`%||%` <- function(a, b) if (is.null(a)) b else a

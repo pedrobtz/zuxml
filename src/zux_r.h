@@ -36,7 +36,7 @@ struct _DllInfo;
 void R_init_zuxml(struct _DllInfo *dll);
 
 /* Registration of the public C API table (src/zux_register.c). */
-const zuxml_api *zuxml_api_v1(void);
+const zuxml_api *zuxml_api_v2(void);
 void zuxml_register_api(struct _DllInfo *dll);
 
 #endif /* ZUX_R_H */

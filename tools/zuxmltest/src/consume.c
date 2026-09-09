@@ -58,7 +58,7 @@ C_consume(SEXP x, SEXP chunk_) {
 
   if (api == NULL)
     Rf_error("zuxmltest: could not obtain the zuxml API table");
-  if (!ZUXML_API_HAS(api, serialize))
+  if (!ZUXML_API_HAS(api, set_message))
     Rf_error("zuxmltest: zuxml API table is too old");
 
   memset(&c, 0, sizeof(c));
@@ -89,8 +89,8 @@ C_consume(SEXP x, SEXP chunk_) {
   } else {
     memset(&err, 0, sizeof(err));
     err.status = st;
-    /* message is an inline buffer now; copy it. */
-    strncpy(err.message, api->status_string(st), sizeof(err.message) - 1);
+    /* message is an inline buffer; the table copies into it for us. */
+    api->set_message(&err, api->status_string(st));
   }
 
   /* Also exercise the tree and serializer paths through the table. */
@@ -101,7 +101,7 @@ C_consume(SEXP x, SEXP chunk_) {
     api->document_free(doc);
   }
 
-  out = PROTECT(Rf_allocVector(VECSXP, 6));
+  out = PROTECT(Rf_allocVector(VECSXP, 7));
   SET_VECTOR_ELT(out, 0, Rf_mkString(api->status_string(err.status)));
   SET_VECTOR_ELT(out, 1, Rf_ScalarReal((double)c.elements));
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)c.attrs));
@@ -109,14 +109,19 @@ C_consume(SEXP x, SEXP chunk_) {
   SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)n_nodes));
   SET_VECTOR_ELT(out, 5,
                  ser == NULL ? Rf_mkString("") : Rf_mkString(ser));
+  /* Surfaced so the gate can assert on it: a message that arrives empty or
+   * truncated across the table is exactly the ABI regression this fixture
+   * exists to catch, and it is invisible if only `status` is returned. */
+  SET_VECTOR_ELT(out, 6, Rf_mkString(err.message));
   free(ser);
-  nms = PROTECT(Rf_allocVector(STRSXP, 6));
+  nms = PROTECT(Rf_allocVector(STRSXP, 7));
   SET_STRING_ELT(nms, 0, Rf_mkChar("status"));
   SET_STRING_ELT(nms, 1, Rf_mkChar("elements"));
   SET_STRING_ELT(nms, 2, Rf_mkChar("attrs"));
   SET_STRING_ELT(nms, 3, Rf_mkChar("text_bytes"));
   SET_STRING_ELT(nms, 4, Rf_mkChar("n_nodes"));
   SET_STRING_ELT(nms, 5, Rf_mkChar("serialized"));
+  SET_STRING_ELT(nms, 6, Rf_mkChar("message"));
   Rf_setAttrib(out, R_NamesSymbol, nms);
   UNPROTECT(2);
   return out;

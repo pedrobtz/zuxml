@@ -1,8 +1,11 @@
 /* zuxml: registration of the public C API table.
  *
- * Downstream packages fetch this with R_GetCCallable("zuxml", "zuxml_api_v1")
- * -- see inst/include/zuxml.h. struct_size is the only version discriminator;
- * fields may be appended but never reordered or removed.
+ * Downstream packages fetch this with R_GetCCallable("zuxml", "zuxml_api_v2")
+ * -- see inst/include/zuxml.h. struct_size versions this table: fields may be
+ * appended but never reordered or removed. The callable NAME versions the
+ * other types in the public header, which struct_size cannot see; bump it
+ * whenever one of them changes layout, so a stale consumer fails loudly at
+ * R_GetCCallable() instead of writing through the wrong offsets.
  */
 
 #define R_NO_REMAP
@@ -44,10 +47,11 @@ static const zuxml_api zuxml_api_table = {
     zux_attr_count,
     zux_attr_at,
 
-    zux_serialize};
+    zux_serialize,
+    zux_set_message};
 
 const zuxml_api *
-zuxml_api_v1(void) {
+zuxml_api_v2(void) {
   return &zuxml_api_table;
 }
 
@@ -55,5 +59,5 @@ void
 zuxml_register_api(DllInfo *dll) {
   /* R_RegisterCCallable is keyed on the package name, not the DllInfo. */
   (void)dll;
-  R_RegisterCCallable("zuxml", "zuxml_api_v1", (DL_FUNC)zuxml_api_v1);
+  R_RegisterCCallable("zuxml", "zuxml_api_v2", (DL_FUNC)zuxml_api_v2);
 }

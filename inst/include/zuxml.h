@@ -127,10 +127,25 @@ typedef struct zux_document zux_document;
 typedef struct zux_tree_builder zux_tree_builder;
 
 /* ---- registered function table ------------------------------------------
- * struct_size is the ONLY version discriminator. Fields are appended, never
- * reordered or removed, so a consumer built against an older header keeps
- * working: compare struct_size against offsetof() for the member you want
- * before calling it.
+ * Two discriminators, answering different questions.
+ *
+ *   * struct_size versions THIS TABLE. Fields are appended, never reordered
+ *     or removed, so a consumer built against an older header keeps working:
+ *     check ZUXML_API_HAS(api, member) before calling a member.
+ *
+ *   * The registered callable NAME versions every OTHER type in this header.
+ *     struct_size cannot see a layout change in zux_error or zux_options --
+ *     the table itself is unchanged -- so an old consumer would go on passing
+ *     a differently shaped struct and smash its own stack. Any such change
+ *     bumps the name, which turns a silent mismatch into a loud
+ *     R_GetCCallable() failure at load time. R does not rebuild LinkingTo
+ *     dependents on upgrade, so this is the only thing standing between a
+ *     plain install.packages("zuxml") and memory corruption downstream.
+ *
+ * Name history:
+ *   zuxml_api_v1 -- initial.
+ *   zuxml_api_v2 -- zux_error.message became an inline char[ZUX_MESSAGE_MAX]
+ *                   instead of a const char *. Rebuild against this header.
  * ------------------------------------------------------------------------ */
 typedef struct {
   uint32_t struct_size;
@@ -168,6 +183,11 @@ typedef struct {
 
   zux_status (*serialize)(const zux_document *d, zux_id id, char **out,
                           size_t *out_len);
+
+  /* Copies msg into e->message, truncating to fit and always
+   * NUL-terminating, so no consumer has to open-code that correctly. Like
+   * every appended member, guard it with ZUXML_API_HAS(api, set_message). */
+  void (*set_message)(zux_error *e, const char *msg);
 } zuxml_api;
 
 #define ZUXML_API_HAS(api, member)                                            \
@@ -181,7 +201,7 @@ zuxml_api_get(void) {
   static const zuxml_api *api = NULL;
   if (api == NULL) {
     const zuxml_api *(*fn)(void)
-        = (const zuxml_api *(*)(void))R_GetCCallable("zuxml", "zuxml_api_v1");
+        = (const zuxml_api *(*)(void))R_GetCCallable("zuxml", "zuxml_api_v2");
     api = fn();
   }
   return api;

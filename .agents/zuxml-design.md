@@ -570,7 +570,7 @@ Requirements the header must keep satisfying:
 
 ## 15. C-callable registration
 
-One versioned table, registered with `R_RegisterCCallable("zuxml", "zuxml_api")`.
+One versioned table, registered with `R_RegisterCCallable("zuxml", "zuxml_api_v2")`.
 
 ```c
 typedef struct {
@@ -590,7 +590,9 @@ typedef struct {
 } zuxml_api;
 ```
 
-`struct_size` is the sole version discriminator — the previous draft carried three overlapping schemes (`ZUXML_API_VERSION`, `abi_version`, `struct_size`). A consumer compares `struct_size` against the offset of the member it wants and degrades gracefully. Fields are only ever appended, never reordered or removed.
+`struct_size` is the sole version discriminator **for this table** — the previous draft carried three overlapping schemes (`ZUXML_API_VERSION`, `abi_version`, `struct_size`). A consumer compares `struct_size` against the offset of the member it wants and degrades gracefully. Fields are only ever appended, never reordered or removed.
+
+What `struct_size` cannot see is a layout change in any *other* public type — `zux_error`, `zux_options`, `zux_name`. The table is byte-identical in that case, so an old consumer goes on passing a differently shaped struct and smashes its own stack, and R does not rebuild `LinkingTo` dependents when zuxml is upgraded. The registered callable **name** versions those types: `zuxml_api_v1` → `zuxml_api_v2` when `zux_error.message` became an inline `char[ZUX_MESSAGE_MAX]` rather than a `const char *`. A stale consumer then fails loudly at `R_GetCCallable()` instead of writing through the wrong offsets. Bump the name for any such change; append to the table for everything else.
 
 Downstream declares `Imports: zuxml` **and** `LinkingTo: zuxml` — and, critically, must also carry an actual import directive in its `NAMESPACE`:
 
@@ -598,7 +600,7 @@ Downstream declares `Imports: zuxml` **and** `LinkingTo: zuxml` — and, critica
 importFrom(zuxml, zuxml_info)   # or import(zuxml)
 ```
 
-`Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v1' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h`. No downstream package ever links against Expat.
+`Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v2' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h`. No downstream package ever links against Expat.
 
 ---
 
