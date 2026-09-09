@@ -66,8 +66,9 @@ A `zuxml_document`.
 Parsing is strict and secure by default: document type declarations are
 rejected, general entities are not compiled in at all, and the limits
 below bound what a hostile document can cost. See `vignette("security")`
-once written, or [`zuxml_info()`](zuxml_info.md) for the compiled-in
-policy.
+once written, or
+[`zuxml_info()`](https://pedrobtz.github.io/zuxml/reference/zuxml_info.md)
+for the compiled-in policy.
 
 ## Examples
 

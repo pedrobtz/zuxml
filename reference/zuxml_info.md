@@ -22,7 +22,7 @@ An object of class `zuxml_info`: a list with elements `zuxml_version`,
 
 ``` r
 zuxml_info()
-#> zuxml 0.0.0.9000
+#> zuxml 0.1.0
 #> Expat:             expat_2.8.4
 #> Namespaces:        yes
 #> DTD:               disabled

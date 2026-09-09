@@ -9,10 +9,31 @@ library(zuxml)
 vectorized API to walk it. This article covers the whole public surface
 — there are only about twenty functions.
 
+## This is XML, not HTML
+
+Worth saying before you try it: **`zuxml` does not parse HTML**, and no
+option changes that.
+
+Expat is a strict, non-recovering XML parser. Real-world HTML — `<br>`,
+unquoted attributes, `&nbsp;`, unclosed `<li>` — is not well-formed XML,
+so it is an error, not something to recover from:
+
+``` r
+
+xml_parse("<p>a <br> b</p>")
+#> Error:
+#> ! XML parse error at line 1, column 13: mismatched tag
+```
+
+Only XHTML served as well-formed XML will parse. HTML is planned for a
+sibling package that reuses this one’s tree and navigation API.
+
 ## Parsing
 
-[`xml_parse()`](../reference/xml_parse.md) takes a string or a raw
-vector; [`xml_read()`](../reference/xml_parse.md) takes a file path.
+[`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
+takes a string or a raw vector;
+[`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
+takes a file path.
 
 ``` r
 
@@ -32,12 +53,19 @@ doc
 
 ## Navigating
 
-Four functions cover traversal.
-[`xml_children()`](../reference/xml_navigate.md) returns *every* child
-node, including text and comments;
-[`xml_elements()`](../reference/xml_navigate.md) returns only element
-children; [`xml_find()`](../reference/xml_navigate.md) searches
-descendants. All three take an optional name filter.
+Five functions cover traversal.
+[`xml_root()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+gets the document element and
+[`xml_parent()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+goes back up.
+[`xml_children()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+returns *every* child node, including text and comments;
+[`xml_elements()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+returns only element children;
+[`xml_find()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+searches descendants. The last two take an optional name filter —
+[`xml_children()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+does not, because it is the “everything directly under here” call.
 
 ``` r
 
@@ -50,11 +78,15 @@ books
 xml_find(doc, "title")      # descendants, in document order
 #> <zuxml_nodeset[2]>
 #> [1] <title> [2] <title>
+xml_name(xml_parent(books)) # and back up again
+#> [1] "catalog" "catalog"
 ```
 
-Note that [`xml_children()`](../reference/xml_navigate.md) and
-[`xml_elements()`](../reference/xml_navigate.md) differ — the whitespace
-between the tags above is real text content:
+Note that
+[`xml_children()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+and
+[`xml_elements()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+differ — the whitespace between the tags above is real text content:
 
 ``` r
 
@@ -81,8 +113,9 @@ as.numeric(xml_text(xml_elements(books, "price")))
 #> [1] 29.99 17.50
 ```
 
-[`xml_attrs()`](../reference/xml_properties.md) returns the full
-attribute set per node, as a list of named character vectors:
+[`xml_attrs()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md)
+returns the full attribute set per node, as a list of named character
+vectors:
 
 ``` r
 
@@ -113,10 +146,10 @@ xml_text(rev(books))
 
 ## Text and mixed content
 
-[`xml_text()`](../reference/xml_properties.md) concatenates all
-descendant text by default. Set `recursive = FALSE` to get only the
-node’s own direct text children — the distinction that matters for mixed
-content.
+[`xml_text()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md)
+concatenates all descendant text by default. Set `recursive = FALSE` to
+get only the node’s own direct text children — the distinction that
+matters for mixed content.
 
 ``` r
 
@@ -197,8 +230,33 @@ identical(once, twice)
 #> [1] TRUE
 ```
 
-[`xml_write()`](../reference/xml_serialize.md) sends the same output to
-a file.
+[`xml_write()`](https://pedrobtz.github.io/zuxml/reference/xml_serialize.md)
+sends the same output to a file, and
+[`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
+reads one back:
+
+``` r
+
+f <- tempfile(fileext = ".xml")
+xml_write(doc, f)
+identical(xml_serialize(xml_read(f)), xml_serialize(doc))
+#> [1] TRUE
+```
+
+## Document metadata
+
+The XML declaration is kept, so its three fields are readable off the
+document:
+
+``` r
+
+decl <- xml_parse('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a/>')
+c(version = xml_version(decl), encoding = xml_encoding(decl))
+#>  version encoding 
+#>    "1.0"  "UTF-8"
+xml_standalone(decl)
+#> [1] TRUE
+```
 
 ## Errors are typed
 
@@ -239,13 +297,13 @@ remember. It also means a reference to an entity the document never
 declared, such as `&nbsp;`, is an error rather than silently dropped
 content.
 
-[`zuxml_info()`](../reference/zuxml_info.md) reports the policy actually
-compiled into your build:
+[`zuxml_info()`](https://pedrobtz.github.io/zuxml/reference/zuxml_info.md)
+reports the policy actually compiled into your build:
 
 ``` r
 
 zuxml_info()
-#> zuxml 0.0.0.9000
+#> zuxml 0.1.0
 #> Expat:             expat_2.8.4
 #> Namespaces:        yes
 #> DTD:               disabled
@@ -256,3 +314,27 @@ zuxml_info()
 #> Entropy:           syscall(SYS_getrandom)
 #> Context bytes:     1024
 ```
+
+## For package authors
+
+`zuxml` exposes its parser to other packages as a registered C function
+table, so a downstream package can parse XML without linking against
+Expat itself:
+
+    # in DESCRIPTION
+    Imports:    zuxml
+    LinkingTo:  zuxml
+
+``` c
+#define ZUXML_DEFINE_API_GET
+#include "zuxml.h"
+
+const zuxml_api *api = zuxml_api_get();
+```
+
+`Imports:` alone is not enough — the consumer’s `NAMESPACE` needs a real
+import directive (`importFrom(zuxml, zuxml_info)`), or zuxml’s namespace
+is never loaded and `R_GetCCallable()` resolves nothing. The header
+([`inst/include/zuxml.h`](https://github.com/pedrobtz/zuxml/blob/main/inst/include/zuxml.h))
+documents the string-lifetime contract and the versioning rules; read it
+before you keep any pointer a handler hands you.

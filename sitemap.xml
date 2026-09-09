@@ -1,18 +1,20 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
-<url><loc>/404.html</loc></url>
-<url><loc>/LICENSE-text.html</loc></url>
-<url><loc>/LICENSE.html</loc></url>
-<url><loc>/articles/index.html</loc></url>
-<url><loc>/articles/zuxml.html</loc></url>
-<url><loc>/authors.html</loc></url>
-<url><loc>/index.html</loc></url>
-<url><loc>/reference/index.html</loc></url>
-<url><loc>/reference/xml_metadata.html</loc></url>
-<url><loc>/reference/xml_navigate.html</loc></url>
-<url><loc>/reference/xml_parse.html</loc></url>
-<url><loc>/reference/xml_properties.html</loc></url>
-<url><loc>/reference/xml_serialize.html</loc></url>
-<url><loc>/reference/zuxml-package.html</loc></url>
-<url><loc>/reference/zuxml_info.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/404.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/LICENSE-text.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/LICENSE.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/articles/hamlet.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/articles/index.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/articles/zuxml.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/authors.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/index.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/news/index.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/index.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/xml_metadata.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/xml_navigate.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/xml_parse.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/xml_properties.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/xml_serialize.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/zuxml-package.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/reference/zuxml_info.html</loc></url>
 </urlset>
 
