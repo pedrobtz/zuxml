@@ -14,22 +14,6 @@ library(zuxml)
 API to walk it. This article covers the whole public surface — there are only
 about twenty functions.
 
-## This is XML, not HTML
-
-Worth saying before you try it: **`zuxml` does not parse HTML**, and no option
-changes that.
-
-Expat is a strict, non-recovering XML parser. Real-world HTML --- `<br>`,
-unquoted attributes, `&nbsp;`, unclosed `<li>` --- is not well-formed XML, so it
-is an error, not something to recover from:
-
-```{r, error = TRUE}
-xml_parse("<p>a <br> b</p>")
-```
-
-Only XHTML served as well-formed XML will parse. HTML is planned for a sibling
-package that reuses this one's tree and navigation API.
-
 ## Parsing
 
 `xml_parse()` takes a string or a raw vector; `xml_read()` takes a file path.
@@ -220,28 +204,3 @@ is an error rather than silently dropped content.
 ```{r}
 zuxml_info()
 ```
-
-## For package authors
-
-`zuxml` exposes its parser to other packages as a registered C function table,
-so a downstream package can parse XML without linking against Expat itself:
-
-```
-# in DESCRIPTION
-Imports:    zuxml
-LinkingTo:  zuxml
-```
-
-```c
-#define ZUXML_DEFINE_API_GET
-#include "zuxml.h"
-
-const zuxml_api *api = zuxml_api_get();
-```
-
-`Imports:` alone is not enough --- the consumer's `NAMESPACE` needs a real
-import directive (`importFrom(zuxml, zuxml_info)`), or zuxml's namespace is
-never loaded and `R_GetCCallable()` resolves nothing. The header
-([`inst/include/zuxml.h`](https://github.com/pedrobtz/zuxml/blob/main/inst/include/zuxml.h))
-documents the string-lifetime contract and the versioning rules; read it before
-you keep any pointer a handler hands you.
