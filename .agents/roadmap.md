@@ -259,6 +259,25 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 **Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. Validate by pressing Ctrl-C during a large `xml_parse()` in a real terminal.
 
+**Added after 0.1.0: the W3C XML Conformance Test Suite** (`tools/run-conformance`, `tools/xmlconformance.R`), pinned to the dated `xmlts20130923` archive — frozen since 2013, so it is a stronger pin than a git commit.
+
+The suite cannot be scored the way zujson scores nst/JSONTestSuite, and saying why is most of the value. It is DTD-centric by construction: **all 812 `TYPE="valid"` cases carry a DOCTYPE**, so a naive harness reports 0/812 on the "must accept" half and looks catastrophic, when it is only the §11 policy working. Worse, 985 of the 1498 `not-wf` cases are refused at the DOCTYPE gate *before* their actual well-formedness violation is reached — the right answer for the wrong reason, and counting those as passes would be vacuous in exactly the way the strict-warning gate was.
+
+So the gate is the **adjudicated** set: cases where zuxml returned something other than `zuxml_doctype_error`, i.e. actually formed an opinion about well-formedness. That is 591 files — 513 `not-wf` that must be rejected, 78 `invalid` that must be *accepted*, because "invalid" means invalid against a DTD and a non-validating parser must not diagnose it. Scope is decided by the error class, not by grepping for `<!DOCTYPE`: three OASIS cases carry that string inside a comment, a PI and a CDATA section, and ~180 files hit a parse error inside the DTD before the declaration is recognised at all.
+
+**Standing: 591 gated, 544 as expected, 47 deviations, 0 unexplained.** Every deviation is attributable to a property the catalog itself states — 34 XML 1.1 (Expat is an XML 1.0 processor; `ibm02n32` is a bare `0x7F`, forbidden in 1.1 and legal in 1.0), 10 fifth-edition `NameChar` (Expat implements the 4th edition), 2 `NAMESPACE="no"`. Attribution is by rule, not by a list of file names, so a *new* deviation cannot hide inside a known category. Baselines are per cause and asymmetric: a category growing fails the run, a category shrinking is an improvement and only reported.
+
+One genuine gap found, listed explicitly rather than swept into a rule: **`hst-lhs-007`** — a UTF-8 BOM followed by `encoding='iso-8859-1'`. The suite says not-wf; Expat does not diagnose the contradiction and `xml_encoding()` reports `iso-8859-1`. The sibling `hst-lhs-008` (UTF-16 BOM vs a `utf-8` declaration) *is* rejected, so it is specifically the UTF-8-BOM case.
+
+Two traps, both of which lose cases **silently**:
+
+- The master `xmlconf.xml` is the one file in the suite zuxml cannot read — it composes the sub-catalogs from external entities in an internal subset, which is precisely what this package refuses. The sub-catalogs are plain XML, so the harness reads them directly and parses its own input with the package under test.
+- Three `sun/*` catalogs are bare external parsed entities (many top-level `<TEST>`, no root) and a fourth, `sun-error.xml`, is a document whose *root* is the `<TEST>` — and `xml_find()` selects descendants, so the root is not a descendant of itself. The first shape fails loudly; the second returns zero and was lost without any error until the per-catalog count was checked against the file. Both are fixed by wrapping every catalog in a synthetic root unconditionally, plus a hard failure if any catalog contributes nothing.
+
+The canonical-XML `OUTPUT` files are deliberately not compared: only three adjudicated cases have one, and `xml_serialize()` is not a C14N implementation, so a byte comparison would report formatting as non-conformance.
+
+Gate verified non-vacuous the same way the mutation check is: removing the `hst-lhs-007` entry fails the run with one unexplained deviation naming it, lowering a baseline fails it as a regression, and raising one passes while reporting the improvement.
+
 ---
 
 
