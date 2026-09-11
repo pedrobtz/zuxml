@@ -292,34 +292,45 @@ Gate verified non-vacuous the same way the mutation check is: removing the `hst-
 
 ---
 
-## Stage 8 — Documentation, benchmarks, CRAN prep · M
+## Stage 8 — Documentation, benchmarks, CRAN prep · M — **complete, except the external check runs**
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
 - ~~Getting-started article~~ **done**: `vignettes/articles/zuxml.Rmd`, pkgdown-only (excluded from the tarball via `.Rbuildignore`, so it never reaches CRAN or slows `R CMD check`). Writing it found a use-after-free that the fuzzers could not — they never read `zux_error.message`.
-- Remaining vignettes: *Parsing untrusted XML* (the security model, and what `zuxml` deliberately refuses), *Streaming large documents*. Getting started is covered by the pkgdown article above and does not need a second, shipped copy.
+- ~~Remaining vignettes: *Parsing untrusted XML*, *Streaming large documents*~~ **done**, both shipped in the tarball (`VignetteBuilder: knitr`), unlike the getting-started article which stays pkgdown-only. `vignettes/security.Rmd` is deliberately named so that `vignette("security")` resolves — `R/parse.R` had referenced it as "once written" since Stage 4, so this closed a dangling cross-reference as well as a gap. `vignettes/streaming.Rmd` documents the **C** seam and says plainly that there is no R-level streaming API in 0.1.0, because there is not one; an R pull API is phase 2 and pretending otherwise in a vignette would be the wrong kind of documentation.
 - ~~README rewrite~~ **done**: states plainly that this is XML, **not HTML** (§17), with the `<br>` failure shown rather than described.
-- Benchmarks against the §21 fixtures and targets, versus `xml2` for context.
+- ~~Benchmarks against the §21 fixtures and targets, versus `xml2`~~ **done**: `tools/run-benchmarks` + `tools/benchmarks.R`, all seven §21 fixtures generated rather than shipped. Deliberately **not** in CI — shared-runner timings are too noisy to gate on, and ratio targets belong to a release check rather than every push. `xml2` and `bench` are not in `Suggests`, because `tools/` is `.Rbuildignore`d and CRAN should not install them to check the package.
 - ~~`cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance~~ **done**. `cran-comments.md` is `.Rbuildignore`d; it still needs the win-builder/R-hub results pasted in before submitting.
 - ~~Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1)~~ **done**, via the justification route: `cran-comments.md` quotes the `getDebugLevel("EXPAT_ENTROPY_DEBUG", 0) >= 1u` guard and argues that a local patch would cost more than it buys, because `tools/verify-vendor` compares the vendored tree byte-for-byte against upstream and a patch would weaken that. Offer to patch if CRAN asks.
-- `R CMD check --as-cran` on win-builder (release + devel) and R-hub.
+- `R CMD check --as-cran` on win-builder (release + devel) and R-hub. **Still outstanding** — these need a human to submit and collect the emailed results; `cran-comments.md` has the rows stubbed and marked pending.
 
 **Exit**
-- Zero NOTEs beyond "New submission" and the `___stderrp` one from vendored Expat. (The anticipated "installed size" NOTE does not in fact appear.)
-- Every example runs under `--run-donttest`.
-- Benchmarks meet the §21 targets, or the gap is documented with a reason.
-- The `_R_CHECK_*` compiled-code checks pass, including `--use-valgrind` on one Linux run.
+- Zero NOTEs beyond "New submission" and the `___stderrp` one from vendored Expat. (The anticipated "installed size" NOTE does not in fact appear.) **Met** — a third NOTE appears locally, "'tidy' doesn't look like recent enough HTML Tidy", which is a property of the maintainer's macOS install and absent on every CI platform. Recorded in `cran-comments.md` rather than chased.
+- Every example runs under `--run-donttest`. **Met.**
+- Benchmarks meet the §21 targets, or the gap is documented with a reason. **Met on three of four, with one documented gap.**
+- The `_R_CHECK_*` compiled-code checks pass, including `--use-valgrind` on one Linux run. **Outstanding** — valgrind is not viable on the maintainer's macOS; this needs a Linux run.
+
+**Benchmark results** (local macOS, R 4.5.2; absolute numbers are machine-dependent, the ratios are the targets):
+
+| §21 target | Result |
+|---|---|
+| Tree parse within ~2× of `xml2` on a 1 MiB feed | **0.7–1.0×** — at parity, and *faster* than `xml2` on many-tiny-nodes (0.66×) and namespace-heavy (0.70×) |
+| Streaming throughput independent of chunk size above 4 KiB | **2–13% spread** across 4 KiB–256 KiB |
+| Zero R allocations during parsing; handles created lazily | Parsing 9 MiB moves R's gc counters by ~21 cells; materializing 40k node handles afterwards moves them by ~220 — the ordering is the claim |
+| Memory ≤ 2.5× input | **Gap: ~2.6–3.4× measured.** See below |
+
+The memory gap is the one real finding, and it is smaller than it first looked. A single 100 KiB parse reports ~3.6×, but nearly all of that is fixed cost — allocator arenas, page granularity, first touch — that a second document does not pay again. Measured marginally over 40 live copies the figure falls to ~2.4–2.7× on the 1 MiB feed and 2.4–3.4× on the 100 KiB one, varying run to run. RSS is a noisy instrument that never returns memory eagerly, so these run high if anything. The honest statement is that the package is **at or slightly above** the 2.5× target rather than comfortably inside it, and that the instrument is not sharp enough to say which. The benchmark therefore reports the number and does not gate on it. Sharpening this needs the arena to report its own size, which is a phase-2 change, not a 0.1.0 blocker.
 
 ---
 
-## Stage 9 — first CRAN release · S
+## Stage 9 — first CRAN release · S — **ready to submit; submission itself outstanding**
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
   promising API stability before `zuhttp` has actually used it would be
   premature, and CRAN version numbers only go up.
-- Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`.
-- Tag, submit, respond to CRAN.
+- ~~Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`~~ **done** — a table naming, for each criterion, the test file, tool or CI job that verifies it. Writing it out was worth the effort: every criterion had something behind it, but three were verified only by a gate that nothing in `cran-comments.md` had previously mentioned.
+- **Tag, submit, respond to CRAN — outstanding, and deliberately a human step.** Everything mechanical is done: the pre-submission checklist in `cran-comments.md` is cleared (the pkgdown site is live, so the DESCRIPTION URL resolves), the README offers `install.packages("zuxml")` as well as the development install, and `R CMD check --as-cran --run-donttest` is clean. What remains needs a person: the win-builder and R-hub runs (results arrive by email), a Linux `--use-valgrind` run, and the submission itself.
 - Then start `zuhttp`'s `resp_xml()`. v1.0.0 follows once the public R and C
   APIs have survived a real downstream consumer.
 

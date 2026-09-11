@@ -51,8 +51,8 @@ A \code{zuxml_document}.
 \details{
 Parsing is strict and secure by default: document type declarations are
 rejected, general entities are not compiled in at all, and the limits below
-bound what a hostile document can cost. See \code{vignette("security")} once
-written, or \code{zuxml_info()} for the compiled-in policy.
+bound what a hostile document can cost. See \code{vignette("security")} for the
+threat model, or \code{zuxml_info()} for the compiled-in policy.
 }
 \examples{
 doc <- xml_parse("<catalog><book id='1'><title>XML</title></book></catalog>")

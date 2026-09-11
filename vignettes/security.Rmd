@@ -1,0 +1,223 @@
+---
+title: "Parsing untrusted XML"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Parsing untrusted XML}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(zuxml)
+```
+
+The usual reason to parse XML is that something else sent it to you --- an HTTP
+response body, a file someone uploaded, a feed you do not control. This
+vignette is about what `zuxml` does with input like that, and, just as
+importantly, what it refuses to do at all.
+
+The short version: the dangerous parts of XML are not turned off by a
+configuration flag you could forget to set. They are not compiled in.
+
+## What the build actually contains
+
+`zuxml_info()` reports the compiled-in policy rather than the current options,
+so it answers "what is this binary capable of" rather than "what did you ask
+for":
+
+```{r}
+zuxml_info()
+```
+
+`DTD: disabled` and `External entities: not compiled in` are the two lines that
+matter. The bundled Expat is built with `XML_GE 0` and without `XML_DTD`, which
+removes general entities, parameter entities and the external-entity machinery
+from the object code. There is no runtime path to them because there is no
+code to reach.
+
+## XXE
+
+The classic attack supplies a document that declares an entity pointing at a
+local file, then references it, so the file's contents end up in the parsed
+output:
+
+```{r, error = TRUE}
+xml_parse('<!DOCTYPE d [<!ENTITY x SYSTEM "file:///etc/passwd">]><d>&x;</d>')
+```
+
+The document is rejected at the `DOCTYPE`, before the entity declaration is
+even looked at. No file is opened. The same applies to a `SYSTEM` identifier
+naming a URL --- no request is made, because nothing in the package can make
+one.
+
+This is checked at two levels: `zuxml` refuses the declaration, and the parser
+underneath it has no resolver compiled in. Removing either one is caught by the
+package's own mutation tests, which delete each guard and require the hostile
+input to stop being rejected.
+
+## Entity expansion ("billion laughs")
+
+The amplification attack nests entity definitions so that a small document
+expands to gigabytes:
+
+```{r, error = TRUE}
+xml_parse(paste0(
+  '<!DOCTYPE lol [',
+  '<!ENTITY a "aaaaaaaaaa">',
+  '<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">',
+  '<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">',
+  ']><lol>&c;</lol>'))
+```
+
+Again refused at the `DOCTYPE`, so expansion never begins. There is no
+expansion budget to tune, because there is no expansion.
+
+## `allow_doctype`, and the one rule it does not relax
+
+Real feeds do carry a bare or `PUBLIC`/`SYSTEM` doctype that declares nothing.
+`allow_doctype = TRUE` accepts those and ignores the declaration:
+
+```{r}
+xml_text(xml_root(xml_parse("<!DOCTYPE feed><feed>hi</feed>",
+                            allow_doctype = TRUE)))
+```
+
+An **internal subset is still rejected, even then**:
+
+```{r, error = TRUE}
+xml_parse('<!DOCTYPE d [<!ENTITY e "X">]><d>x&e;y</d>', allow_doctype = TRUE)
+```
+
+This is worth explaining, because it is a correctness rule rather than a
+security one. With general entities compiled out, the parser underneath does
+not record an entity declaration --- so a later reference to it is not an
+error, it is passed through as *literal text*. The document above would parse
+as the four characters `&e;` rather than `X`, and re-serializing would escape
+it to `&amp;e;`: a different document, silently. The internal subset is the
+only place a document can declare entities, so refusing it closes that hole
+entirely.
+
+An entity that was never declared anywhere is a plain parse error, which is
+the correct answer for XML:
+
+```{r, error = TRUE}
+xml_parse("<p>caf&eacute;</p>")
+```
+
+If you are parsing HTML-ish content and hitting this, the answer is not a
+parser option --- see the "this is XML, not HTML" section of the getting
+started article.
+
+## Limits
+
+Everything above concerns what the document may *declare*. The limits concern
+what it may *cost*. Each has its own condition class, so you can tell a hostile
+document from a merely large one:
+
+```{r, error = TRUE}
+xml_parse(paste0(strrep("<a>", 300), strrep("</a>", 300)), max_depth = 256)
+```
+
+```{r, error = TRUE}
+xml_parse("<a>a rather long run of text</a>", max_text = 8)
+```
+
+The full set is `max_depth`, `max_nodes`, `max_attrs`, `max_text` and
+`max_memory`. The defaults are sized for documents a server might legitimately
+send; lower them when you know your input is small, which turns "this parse got
+expensive" into an immediate, classed error.
+
+## Handling the errors
+
+Every failure is an R condition under `zuxml_error`, so a caller can be as
+coarse or as specific as it likes. Catching the parent class is enough to be
+safe:
+
+```{r}
+parse_or_null <- function(x, ...) {
+  tryCatch(xml_parse(x, ...), zuxml_error = function(e) NULL)
+}
+parse_or_null("<a><b></a>")
+```
+
+Distinguishing causes matters when the response is different --- a limit
+suggests retrying with a bigger budget or rejecting the source outright, while
+a doctype error suggests a feed you may want to allow explicitly:
+
+```{r}
+classify <- function(x, ...) {
+  tryCatch({ xml_parse(x, ...); "ok" },
+    zuxml_doctype_error = function(e) "doctype refused",
+    zuxml_limit_error   = function(e) "too expensive",
+    zuxml_parse_error   = function(e) "malformed")
+}
+c(classify("<a/>"),
+  classify("<!DOCTYPE a><a/>"),
+  classify("<a><b></a>"),
+  classify("<a>xxxxxxxx</a>", max_text = 2))
+```
+
+`zuxml_limit_error` is the shared parent of the five limit conditions, so the
+branch above catches all of them without naming each.
+
+Parse errors carry the position, which is what makes a bad feed diagnosable
+rather than merely rejected:
+
+```{r}
+e <- tryCatch(xml_parse("<a>\n  <b>\n</a>"), zuxml_error = identity)
+conditionMessage(e)
+```
+
+## Encoding
+
+An encoding you pass explicitly overrides whatever the document declares, which
+is the behaviour an HTTP `charset` parameter should have:
+
+```{r}
+xml_text(xml_root(xml_parse(as.raw(c(0x3c, 0x61, 0x3e, 0xe9, 0x3c, 0x2f, 0x61, 0x3e)),
+                            encoding = "ISO-8859-1")))
+```
+
+Encodings the parser cannot handle natively are transcoded with `iconv()`
+first, and the now-stale declaration is overridden so it cannot mislead the
+parser afterwards. An encoding that cannot be converted is a classed error
+rather than mojibake:
+
+```{r, error = TRUE}
+xml_parse("<a>x</a>", encoding = "NOT-AN-ENCODING")
+```
+
+## What this does not protect you from
+
+Worth being explicit, because a security vignette that only lists wins is
+misleading:
+
+- **It is not a validator.** `zuxml` checks well-formedness, not conformance to
+  a schema or DTD. A document can be entirely well-formed and still be a lie
+  about its contents.
+- **It does not sanitize.** Text and attribute values come back as they were
+  written. If you interpolate them into HTML, SQL or a shell command, that is
+  your injection to prevent, not the parser's.
+- **It does not fetch anything.** That is the point --- but it also means a
+  document relying on an external DTD for entity definitions or attribute
+  defaults will not parse the way a validating processor would. If you need
+  that, you need a different parser.
+- **Limits bound cost, not intent.** A document inside every limit can still be
+  hostile in what it *says*.
+
+## Summary
+
+| Attack | Outcome |
+|---|---|
+| External entity (file or URL) | refused at the `DOCTYPE`; nothing opened |
+| Entity amplification | refused at the `DOCTYPE`; no expansion |
+| Entity declared in an internal subset | refused, even with `allow_doctype = TRUE` |
+| Undeclared entity reference | `zuxml_parse_error` |
+| Deep nesting, huge text, node floods | classed `zuxml_limit_error` |
+| Malformed markup | `zuxml_parse_error` with line and column |
+
+The defaults are the safe configuration. Nothing here needs to be switched on.

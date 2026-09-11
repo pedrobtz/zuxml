@@ -12,6 +12,7 @@ Reads, navigates, and writes XML documents using a bundled copy of the 'Expat' p
 Useful links:
 \itemize{
   \item \url{https://github.com/pedrobtz/zuxml}
+  \item \url{https://pedrobtz.github.io/zuxml/}
   \item Report bugs at \url{https://github.com/pedrobtz/zuxml/issues}
 }
 
