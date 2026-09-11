@@ -55,8 +55,8 @@ Conversion to lists is a separate, explicitly lossy operation, and is not in v1.
 | `xml_as_list()` | | yes (lossy, documented) | as the default return |
 | `zuhttp::resp_xml()` | | yes | |
 | HTML parsing | | see §17 — separate package | inside zuxml |
-| XPath / XSLT / schema / XInclude / DTD validation | | | |
-| External entity resolution, catalogs | | | |
+| XPath / XSLT / schema / XInclude / DTD validation | | | yes |
+| External entity resolution, catalogs | | | yes |
 
 The package should not gradually become a small clone of libxml2. When in doubt, the answer is no.
 
