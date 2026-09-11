@@ -30,12 +30,12 @@
 #   it actually formed an opinion about the document's well-formedness rather
 #   than stopping at the policy gate. Within that set:
 #
-#     TYPE="not-wf"   must be rejected   (513 files)
-#     TYPE="invalid"  must be ACCEPTED   (78 files) -- "invalid" means invalid
-#                     against a DTD, which a non-validating parser must not
-#                     diagnose; accepting them is the conformant answer
-#     TYPE="error"    optional, reported but never gated
-#     TYPE="valid"    none survive; all 812 are refused at the DOCTYPE
+#     TYPE="not-wf"   must be rejected
+#     TYPE="invalid"  must be ACCEPTED -- "invalid" means invalid against a
+#                     DTD, which a non-validating parser must not diagnose;
+#                     accepting them is the conformant answer
+#     TYPE="valid"    must be ACCEPTED
+#     TYPE="error"    optional; never gated in either mode
 #
 # Scope is defined by the error class and not by grepping the bytes for
 # "<!DOCTYPE", which is wrong in both directions: o-p15pass1, o-p16pass1 and
@@ -43,9 +43,26 @@
 # ~180 files hit a parse error inside the DTD before the declaration is
 # recognised at all.
 #
-# Current standing for xmlts20130923: 591 gated files, 544 as expected and 47
-# deviations, every one of which falls into a category the catalog itself
-# labels -- see `explain()`. Deviations with no such label fail the run.
+# That judgement is applied TWICE, once per parse mode, because allow_doctype
+# is a documented user-facing option and the default-mode gate is blind to it
+# by construction: a gated file there is one zuxml did not stop at the
+# DOCTYPE, so the flag cannot move any of them. Without the second gate the
+# opt-in mode would have no conformance coverage at all.
+#
+#   allow_doctype = FALSE   591 gated, 47 deviations. No TYPE="valid" case
+#                           survives -- all 812 carry a DOCTYPE.
+#   allow_doctype = TRUE    730 gated, 92 deviations. Allowing a DOCTYPE with
+#                           no internal subset brings 139 more cases in,
+#                           including the first "valid" ones. Every extra
+#                           deviation has one cause: the external subset is
+#                           never retrieved, which shows up in both
+#                           directions -- a not-wf document accepted because
+#                           the violation is in the unread DTD, and a valid
+#                           document rejected because the entity it
+#                           references was declared there.
+#
+# Every deviation in both modes is attributable to a property the catalog
+# itself states -- see `explain()`. Deviations with no such label fail the run.
 #
 # The canonical-XML OUTPUT files are deliberately not compared. Only three
 # adjudicated cases even have one, and xml_serialize() is not a C14N
@@ -160,6 +177,9 @@ for (s in subs) {
     rec     = xml_attr(tests, "RECOMMENDATION"),
     version = xml_attr(tests, "VERSION"),
     output  = xml_attr(tests, "OUTPUT"),
+    # "parameter"/"both" is the catalog stating that the declarations this
+    # case turns on live outside the document -- see explain().
+    ents    = xml_attr(tests, "ENTITIES"),
     # URIs resolve against the sub-catalog's own directory. The master
     # catalog also carries xml:base on each <TESTCASES> it composes, but that
     # is both redundant and, in one case, stale: it gives ht-bh.xml the base
@@ -205,22 +225,23 @@ d$result_dt <- vapply(d$path, outcome_dt, "", USE.NAMES = FALSE)
 d$adjudicated <- d$result != "zuxml_doctype_error"
 d$accepted <- d$result == "ok"
 
-cat(sprintf("\n%s: %d catalogs, %d test cases, %d adjudicated\n",
-            release, length(cases), nrow(d), sum(d$adjudicated)))
+cat(sprintf("\n%s: %d catalogs, %d test cases\n", release, length(cases), nrow(d)))
 
-# ---- the gate ------------------------------------------------------------
-
-gated <- d[d$adjudicated & d$type %in% c("not-wf", "invalid"), ]
-gated$want <- gated$type == "invalid"   # invalid must be ACCEPTED, not-wf must not
-gated$deviant <- gated$accepted != gated$want
-
+# ---- attribution ---------------------------------------------------------
+#
 # Every deviation must be attributable to a property the catalog states about
-# the case, not to a hand-maintained list of file names. A deviation that no
-# rule explains is a finding.
-explain <- function(rec, ns, version) {
+# the case, not to a hand-maintained list of file names -- otherwise a NEW
+# deviation can hide inside a known category. A deviation that no rule
+# explains is a finding.
+#
+# Order matters. A case can satisfy more than one clause (the XML 1.1 P77
+# name-character tests also pull in an external subset), and the first match
+# should be the reason it actually deviates, so the narrower cause wins.
+explain <- function(rec, ns, version, ents) {
   rec <- ifelse(is.na(rec), "", rec)
   ns <- ifelse(is.na(ns), "", ns)
   version <- ifelse(is.na(version), "", version)
+  ents <- ifelse(is.na(ents), "", ents)
   ifelse(rec %in% c("XML1.1", "NS1.1") | version == "1.1",
          # Expat is an XML 1.0 processor. These cases turn on characters XML
          # 1.1 forbids but 1.0 permits (ibm02n32 is a bare 0x7F), or on the
@@ -235,10 +256,17 @@ explain <- function(rec, ns, version) {
          # The catalog marks these as not namespace-well-formed; zuxml is
          # namespace-aware, so refusing them is correct for this parser.
          "NAMESPACE=\"no\" (zuxml is namespace-aware)",
-         NA_character_)))
+  ifelse(ents %in% c("parameter", "both"),
+         # ENTITIES="parameter"/"both" is the catalog saying the declarations
+         # this case turns on live outside the document. zuxml never fetches
+         # an external subset (design §2 Never, §23.5), so it cannot see them,
+         # and that shows up as BOTH symptoms: a not-wf document accepted
+         # because the violation is in the unread DTD, and a valid document
+         # rejected because the entity it references was declared there. One
+         # cause, two directions.
+         "external subset not retrieved (by design)",
+         NA_character_))))
 }
-gated$why <- ifelse(gated$deviant,
-                    explain(gated$rec, gated$ns, gated$version), NA_character_)
 
 # One deviation is a genuine, reviewed difference rather than a category:
 # a UTF-8 BOM followed by encoding='iso-8859-1'. The suite says not-wf; Expat
@@ -249,63 +277,104 @@ gated$why <- ifelse(gated$deviant,
 # not a design decision.
 known <- c("hst-lhs-007" =
              "UTF-8 BOM contradicts encoding='iso-8859-1'; Expat does not diagnose")
-hit <- gated$deviant & is.na(gated$why) & gated$id %in% names(known)
-gated$why[hit] <- "known deviation"
 
-# The deviation baselines only mean anything against a pool of the expected
-# size. Without this, a truncated or wrong-release suite reports "0
-# unexplained" and passes -- the gate would be measuring nothing.
-gated_baseline <- 591L
-if (nrow(gated) != gated_baseline) {
-  stop("gated pool is ", nrow(gated), ", expected ", gated_baseline,
-       " -- wrong suite release, or a catalog changed. Review before ",
-       "updating the baselines.", call. = FALSE)
-}
+# ---- one gate, run once per parse mode -----------------------------------
+#
+# Both modes are gated because allow_doctype is a documented, user-facing
+# option, and the default-mode gate cannot see it: a gated file there is by
+# construction one zuxml did not stop at the DOCTYPE, so the flag cannot move
+# any of them. Running the same judgement twice is what gives that option
+# coverage at all.
+run_gate <- function(label, result, types, size_baseline, baseline) {
+  adjudicated <- result != "zuxml_doctype_error"
+  keep <- adjudicated & d$type %in% types
+  g <- d[keep, ]
+  g$result <- result[keep]
+  # "invalid" and "valid" must both be ACCEPTED: invalid means invalid against
+  # a DTD, which a non-validating parser must not diagnose.
+  g$want <- g$type %in% c("invalid", "valid")
+  g$deviant <- (g$result == "ok") != g$want
+  g$why <- ifelse(g$deviant, explain(g$rec, g$ns, g$version, g$ents), NA)
+  hit <- g$deviant & is.na(g$why) & g$id %in% names(known)
+  g$why[hit] <- "known deviation"
 
-cat("\n-- gated: documents zuxml adjudicated ------------------------------\n")
-for (ty in c("not-wf", "invalid")) {
-  i <- which(gated$type == ty)
-  cat(sprintf("%-22s %4d files, %4d as expected, %3d deviations\n",
-              if (ty == "not-wf") "not-wf must reject" else "invalid must accept",
-              length(i), sum(!gated$deviant[i]), sum(gated$deviant[i])))
-}
+  cat(sprintf("\n== gate: allow_doctype = %s ==============================\n",
+              label))
 
-# Baselines are per cause. A category shrinking is an improvement and only
-# reported; a category growing means a case that used to get the right answer
-# stopped getting it, which is a regression even though the cause is known.
-baseline <- c(
-  "XML 1.1 (zuxml is XML 1.0)"                        = 34L,
-  "5th-edition name characters (zuxml is 4th edition)" = 10L,
-  "NAMESPACE=\"no\" (zuxml is namespace-aware)"        =  2L,
-  "known deviation"                                    =  1L)
-
-cat("\n-- deviations, by cause -------------------------------------------\n")
-bad <- 0L
-for (cause in names(baseline)) {
-  n <- sum(gated$deviant & !is.na(gated$why) & gated$why == cause)
-  note <- ""
-  if (n > baseline[[cause]]) {
-    note <- sprintf("   <- REGRESSION, baseline is %d", baseline[[cause]])
-    bad <- bad + 1L
-  } else if (n < baseline[[cause]]) {
-    note <- sprintf("   <- improved, baseline is %d", baseline[[cause]])
+  # The deviation baselines only mean anything against a pool of the expected
+  # size. Without this, a truncated or wrong-release suite reports "0
+  # unexplained" and passes -- the gate would be measuring nothing. Symmetric,
+  # unlike the per-cause baselines: a pool that grew means the suite changed,
+  # so the per-cause numbers were calibrated against a different population.
+  if (nrow(g) != size_baseline) {
+    stop("gated pool is ", nrow(g), ", expected ", size_baseline,
+         " -- wrong suite release, or a catalog changed. Review before ",
+         "updating the baselines.", call. = FALSE)
   }
-  cat(sprintf("  %-52s %3d%s\n", cause, n, note))
-}
-for (j in which(gated$deviant & gated$why == "known deviation")) {
-  cat(sprintf("      %s: %s\n", gated$id[j], known[[gated$id[j]]]))
+
+  for (ty in types) {
+    i <- which(g$type == ty)
+    cat(sprintf("  %-20s %4d files, %4d as expected, %3d deviations\n",
+                if (ty == "not-wf") "not-wf must reject" else
+                  paste(ty, "must accept"),
+                length(i), sum(!g$deviant[i]), sum(g$deviant[i])))
+  }
+
+  # Per cause, and asymmetric: a category growing means a case that used to
+  # get the right answer stopped getting it, which is a regression even though
+  # the cause is known. A category shrinking is an improvement, reported only.
+  cat("  -- deviations, by cause --\n")
+  bad <- 0L
+  for (cause in names(baseline)) {
+    n <- sum(g$deviant & !is.na(g$why) & g$why == cause)
+    note <- ""
+    if (n > baseline[[cause]]) {
+      note <- sprintf("   <- REGRESSION, baseline is %d", baseline[[cause]])
+      bad <- bad + 1L
+    } else if (n < baseline[[cause]]) {
+      note <- sprintf("   <- improved, baseline is %d", baseline[[cause]])
+    }
+    cat(sprintf("    %-50s %3d%s\n", cause, n, note))
+  }
+  for (j in which(g$deviant & g$why == "known deviation")) {
+    cat(sprintf("        %s: %s\n", g$id[j], known[[g$id[j]]]))
+  }
+
+  un <- g[g$deviant & is.na(g$why), ]
+  cat(sprintf("    %-50s %3d%s\n", "unexplained", nrow(un),
+              if (nrow(un)) "   <- these fail the run" else ""))
+  for (j in seq_len(nrow(un))) {
+    cat(sprintf("        %-34s %-8s %-20s %s\n", un$id[j], un$type[j],
+                if (is.na(un$rec[j])) "XML1.0" else un$rec[j], un$result[j]))
+  }
+  cat(sprintf("  %d gated, %d deviations, %d unexplained\n",
+              nrow(g), sum(g$deviant), nrow(un)))
+  bad + nrow(un)
 }
 
-unexplained <- gated[gated$deviant & is.na(gated$why), ]
-cat(sprintf("  %-52s %3d%s\n", "unexplained", nrow(unexplained),
-            if (nrow(unexplained)) "   <- these fail the run" else ""))
-for (j in seq_len(nrow(unexplained))) {
-  cat(sprintf("      %-34s %-8s %-20s %s\n", unexplained$id[j],
-              unexplained$type[j],
-              if (is.na(unexplained$rec[j])) "XML1.0" else unexplained$rec[j],
-              unexplained$result[j]))
-}
-bad <- bad + nrow(unexplained)
+bad <- 0L
+
+# Default mode. No TYPE="valid" case survives here -- all 812 carry a DOCTYPE
+# -- so the pool is not-wf and invalid only.
+bad <- bad + run_gate("FALSE (package default)", d$result,
+  c("not-wf", "invalid"), 591L, c(
+    "XML 1.1 (zuxml is XML 1.0)"                         = 34L,
+    "5th-edition name characters (zuxml is 4th edition)" = 10L,
+    "NAMESPACE=\"no\" (zuxml is namespace-aware)"         =  2L,
+    "external subset not retrieved (by design)"          =  0L,
+    "known deviation"                                    =  1L))
+
+# Opt-in mode. Allowing a DOCTYPE without an internal subset brings 139 more
+# cases into scope, including the first TYPE="valid" ones the suite can offer
+# this parser. The extra deviations are all one cause: the external subset is
+# never retrieved.
+bad <- bad + run_gate("TRUE (opt-in)", d$result_dt,
+  c("not-wf", "invalid", "valid"), 730L, c(
+    "XML 1.1 (zuxml is XML 1.0)"                         = 45L,
+    "5th-edition name characters (zuxml is 4th edition)" = 10L,
+    "NAMESPACE=\"no\" (zuxml is namespace-aware)"         =  2L,
+    "external subset not retrieved (by design)"          = 34L,
+    "known deviation"                                    =  1L))
 
 # A condition that is not a zuxml_error has escaped the contract, whatever the
 # accept/reject answer was. Same check as the zujson script.
@@ -320,33 +389,18 @@ if (nrow(bare)) {
 
 # ---- informational: what the DOCTYPE policy costs -------------------------
 #
-# Not pass/fail. This is the part of the suite zuxml declines to answer, and
-# its size is the honest price of the security model. Printed so that a change
-# in the policy shows up here as a diff rather than as silence.
+# Not pass/fail. This is the part of the suite neither gate can reach, and its
+# size is the honest price of the security model. Printed so that a change in
+# the policy shows up here as a diff rather than as silence.
 
-cat("\n-- not gated: refused at the DOCTYPE (informational) ---------------\n")
-gate_stopped <- d[!d$adjudicated, ]
-cat(sprintf("  %d of %d cases, by TYPE: %s\n", nrow(gate_stopped), nrow(d),
-            paste(sprintf("%s=%d", names(table(gate_stopped$type)),
-                          as.integer(table(gate_stopped$type))),
-                  collapse = "  ")))
-cat(sprintf("  with allow_doctype = TRUE, %d of these parse; %d still refuse\n",
-            sum(gate_stopped$result_dt == "ok"),
-            sum(gate_stopped$result_dt == "zuxml_doctype_error")))
-cat("  (the remainder is the internal-subset rule: a DTD may be declared,\n")
-cat("   but never one that can declare entities)\n")
+cat("\n-- reached by neither gate (informational) -------------------------\n")
+never <- d[d$result_dt == "zuxml_doctype_error", ]
+cat(sprintf("  %d of %d cases refused even with allow_doctype = TRUE, by TYPE: %s\n",
+            nrow(never), nrow(d),
+            paste(sprintf("%s=%d", names(table(never$type)),
+                          as.integer(table(never$type))), collapse = "  ")))
+cat("  every one carries an internal subset -- the only place a document can\n")
+cat("  declare entities, and the rule that has no flag (design §11)\n")
 
-opt <- d[d$adjudicated & d$type == "error", ]
-if (nrow(opt)) {
-  cat(sprintf("\n-- TYPE=\"error\": optional, never gated ------------------------\n"))
-  cat(sprintf("  %d adjudicated, %d accepted, %d rejected\n",
-              nrow(opt), sum(opt$accepted), sum(!opt$accepted)))
-}
-
-cat(sprintf("\n%d gated files, %d deviations, %d unexplained\n",
-            nrow(gated), sum(gated$deviant), nrow(unexplained)))
-if (bad > 0L) {
-  cat("FAIL\n")
-  quit(status = 1L)
-}
-cat("==> conformance clean\n")
+cat(sprintf("\n%s\n", if (bad > 0L) "FAIL" else "==> conformance clean"))
+if (bad > 0L) quit(status = 1L)

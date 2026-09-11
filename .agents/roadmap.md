@@ -265,7 +265,16 @@ The suite cannot be scored the way zujson scores nst/JSONTestSuite, and saying w
 
 So the gate is the **adjudicated** set: cases where zuxml returned something other than `zuxml_doctype_error`, i.e. actually formed an opinion about well-formedness. That is 591 files — 513 `not-wf` that must be rejected, 78 `invalid` that must be *accepted*, because "invalid" means invalid against a DTD and a non-validating parser must not diagnose it. Scope is decided by the error class, not by grepping for `<!DOCTYPE`: three OASIS cases carry that string inside a comment, a PI and a CDATA section, and ~180 files hit a parse error inside the DTD before the declaration is recognised at all.
 
-**Standing: 591 gated, 544 as expected, 47 deviations, 0 unexplained.** Every deviation is attributable to a property the catalog itself states — 34 XML 1.1 (Expat is an XML 1.0 processor; `ibm02n32` is a bare `0x7F`, forbidden in 1.1 and legal in 1.0), 10 fifth-edition `NameChar` (Expat implements the 4th edition), 2 `NAMESPACE="no"`. Attribution is by rule, not by a list of file names, so a *new* deviation cannot hide inside a known category. Baselines are per cause and asymmetric: a category growing fails the run, a category shrinking is an improvement and only reported.
+That judgement runs **twice, once per parse mode**, because `allow_doctype` is a documented user-facing option and the default-mode gate is blind to it by construction — a gated file there is one zuxml did not stop at the DOCTYPE, so the flag cannot move any of them. Without the second gate the opt-in mode has no conformance coverage at all.
+
+| | gated | as expected | deviations |
+|---|---|---|---|
+| `allow_doctype = FALSE` | 591 | 544 | 47 |
+| `allow_doctype = TRUE` | 730 | 638 | 92 |
+
+**0 unexplained in both.** Every deviation is attributable to a property the catalog itself states — XML 1.1 (Expat is an XML 1.0 processor; `ibm02n32` is a bare `0x7F`, forbidden in 1.1 and legal in 1.0), fifth-edition `NameChar` (Expat implements the 4th edition), `NAMESPACE="no"`, and in the opt-in gate `ENTITIES="parameter"/"both"`. Attribution is by rule, not by a list of file names, so a *new* deviation cannot hide inside a known category; order matters, since the XML 1.1 P77 cases also pull in an external subset and the narrower cause must win. Baselines are per cause and asymmetric: a category growing fails the run, a category shrinking is an improvement and only reported. The pool-size baselines are symmetric instead — a pool that *grew* means the suite changed, so the per-cause numbers were calibrated against a different population.
+
+The 139 cases the opt-in gate adds bring 45 extra deviations, under two causes. **34** are the external subset never being retrieved, and that one runs in both directions: a `not-wf` document accepted because its violation lives in the unread DTD (29), and a `valid` document rejected because the entity it references was declared there (5). The remaining **11** are XML 1.1 name characters (5 `not-wf`, 6 `valid`), already covered by the existing rule. Nothing new is unexplained — design §2's Never column showing up as a measurement rather than a claim.
 
 One genuine gap found, listed explicitly rather than swept into a rule: **`hst-lhs-007`** — a UTF-8 BOM followed by `encoding='iso-8859-1'`. The suite says not-wf; Expat does not diagnose the contradiction and `xml_encoding()` reports `iso-8859-1`. The sibling `hst-lhs-008` (UTF-16 BOM vs a `utf-8` declaration) *is* rejected, so it is specifically the UTF-8-BOM case.
 
