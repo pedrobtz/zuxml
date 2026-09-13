@@ -20,6 +20,8 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/hamlet.html">A whole play in XML</a></li>
+    <li><a class="dropdown-item" href="../articles/security.html">Parsing untrusted XML</a></li>
+    <li><a class="dropdown-item" href="../articles/streaming.html">Streaming large documents</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -107,8 +109,8 @@ Each has its own error condition.</p></dd>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Parsing is strict and secure by default: document type declarations are
 rejected, general entities are not compiled in at all, and the limits below
-bound what a hostile document can cost. See <code>vignette("security")</code> once
-written, or <code><a href="zuxml_info.html">zuxml_info()</a></code> for the compiled-in policy.</p>
+bound what a hostile document can cost. See <code><a href="../articles/security.html">vignette("security")</a></code> for the
+threat model, or <code><a href="zuxml_info.html">zuxml_info()</a></code> for the compiled-in policy.</p>
     </div>
 
     <div class="section level2">

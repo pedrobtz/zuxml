@@ -10,7 +10,12 @@ nesting depth and memory use.
 
 ## Installation
 
-Install the development version from GitHub:
+``` r
+
+install.packages("zuxml")
+```
+
+Or the development version from GitHub:
 
 ``` r
 
