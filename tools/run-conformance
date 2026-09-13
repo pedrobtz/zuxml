@@ -1,0 +1,45 @@
+#!/bin/sh
+# Run the W3C XML Conformance Test Suite against zuxml.
+#
+#   tools/run-conformance
+#
+# Installs the package into a throwaway library first, so the result is about
+# the working tree and not about whatever happens to be in the user's library.
+# The judgement -- which cases are in scope, and which deviations are
+# explained -- lives in tools/xmlconformance.R; this script only arranges for
+# it to have a package and a suite to work with.
+#
+# Run from the package root.
+set -eu
+
+LIB=$(mktemp -d)
+trap 'rm -rf "$LIB"' EXIT
+
+echo "==> installing zuxml"
+R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
+
+# The suite is a 1.5 MB download that has not changed since 2013, so it is
+# cached outside the package root rather than fetched per run -- the same
+# split, and for the same reason, as the fuzz corpus in tools/run-fuzz.
+# Override with XMLCONF_DIR to point at an existing checkout.
+RELEASE=xmlts20130923
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/zuxml/$RELEASE
+
+if [ -n "${XMLCONF_DIR:-}" ]; then
+  echo "==> using XMLCONF_DIR=$XMLCONF_DIR"
+elif [ -f "$CACHE/xmlconf/xmlconf.xml" ]; then
+  echo "==> using cached suite in $CACHE"
+  XMLCONF_DIR="$CACHE/xmlconf"
+else
+  echo "==> fetching $RELEASE into $CACHE"
+  mkdir -p "$CACHE"
+  ZIP=$(mktemp)
+  # shellcheck disable=SC2064
+  trap "rm -rf '$LIB' '$ZIP'" EXIT
+  curl -fsSL -o "$ZIP" "https://www.w3.org/XML/Test/$RELEASE.zip"
+  unzip -q -o "$ZIP" -d "$CACHE"
+  XMLCONF_DIR="$CACHE/xmlconf"
+fi
+export XMLCONF_DIR
+
+R_LIBS="$LIB" Rscript tools/xmlconformance.R

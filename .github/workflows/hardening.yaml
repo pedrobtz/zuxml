@@ -51,6 +51,26 @@ jobs:
       - name: consume zuxml exactly as zuhttp will
         run: ./tools/run-downstream-check
 
+  conformance:
+    runs-on: ubuntu-latest
+    name: W3C XML conformance
+    steps:
+      - uses: actions/checkout@v6
+      - uses: r-lib/actions/setup-r@v2
+      - name: cache the W3C suite
+        uses: actions/cache@v4
+        with:
+          # The suite is pinned to a dated archive and has been frozen since
+          # 2013, so the release name is the whole cache key.
+          path: ~/.cache/zuxml/xmlts20130923
+          key: xmlts20130923
+      - name: the suite must agree with the recorded baseline
+        # This job fetches from w3.org, which does not contradict the
+        # no-network job below: that one asserts the package's own test suite
+        # never reaches the network, and tools/ is .Rbuildignore'd, so it
+        # never runs under R CMD check.
+        run: ./tools/run-conformance
+
   no-network:
     runs-on: ubuntu-latest
     name: tests perform no I/O of their own

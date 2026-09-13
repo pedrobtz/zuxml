@@ -10,8 +10,8 @@ zux_native_encodings <- c("UTF-8", "UTF8", "UTF-16", "UTF-16LE", "UTF-16BE",
 #'
 #' Parsing is strict and secure by default: document type declarations are
 #' rejected, general entities are not compiled in at all, and the limits below
-#' bound what a hostile document can cost. See `vignette("security")` once
-#' written, or `zuxml_info()` for the compiled-in policy.
+#' bound what a hostile document can cost. See `vignette("security")` for the
+#' threat model, or `zuxml_info()` for the compiled-in policy.
 #'
 #' @param x A character string or a raw vector containing XML.
 #' @param path Path to a file.

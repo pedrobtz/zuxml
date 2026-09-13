@@ -1,0 +1,27 @@
+#!/bin/sh
+# Benchmark zuxml against the design §21 targets, with xml2 for context.
+#
+#   tools/run-benchmarks
+#
+# Installs the package into a throwaway library first, so the numbers are about
+# the working tree and not about whatever is in the user's library. The targets
+# and the measurements live in tools/benchmarks.R.
+#
+# Not wired into CI. Shared-runner timings are too noisy to gate on, and the
+# ratio targets are the kind of thing to check before a release rather than on
+# every push. Run it locally and record what it says.
+#
+# Needs xml2 and bench, which are deliberately not in Suggests: benchmarks are
+# not part of the CRAN tarball (tools/ is .Rbuildignore'd) and CRAN should not
+# install them to check the package.
+#
+# Run from the package root.
+set -eu
+
+LIB=$(mktemp -d)
+trap 'rm -rf "$LIB"' EXIT
+
+echo "==> installing zuxml"
+R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
+
+R_LIBS="$LIB" Rscript tools/benchmarks.R
