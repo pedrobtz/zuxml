@@ -1,0 +1,112 @@
+# Native-code checks for the C sources: the vendored-source guard, sanitizers,
+# valgrind, LTO, gctorture and rchk, via the reusable workflows in
+# pedrobtz/r-actions.
+#
+# These sit beside hardening.yaml rather than replacing it. Everything here
+# goes through R: R CMD check and the test suite, instrumented. hardening.yaml
+# compiles the parser seam into a standalone driver with no R in the picture,
+# which is where ASan works unaided and where the fuzzers and the mutation
+# check live. The R-facing sources -- init.c, r_api.c, r_document.c,
+# zux_register.c -- are only ever reached from this file.
+#
+# paths-ignore skips the whole workflow for prose-only changes. These jobs
+# compile the package and run the suite, so nothing they can observe lives in
+# a .md file, a pkgdown article or .agents/. GitHub applies it only when every
+# changed file matches, so a commit touching both a vignette and src/ still
+# runs. man/ is deliberately absent: R CMD check executes the examples in it,
+# and valgrind is what runs them under instrumentation. R-CMD-check.yaml is
+# also left alone -- README.md ships in the tarball and --as-cran checks the
+# URLs in it, which is a real check on a prose-only change.
+#
+# YAML anchors would express this once; GitHub Actions does not support them.
+on:
+  push:
+    branches: [main, master, develop]
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+      - 'docs/**'
+
+name: native-checks
+
+permissions: read-all
+
+jobs:
+  # tools/verify-vendor re-downloads the pinned Expat tarball and compares it
+  # byte for byte, so it catches a hand edit even when the pin was bumped to
+  # match. What it cannot catch is the same edit committed with the pin left
+  # alone -- reproducibility is a property of the commit, not of the working
+  # tree -- which is what the pull-request half of this job adds.
+  #
+  # vendor-dir is src/vendor/expat, not src/vendor: PROVENANCE lives one level
+  # up and is the file a vendored change must update, so it cannot also be
+  # part of what counts as a change. tools/expat-files.txt is deliberately not
+  # required -- an ordinary Expat point release changes the pin and leaves the
+  # file list alone, and a guard that fires on a correct update is one people
+  # learn to ignore.
+  vendor:
+    uses: pedrobtz/r-actions/.github/workflows/vendor.yml@v1
+    with:
+      vendor-dir: src/vendor/expat
+      verify: tools/verify-vendor
+      must-update: src/vendor/PROVENANCE
+
+  # UBSan over R CMD check under R-devel, plus ASan in the R-hub containers.
+  #
+  # The overlap with hardening.yaml's sanitizers job is smaller than it looks.
+  # That one builds tools/sanitize/driver.c: the parser, tree, writer and
+  # random seam, exercised directly. This one runs the package as R loads it,
+  # so it is the only place the .Call entry points, the external pointer
+  # finalizers and the document attribute survive instrumentation -- and the
+  # only place an R-level longjmp out of a C frame is exercised at all.
+  #
+  # asan: true because these images have already done the three things that
+  # make ASan work under a dlopen'd .so -- clang-asan's R is itself an
+  # asan build, gcc-asan LD_PRELOADs libasan from its R wrapper -- which an
+  # ordinary runner has not. The default check path runs with
+  # --no-build-vignettes, so knitr and rmarkdown are not on the critical path.
+  sanitizers:
+    uses: pedrobtz/r-actions/.github/workflows/sanitizers.yml@v1
+    with:
+      asan: true
+
+  valgrind:
+    uses: pedrobtz/r-actions/.github/workflows/valgrind.yml@v1
+
+  lto:
+    uses: pedrobtz/r-actions/.github/workflows/lto.yml@v1
+
+  # The default step of 20 is kept, unlike packages that have to raise it:
+  # this suite is 236 expectations across 12 files and finishes in seconds
+  # uninstrumented, so the most sensitive setting is affordable. Raise `step`
+  # before raising the timeout if that stops being true -- cost scales as
+  # roughly 1/step, and what a larger step gives up is the odds of a
+  # collection landing while a given unprotected SEXP is live, not coverage.
+  gctorture:
+    uses: pedrobtz/r-actions/.github/workflows/gctorture.yml@v1
+
+  # Hard-failing rather than informational: a warning nobody opens is not how
+  # to hear about an unprotected SEXP, and PROTECT errors are precisely the
+  # class that ships green and corrupts memory in someone else's session.
+  #
+  # rchk does report false positives that need a human. When one turns up the
+  # call is to restructure the C so the analyzer can see the protection --
+  # code rchk can follow is usually code a reader can follow too -- rather
+  # than to drop back to informational and stop reading the output.
+  #
+  # The "too many states" lines are not findings and the reusable workflow
+  # does not match on them; they are rchk hitting its abstraction limit on
+  # R's own functions.
+  rchk:
+    uses: pedrobtz/r-actions/.github/workflows/rchk.yml@v1
+    with:
+      fail-on-findings: true

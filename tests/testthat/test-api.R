@@ -109,8 +109,12 @@ test_that("the document stays alive while any node handle exists", {
 
 test_that("node handles survive aggressive garbage collection", {
   skip_on_cran()
-  gctorture(TRUE)
-  on.exit(gctorture(FALSE), add = TRUE)
+  # Restore the previous step rather than calling gctorture(FALSE), which
+  # turns torture off outright. The gctorture CI job sets gctorture2() once
+  # for the whole session and this is the first file testthat runs, so
+  # switching it off here would silently disarm it for every later test.
+  old_step <- gctorture2(step = 1)
+  on.exit(gctorture2(step = old_step), add = TRUE)
   doc <- xml_parse("<r><a>1</a><b>2</b></r>")
   expect_identical(xml_text(xml_children(xml_root(doc))), c("1", "2"))
 })

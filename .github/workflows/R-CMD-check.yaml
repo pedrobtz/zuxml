@@ -1,5 +1,23 @@
-# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
-# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+# R CMD check, on the GitHub runners and in the CRAN-like containers.
+# The reusable workflow carries the reasoning; this file carries only what is
+# specific to this package.
+#
+# The container half is the reason for the switch. This package compiles a
+# vendored copy of Expat, and CRAN's Debian clang leg -- clang 23 building C
+# as -std=gnu23 -- is a configuration no GitHub runner has: ubuntu-latest's
+# clang still defaults to __STDC_VERSION__ 201710L and its GCC is several
+# majors behind. A diagnostic that exists only in the newer compiler, or only
+# under -pedantic, otherwise stays invisible until CRAN's incoming pretest
+# reports it, which is a rejected submission rather than a red check. Upstream
+# C is written against the compilers upstream tests on, so that gap arrives
+# here as someone else's warnings in our check log.
+#
+# No build-args, unlike the template: --compact-vignettes=gs+qpdf is for
+# packages that ship vignette PDFs, and both vignettes here are html_vignette.
+#
+# No paths-ignore, unlike native-checks.yaml: --as-cran checks the URLs in
+# README.md, which ships in the tarball, so a prose-only change is a real
+# change here.
 on:
   push:
     branches: [main, master, develop]
@@ -11,40 +29,4 @@ permissions: read-all
 
 jobs:
   R-CMD-check:
-    runs-on: ${{ matrix.config.os }}
-
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
-
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - {os: macos-latest,   r: 'release'}
-          - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
-          - {os: ubuntu-latest,   r: 'release'}
-          - {os: ubuntu-latest,   r: 'oldrel-1'}
-
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-      R_KEEP_PKG_SOURCE: yes
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: r-lib/actions/setup-pandoc@v2
-
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: ${{ matrix.config.r }}
-          http-user-agent: ${{ matrix.config.http-user-agent }}
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          extra-packages: any::rcmdcheck
-          needs: check
-
-      - uses: r-lib/actions/check-r-package@v2
-        with:
-          upload-snapshots: true
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+    uses: pedrobtz/r-actions/.github/workflows/r-cmd-check.yml@v1
