@@ -79,8 +79,23 @@ jobs:
     with:
       asan: true
 
+  # --leak-check=full because R's own --use-valgrind does not set it, and
+  # without it a "definitely lost" total arrives with no stack: the first run
+  # of this job reported 8,192 bytes in 1 block and could say nothing about
+  # where they came from. Not --track-origins, which answers a different
+  # question and costs several times the runtime.
+  #
+  # Turning leak-check on also promotes every leak record to an error, and the
+  # default errors-for-leak-kinds counts "possibly lost" among them -- which
+  # for an interior pointer into a live allocation is not a leak. So the kinds
+  # shown are the kinds that count.
   valgrind:
     uses: pedrobtz/r-actions/.github/workflows/valgrind.yml@v1
+    with:
+      valgrind-opts: >-
+        --leak-check=full
+        --show-leak-kinds=definite,indirect
+        --errors-for-leak-kinds=definite,indirect
 
   lto:
     uses: pedrobtz/r-actions/.github/workflows/lto.yml@v1
