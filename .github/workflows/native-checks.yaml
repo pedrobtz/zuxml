@@ -96,6 +96,10 @@ jobs:
         --leak-check=full
         --show-leak-kinds=definite,indirect
         --errors-for-leak-kinds=definite,indirect
+      # One entry, for R's own iconv() string buffer -- twelve frames of R
+      # with no zuxml frame in them. See the file for why it is written
+      # against the whole call path. tools/ is .Rbuildignore'd.
+      suppressions: "tools/valgrind.supp"
 
   lto:
     uses: pedrobtz/r-actions/.github/workflows/lto.yml@v1

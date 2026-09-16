@@ -1,0 +1,21 @@
+# Valgrind suppressions for the valgrind job in .github/workflows/native-checks.yaml.
+#
+# tools/ is in .Rbuildignore, so nothing here reaches the tarball or CRAN.
+#
+# One entry, and it is not this package's memory. R's iconv() builtin asks
+# R_AllocStringBuffer for a growable buffer and never hands it back; R does
+# not free on exit, so valgrind reports the block as definitely lost with a
+# stack that is twelve frames of R with no zuxml frame anywhere in it. Any
+# package whose tests convert an encoding sees the same block.
+#
+# Written against the whole call path rather than fun:malloc alone, so it
+# suppresses this one allocation site and stays silent if a real leak ever
+# appears under a different caller.
+{
+   R-do_iconv-R_AllocStringBuffer-never-freed
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:R_AllocStringBuffer
+   fun:do_iconv
+}
