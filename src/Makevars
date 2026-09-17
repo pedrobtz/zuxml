@@ -16,6 +16,17 @@ PKG_CPPFLAGS = -I. -I../inst/include -Ivendor/expat -D__USE_MINGW_ANSI_STDIO=1
 # xmltok_impl.c, xmltok_ns.c and xcsinc.c are #included by their parents and
 # must never be compiled as separate units. One random_*.c is selected by
 # zux_expat_random.c rather than listed here.
+#
+# EXPAT_OBJECTS is the subset that is Expat and nothing else: no R, no zuxml.
+# It is what goes into libzuxml.a below, so keep it free of anything that
+# touches R -- a downstream package links the archive into its own shared
+# object, where zuxml's R glue would be both useless and a duplicate symbol.
+EXPAT_OBJECTS = \
+	zux_expat_random.o \
+	vendor/expat/xmlparse.o \
+	vendor/expat/xmltok.o \
+	vendor/expat/xmlrole.o
+
 OBJECTS = \
 	init.o \
 	r_api.o \
@@ -24,7 +35,24 @@ OBJECTS = \
 	zux_tree.o \
 	zux_write.o \
 	zux_register.o \
-	zux_expat_random.o \
-	vendor/expat/xmlparse.o \
-	vendor/expat/xmltok.o \
-	vendor/expat/xmlrole.o
+	$(EXPAT_OBJECTS)
+
+# The LinkingTo surface. Most consumers should use the registered function
+# table in inst/include/zuxml.h and link nothing; this archive is for the
+# other case, a C library that is written against Expat itself and cannot be
+# retargeted -- xlsxio in zuxlsx is the one that prompted it. Such a consumer
+# gets Expat's own API, statically, and never dlopen()s zuxml.so.
+#
+# Built here rather than in install.libs.R so the objects are the same ones
+# the shared object was linked from, and so a build failure surfaces during
+# compilation. src/install.libs.R copies it into the installed package.
+#
+# "all" with a command is the documented hook for post-SHLIB work (Writing R
+# Extensions 1.2.1); it must stay portable make, like the rest of this file.
+.PHONY: all
+
+all: $(SHLIB) libzuxml.a
+
+libzuxml.a: $(SHLIB)
+	rm -f libzuxml.a
+	$(AR) rcs libzuxml.a $(EXPAT_OBJECTS)

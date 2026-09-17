@@ -15,7 +15,11 @@ R_LIBS="$LIB" R CMD INSTALL --preclean --no-multiarch --library="$LIB" \
   tools/zuxmltest >/dev/null
 
 echo "==> the public header must expose no Expat type"
-if grep -rnE '\bXML_(Parser|Char|Error|Bool)\b' inst/include/; then
+# zuxml.h specifically, not inst/include/ as a whole: since the LinkingTo
+# archive was added, an installed zuxml also carries Expat's own headers
+# beside it, deliberately. What must stay Expat-free is the wrapper API that
+# table consumers compile against.
+if grep -nE '\bXML_(Parser|Char|Error|Bool)\b' inst/include/zuxml.h; then
   echo "FAIL: an Expat type reached the public header" >&2
   exit 1
 fi
@@ -48,3 +52,65 @@ if command -v nm >/dev/null 2>&1 && [ -n "$so" ]; then
   [ "$n" = "0" ] || { echo "FAIL: consumer references $n Expat symbols" >&2; exit 1; }
   echo "==> consumer links no Expat symbols"
 fi
+
+# ---------------------------------------------------------------------------
+# The other consumer shape: a C library written against Expat itself, which
+# links inst/lib/libzuxml.a and never loads zuxml.so. Everything above proves
+# the table path still works without Expat; this proves the archive path
+# works with it.
+# ---------------------------------------------------------------------------
+
+echo "==> the LinkingTo archive and Expat headers are installed"
+for f in lib/libzuxml.a include/expat.h include/expat_external.h include/zuxml.h; do
+  [ -f "$LIB/zuxml/$f" ] || { echo "FAIL: $f is missing from the installation" >&2; exit 1; }
+done
+
+echo "==> a C consumer compiles against the headers and links the archive"
+# A relative path, not mktemp: on Windows the compiler is a native mingw
+# binary and does not understand a Git Bash /tmp path.
+PROBE=./.downstream-probe
+rm -rf "$PROBE"
+mkdir -p "$PROBE"
+trap 'rm -rf "$LIB" "$PROBE"' EXIT
+cat > "$PROBE/probe.c" <<'PROBE_C'
+/* Deliberately uses the suspend/resume pair as well as the streaming buffer
+   API: those are what a pull-style reader needs and what zuxml.h's callback
+   table cannot offer, so they are the reason this archive exists. */
+#include <expat.h>
+#include <stdio.h>
+#include <string.h>
+
+static int elements = 0;
+
+static void start(void *ctx, const XML_Char *name, const XML_Char **atts) {
+  (void)ctx; (void)name; (void)atts;
+  elements++;
+}
+
+int main(void) {
+  const char *doc = "<a><b/><c/></a>";
+  XML_Parser p = XML_ParserCreate(NULL);
+  void *buf;
+  if (!p) return 1;
+  XML_SetStartElementHandler(p, start);
+  buf = XML_GetBuffer(p, (int)strlen(doc));
+  if (!buf) return 1;
+  memcpy(buf, doc, strlen(doc));
+  if (XML_ParseBuffer(p, (int)strlen(doc), 1) == XML_STATUS_ERROR) {
+    fprintf(stderr, "parse failed: %s\n", XML_ErrorString(XML_GetErrorCode(p)));
+    return 1;
+  }
+  XML_ParserFree(p);
+  if (elements != 3) { fprintf(stderr, "saw %d elements\n", elements); return 1; }
+  printf("ok\n");
+  return 0;
+}
+PROBE_C
+CC=$(R CMD config CC)
+CFLAGS=$(R CMD config CFLAGS)
+# XML_STATIC matters on Windows only, where expat_external.h would otherwise
+# decorate every declaration with __declspec(dllimport) and the link fails.
+$CC $CFLAGS -DXML_STATIC -I"$LIB/zuxml/include" \
+  -o "$PROBE/probe" "$PROBE/probe.c" "$LIB/zuxml/lib/libzuxml.a"
+[ "$("$PROBE/probe")" = "ok" ] || { echo "FAIL: the linked probe misbehaved" >&2; exit 1; }
+echo "==> archive consumer builds, links and runs"

@@ -71,3 +71,61 @@ Note that this is XML, not HTML: Expat is strict and non-recovering, so `<br>` a
 friends are an error, not something to recover from. The [getting started
 article](https://pedrobtz.github.io/zuxml/articles/zuxml.html) covers namespaces,
 serialization, the resource limits and the C interface for package authors.
+
+## Using zuxml from C
+
+There are two ways for another package to reach the parser, and they suit
+different consumers.
+
+**The registered function table** is the one to prefer. Declare
+
+```
+Imports:    zuxml
+LinkingTo:  zuxml
+```
+
+and include `<zuxml.h>`, which resolves `zuxml_api_get()` through
+`R_GetCCallable()`. Nothing links against Expat, no Expat type appears in the
+consumer's code, and a zuxml update reaches it without a rebuild. The
+[getting started article](https://pedrobtz.github.io/zuxml/articles/zuxml.html)
+documents the table and the string-lifetime rules that go with it.
+
+**The static archive** is for the case the table cannot serve: an existing C
+library written against Expat's own API, which would have to be rewritten to
+use anything else. An installed zuxml carries
+
+```
+zuxml/include/expat.h
+zuxml/include/expat_external.h
+zuxml/lib/libzuxml.a
+```
+
+where the archive holds the Expat implementation and no R code. `LinkingTo:
+zuxml` puts the headers on the include path; the archive's location comes from
+`system.file("lib", package = "zuxml")`, which a `configure` script can resolve
+into `src/Makevars` without adding an `Imports:` dependency:
+
+``` sh
+ZUXML_LIB=$("${R_HOME}/bin/Rscript" -e 'cat(system.file("lib", package = "zuxml"))')
+sed "s|@ZUXML_LIB@|${ZUXML_LIB}|" src/Makevars.in > src/Makevars
+```
+
+``` make
+PKG_CPPFLAGS = -DXML_STATIC
+PKG_LIBS = @ZUXML_LIB@/libzuxml.a
+```
+
+Three things to know before taking this route:
+
+- **The build configuration is zuxml's, not stock Expat's.** `XML_GE` is 0 and
+  `XML_DTD` is undefined, so general entities, parameter entities and the
+  external-entity machinery are compiled out rather than switched off. Any
+  entity reference beyond the five built-ins and numeric character references
+  is a parse error. Do not define `XML_GE=1` on your own command line: you
+  would get declarations for limiter functions the archive does not contain.
+- **`-DXML_STATIC` is required on Windows**, where `expat_external.h` would
+  otherwise mark every declaration `__declspec(dllimport)`.
+- **You get your own copy of Expat**, linked into your shared object. It shares
+  no state with the one inside `zuxml.so`, and a zuxml update does not reach it
+  until you rebuild.
+
