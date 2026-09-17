@@ -1,10 +1,30 @@
 # Hardening gates that R CMD check cannot express: sanitizers, leak detection,
 # strict warnings, fuzzing, mutation testing and the downstream C API contract.
 # See .agents/roadmap.md stage 7.
+#
+# paths-ignore skips the whole workflow for prose-only changes: every job here
+# compiles C or greps tests/, so nothing they can observe lives in a .md file,
+# a pkgdown article or .agents/. GitHub applies it only when every changed
+# file matches, so a commit touching both a vignette and src/ still runs.
+#
+# YAML anchors would express the repetition once; GitHub Actions does not
+# support them.
 on:
   push:
     branches: [main, master, develop]
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+      - 'docs/**'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+      - 'docs/**'
   schedule:
     # Long fuzz run, nightly. XML parsers are security-sensitive and the
     # per-push budget is deliberately small.

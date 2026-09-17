@@ -181,14 +181,22 @@ name_hash(const zux_name *n) {
   return h;
 }
 
+/* memcmp is undefined when either pointer is NULL, even for a length of 0,
+ * and a name in no namespace carries ptr == NULL with len == 0 -- so the
+ * length test above is not enough on its own. str_add() guards the same way
+ * on the write side, as does str_eq() in zux_write.c. */
+static int
+mem_eq(const char *a, const char *b, size_t n) {
+  return n == 0 || memcmp(a, b, n) == 0;
+}
+
 static int
 name_eq(const zux_document *d, const zux_qname *q, const zux_name *n) {
   return q->uri_len == n->uri.len && q->local_len == n->local.len
          && q->prefix_len == n->prefix.len
-         && memcmp(d->strings + q->uri_off, n->uri.ptr, n->uri.len) == 0
-         && memcmp(d->strings + q->local_off, n->local.ptr, n->local.len) == 0
-         && memcmp(d->strings + q->prefix_off, n->prefix.ptr, n->prefix.len)
-                == 0;
+         && mem_eq(d->strings + q->uri_off, n->uri.ptr, n->uri.len)
+         && mem_eq(d->strings + q->local_off, n->local.ptr, n->local.len)
+         && mem_eq(d->strings + q->prefix_off, n->prefix.ptr, n->prefix.len);
 }
 
 static int
