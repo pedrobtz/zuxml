@@ -16,7 +16,12 @@ trap 'rm -rf "$WORK"' EXIT
 FAILURES="$WORK/failures"
 : > "$FAILURES"
 
-curl -fsSL -o "$WORK/expat.tar.gz" "$URL"
+# --retry, because this runs on every push in CI: a transient failure
+# reaching the release host would otherwise fail a commit that never
+# touched the vendored tree. Integrity does not rest on the transport --
+# the SHA-256 comparison below is what decides.
+curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused \
+  -o "$WORK/expat.tar.gz" "$URL"
 ACTUAL=$(shasum -a 256 "$WORK/expat.tar.gz" | cut -d' ' -f1)
 if [ "$ACTUAL" != "$EXPECTED" ]; then
   echo "FAIL: tarball sha256 mismatch" >&2

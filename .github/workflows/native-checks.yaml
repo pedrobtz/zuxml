@@ -7,13 +7,22 @@
 # compiles the parser seam into a standalone driver with no R in the picture,
 # which is where ASan works unaided and where the fuzzers and the mutation
 # check live. The R-facing sources -- init.c, r_api.c, r_document.c,
-# zux_register.c -- are only ever reached from this file.
+# zux_register.c -- are reached elsewhere too, by the downstream job and by
+# every R CMD check leg, but this is the only place they are instrumented.
 #
-# paths-ignore skips the whole workflow for prose-only changes. These jobs
-# compile the package and run the suite, so nothing they can observe lives in
-# a .md file, a pkgdown article or .agents/. GitHub applies it only when every
-# changed file matches, so a commit touching both a vignette and src/ still
-# runs. man/ is deliberately absent: R CMD check executes the examples in it,
+# paths-ignore skips the whole workflow for prose-only changes. GitHub applies
+# it only when every changed file matches, so a commit touching both a
+# vignette and src/ still runs.
+#
+# vignettes/articles, not vignettes: the articles directory is .Rbuildignore'd
+# and only pkgdown ever renders it, but vignettes/*.Rmd is built and EXECUTED
+# by R CMD check, which the sanitizers, valgrind and lto jobs all run. That is
+# not theoretical -- the UBSan finding that this file's first run produced
+# (a NULL passed to memcmp in name_eq) was reported while re-building
+# security.Rmd, whose fifteen chunks all call into the parser. Ignoring
+# vignettes/ here would have skipped every job that could see it.
+#
+# man/ is absent for the same reason: R CMD check executes the examples in it,
 # and valgrind is what runs them under instrumentation. R-CMD-check.yaml is
 # also left alone -- README.md ships in the tarball and --as-cran checks the
 # URLs in it, which is a real check on a prose-only change.
@@ -24,14 +33,14 @@ on:
     branches: [main, master, develop]
     paths-ignore:
       - '**.md'
-      - 'vignettes/**'
+      - 'vignettes/articles/**'
       - '_pkgdown.yml'
       - '.agents/**'
       - 'docs/**'
   pull_request:
     paths-ignore:
       - '**.md'
-      - 'vignettes/**'
+      - 'vignettes/articles/**'
       - '_pkgdown.yml'
       - '.agents/**'
       - 'docs/**'
@@ -67,7 +76,7 @@ jobs:
   # random seam, exercised directly. This one runs the package as R loads it,
   # so it is the only place the .Call entry points, the external pointer
   # finalizers and the document attribute survive instrumentation -- and the
-  # only place an R-level longjmp out of a C frame is exercised at all.
+  # only place an R-level longjmp out of a C frame is exercised under one.
   #
   # asan: true because these images have already done the three things that
   # make ASan work under a dlopen'd .so -- clang-asan's R is itself an
@@ -96,9 +105,10 @@ jobs:
         --leak-check=full
         --show-leak-kinds=definite,indirect
         --errors-for-leak-kinds=definite,indirect
-      # One entry, for R's own iconv() string buffer -- twelve frames of R
-      # with no zuxml frame in them. See the file for why it is written
-      # against the whole call path. tools/ is .Rbuildignore'd.
+      # One entry, for a block R leaks when iconv() is handed an encoding
+      # name it cannot honour: it error()s out of do_iconv() and longjmps
+      # past that function's own R_FreeStringBuffer. Our encoding test is
+      # what provokes it. The file has the mechanism and the frames.
       suppressions: "tools/valgrind.supp"
 
   lto:

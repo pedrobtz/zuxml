@@ -36,7 +36,8 @@ else
   ZIP=$(mktemp)
   # shellcheck disable=SC2064
   trap "rm -rf '$LIB' '$ZIP'" EXIT
-  curl -fsSL -o "$ZIP" "https://www.w3.org/XML/Test/$RELEASE.zip"
+  curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused \
+    -o "$ZIP" "https://www.w3.org/XML/Test/$RELEASE.zip"
   unzip -q -o "$ZIP" -d "$CACHE"
   XMLCONF_DIR="$CACHE/xmlconf"
 fi

@@ -2,17 +2,38 @@
 #
 # tools/ is in .Rbuildignore, so nothing here reaches the tarball or CRAN.
 #
-# One entry, and it is not this package's memory. R's iconv() builtin asks
-# R_AllocStringBuffer for a growable buffer and never hands it back; R does
-# not free on exit, so valgrind reports the block as definitely lost with a
-# stack that is twelve frames of R with no zuxml frame anywhere in it. Any
-# package whose tests convert an encoding sees the same block.
+# One entry, and the leaked block is R's, not this package's. The mechanism is
+# specific, and worth stating precisely because the obvious guess -- "R caches
+# a buffer and never frees it" -- is wrong:
+#
+#   do_iconv() (src/main/sysutils.c) declares a local R_StringBuffer, fills it
+#   via R_AllocStringBuffer(0, &cbuff), which takes the MAXELTSIZE default of
+#   8192 bytes, and frees it with R_FreeStringBuffer(&cbuff) as its last act.
+#   On the normal path nothing leaks. But when Riconv_open() cannot honour the
+#   requested encoding, do_iconv() raises
+#       error("unsupported conversion from '%s' to '%s'")
+#   from inside its per-element loop. That free is a plain statement at the
+#   bottom of the function, not an on-exit handler, so the longjmp skips it.
+#
+# So this is one erroring iconv() call, leaking exactly one 8,192-byte block --
+# which is what valgrind reported, to the byte.
+#
+# Ours is the call that provokes it: xml_parse(..., encoding = "...") hands the
+# name to iconv() at R/parse.R:48, and tests/testthat/test-encoding.R asserts
+# that a bad name is a clean zuxml_encoding_error. That test is the trigger.
+# Reaching R's leak by way of our own code is why this is suppressed rather
+# than ignored: the block is unreachable from R's API and there is nothing the
+# package can free.
+#
+# Two ways this stops being needed, if it ever becomes worth the trouble:
+# validate the encoding name in R before calling iconv(), or wait for R to move
+# that free into a cleanup handler.
 #
 # Written against the whole call path rather than fun:malloc alone, so it
 # suppresses this one allocation site and stays silent if a real leak ever
 # appears under a different caller.
 {
-   R-do_iconv-R_AllocStringBuffer-never-freed
+   R-do_iconv-error-path-skips-R_FreeStringBuffer
    Memcheck:Leak
    match-leak-kinds: definite
    fun:malloc

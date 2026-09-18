@@ -109,7 +109,12 @@ int main(int argc,char**argv){
     "<?xml version=\"1.0\"?><a><!--c--><?p d?>t&amp;u</a>",
     "<a>naive cafe \xe4\xb8\xad\xe6\x96\x87 \xf0\x9f\x98\x80</a>",
     "<a><b></a>","<a>","<!DOCTYPE a [<!ENTITY e \"X\">]><a>&e;</a>",
-    "<a>&nbsp;</a>","not xml","", "<a xmlns=\"urn:a&#12;b\"/>"};
+    "<a>&nbsp;</a>","not xml","", "<a xmlns=\"urn:a&#12;b\"/>",
+    /* Repeated element and attribute names, all in no namespace. intern_name
+       only reaches name_eq when it probes an occupied hash slot, so without a
+       repeat the comparison never runs -- which is how a NULL reaching memcmp
+       there survived this driver. Keep a repeat here. */
+    "<r><a x=\"1\"/><b/><a x=\"2\" y=\"3\"/></r>"};
   size_t nd=sizeof docs/sizeof*docs, i, c;
   size_t chunks[]={0,1,2,3,7,31,4096};
   zux_options o; long k;
