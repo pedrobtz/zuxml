@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: r-lib/actions/setup-r@v2
       - name: cache the W3C suite
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # The suite is pinned to a dated archive and has been frozen since
           # 2013, so the release name is the whole cache key.
