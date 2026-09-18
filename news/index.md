@@ -1,5 +1,15 @@
 # Changelog
 
+## zuxml (development version)
+
+- An installed zuxml now ships `lib/libzuxml.a` together with Expat’s
+  `expat.h` and `expat_external.h`, so a package whose C code is written
+  against Expat itself can link the parser statically through
+  `LinkingTo` rather than being rewritten around the function table. The
+  table remains the recommended interface; see “Using zuxml from C” in
+  the README for the differences that come with the archive, the parser
+  policy compiled into it among them.
+
 ## zuxml 0.1.0
 
 First release.

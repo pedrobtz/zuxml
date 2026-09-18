@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">zuxml</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -100,6 +100,33 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="reference/xml_properties.html">xml_text</a></span><span class="op">(</span><span class="fu"><a href="reference/xml_navigate.html">xml_find</a></span><span class="op">(</span><span class="va">doc</span>, <span class="st">"price"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 29.99 17.50</span></span></code></pre></div>
 <p>Note that this is XML, not HTML: Expat is strict and non-recovering, so <code>&lt;br&gt;</code> and friends are an error, not something to recover from. The <a href="https://pedrobtz.github.io/zuxml/articles/zuxml.html">getting started article</a> covers namespaces, serialization, the resource limits and the C interface for package authors.</p>
+</div>
+<div class="section level2">
+<h2 id="using-zuxml-from-c">Using zuxml from C<a class="anchor" aria-label="anchor" href="#using-zuxml-from-c"></a>
+</h2>
+<p>There are two ways for another package to reach the parser, and they suit different consumers.</p>
+<p><strong>The registered function table</strong> is the one to prefer. Declare</p>
+<pre><code><span><span class="va">Imports</span><span class="op">:</span>    <span class="va">zuxml</span></span>
+<span><span class="va">LinkingTo</span><span class="op">:</span>  <span class="va">zuxml</span></span></code></pre>
+<p>and include <code>&lt;zuxml.h&gt;</code>, which resolves <code>zuxml_api_get()</code> through <code>R_GetCCallable()</code>. Nothing links against Expat, no Expat type appears in the consumer’s code, and a zuxml update reaches it without a rebuild. The <a href="https://pedrobtz.github.io/zuxml/articles/zuxml.html">getting started article</a> documents the table and the string-lifetime rules that go with it.</p>
+<p><strong>The static archive</strong> is for the case the table cannot serve: an existing C library written against Expat’s own API, which would have to be rewritten to use anything else. An installed zuxml carries</p>
+<pre><code><span><span class="va">zuxml</span><span class="op">/</span><span class="va">include</span><span class="op">/</span><span class="va">expat.h</span></span>
+<span><span class="va">zuxml</span><span class="op">/</span><span class="va">include</span><span class="op">/</span><span class="va">expat_external.h</span></span>
+<span><span class="va">zuxml</span><span class="op">/</span><span class="va">lib</span><span class="op">/</span><span class="va">libzuxml.a</span></span></code></pre>
+<p>where the archive holds the Expat implementation and no R code. <code>LinkingTo: zuxml</code> puts the headers on the include path; the archive’s location comes from <code>system.file("lib", package = "zuxml")</code>, which a <code>configure</code> script can resolve into <code>src/Makevars</code> without adding an <code>Imports:</code> dependency:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="va">ZUXML_LIB</span><span class="op">=</span><span class="va">$(</span><span class="st">"</span><span class="va">${R_HOME}</span><span class="st">/bin/Rscript"</span> <span class="at">-e</span> <span class="st">'cat(system.file("lib", package = "zuxml"))'</span><span class="va">)</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">sed</span> <span class="st">"s|@ZUXML_LIB@|</span><span class="va">${ZUXML_LIB}</span><span class="st">|"</span> src/Makevars.in <span class="op">&gt;</span> src/Makevars</span></code></pre></div>
+<pre class="make"><code>PKG_CPPFLAGS = -DXML_STATIC
+PKG_LIBS = @ZUXML_LIB@/libzuxml.a</code></pre>
+<p>Three things to know before taking this route:</p>
+<ul>
+<li>
+<strong>The build configuration is zuxml’s, not stock Expat’s.</strong> <code>XML_GE</code> is 0 and <code>XML_DTD</code> is undefined, so general entities, parameter entities and the external-entity machinery are compiled out rather than switched off. Any entity reference beyond the five built-ins and numeric character references is a parse error. Do not define <code>XML_GE=1</code> on your own command line: you would get declarations for limiter functions the archive does not contain.</li>
+<li>
+<strong><code>-DXML_STATIC</code> is required on Windows</strong>, where <code>expat_external.h</code> would otherwise mark every declaration <code>__declspec(dllimport)</code>.</li>
+<li>
+<strong>You get your own copy of Expat</strong>, linked into your shared object. It shares no state with the one inside <code>zuxml.so</code>, and a zuxml update does not reach it until you rebuild.</li>
+</ul>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

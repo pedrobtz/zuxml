@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zuxml</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,10 @@
       <small>Source: <a href="https://github.com/pedrobtz/zuxml/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="zuxml-development-version">zuxml (development version)<a class="anchor" aria-label="anchor" href="#zuxml-development-version"></a></h2>
+<ul><li>An installed zuxml now ships <code>lib/libzuxml.a</code> together with Expat’s <code>expat.h</code> and <code>expat_external.h</code>, so a package whose C code is written against Expat itself can link the parser statically through <code>LinkingTo</code> rather than being rewritten around the function table. The table remains the recommended interface; see “Using zuxml from C” in the README for the differences that come with the archive, the parser policy compiled into it among them.</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="zuxml-010">zuxml 0.1.0<a class="anchor" aria-label="anchor" href="#zuxml-010"></a></h2>
 <p>First release.</p>
