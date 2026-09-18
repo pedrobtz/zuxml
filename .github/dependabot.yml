@@ -1,0 +1,22 @@
+# Keeps the pinned action and workflow references current.
+#
+# The point is coverage.yaml, which pins r-actions by commit SHA rather than by
+# tag because it is the one job that runs with a repository write token, and a
+# tag is mutable. A SHA pin is only as good as the process that moves it, and
+# "remember to check whether v1 moved" is not a process. Dependabot reads the
+# `# v1.6.2` comment beside the SHA, so the bump arrives as a reviewable pull
+# request naming the new tag -- which is exactly the deliberate update that
+# file's comment asks for.
+#
+# It also covers the @v1 references in the other workflows and the pinned
+# JamesIves/github-pages-deploy-action in pkgdown.yaml.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"

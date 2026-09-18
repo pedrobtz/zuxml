@@ -183,8 +183,9 @@ name_hash(const zux_name *n) {
 
 /* memcmp is undefined when either pointer is NULL, even for a length of 0,
  * and a name in no namespace carries ptr == NULL with len == 0 -- so the
- * length test above is not enough on its own. str_add() guards the same way
- * on the write side, as does str_eq() in zux_write.c. */
+ * length tests in name_eq below do not make the comparison safe on their own.
+ * str_add() guards the same way on the write side, as does str_eq() in
+ * zux_write.c. */
 static int
 mem_eq(const char *a, const char *b, size_t n) {
   return n == 0 || memcmp(a, b, n) == 0;

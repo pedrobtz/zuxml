@@ -18,6 +18,21 @@
 # No paths-ignore, unlike native-checks.yaml: --as-cran checks the URLs in
 # README.md, which ships in the tarball, so a prose-only change is a real
 # change here.
+#
+# Two things the previous matrix had that the reusable workflow's defaults do
+# not, both dropped on purpose:
+#
+#   - the {ubuntu-latest, r: devel} row. The containers job is R-devel on
+#     Linux already, on the compilers CRAN actually uses, where that row was
+#     R-devel on the runner's own GCC and matched no CRAN flavor. Checked
+#     against a real run: all three container legs reported R Under
+#     development (unstable) 2026-09-15/16. Add `runners:` back if the images
+#     ever go stale enough that a plain R-devel leg is worth the minutes.
+#
+#   - upload-snapshots: true. The package has no testthat snapshot tests and
+#     no tests/testthat/_snaps directory, so it uploaded nothing. Worth
+#     restoring the day a snapshot test is added, because a snapshot failure
+#     is close to unreadable without the artifact.
 on:
   push:
     branches: [main, master, develop]
