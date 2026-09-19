@@ -39,6 +39,9 @@ First release.
   [`xml_type()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md)
   read node properties. All are vectorized over a nodeset, so *n* nodes
   give a result of length *n*.
+- Text nodes are maximal: adjacent character data is always one node,
+  whatever the input chunk boundaries were and whether or not `comments`
+  or `pis` dropped a node that sat in the middle of it.
 - Names are matched on `(namespace, local name)` only. Prefixes are
   retained for serialization and diagnostics but never decide identity,
   so two prefixes bound to one URI are the same name.
