@@ -12,6 +12,7 @@
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 
+#include <limits.h>
 #include <string.h>
 
 #include "zux.h"
@@ -162,6 +163,15 @@ opt_size(SEXP opts, const char *name, size_t fallback) {
   return (size_t)d;
 }
 
+/* Clamped, not cast. A bare (uint32_t) cast wraps, so asking for a limit
+ * above 2^32 -- the idiom for "effectively unlimited" -- would silently
+ * produce a tiny one: max_nodes = 2^32 + 10 became 10. */
+static uint32_t
+opt_u32(SEXP opts, const char *name, uint32_t fallback) {
+  size_t v = opt_size(opts, name, (size_t)fallback);
+  return v > (size_t)UINT32_MAX ? UINT32_MAX : (uint32_t)v;
+}
+
 static int
 opt_flag(SEXP opts, const char *name, int fallback) {
   SEXP v = opt_get(opts, name);
@@ -180,9 +190,9 @@ C_zux_parse(SEXP x, SEXP opts) {
 
   memset(&c, 0, sizeof(c));
   zux_options_init(&c.opt);
-  c.opt.max_depth = (uint32_t)opt_size(opts, "max_depth", c.opt.max_depth);
-  c.opt.max_nodes = (uint32_t)opt_size(opts, "max_nodes", c.opt.max_nodes);
-  c.opt.max_attrs = (uint32_t)opt_size(opts, "max_attrs", c.opt.max_attrs);
+  c.opt.max_depth = opt_u32(opts, "max_depth", c.opt.max_depth);
+  c.opt.max_nodes = opt_u32(opts, "max_nodes", c.opt.max_nodes);
+  c.opt.max_attrs = opt_u32(opts, "max_attrs", c.opt.max_attrs);
   c.opt.max_text = opt_size(opts, "max_text", c.opt.max_text);
   c.opt.max_memory = opt_size(opts, "max_memory", c.opt.max_memory);
   c.opt.allow_doctype = opt_flag(opts, "allow_doctype", c.opt.allow_doctype);
@@ -232,6 +242,36 @@ mk_utf8(zux_str s) {
   return Rf_mkCharLenCE(s.ptr, (int)s.len, CE_UTF8);
 }
 
+/* "prefix:local", built at whatever length the document actually uses. A
+ * fixed buffer would have to decide what to do with a name that does not
+ * fit, and every answer there is a silently wrong name -- dropping the
+ * prefix in particular lets a long prefix disguise a qualified name as an
+ * unqualified one. The scratch is released here so a long nodeset does not
+ * accumulate one buffer per node. */
+static SEXP
+mk_qname(zux_name nm) {
+  void *vmax;
+  size_t need;
+  char *buf;
+  SEXP out;
+
+  if (nm.prefix.len == 0)
+    return mk_utf8(nm.local);
+
+  need = nm.prefix.len + 1 + nm.local.len;
+  if (need > (size_t)INT_MAX)
+    Rf_error("zuxml: qualified name is too long to represent as a string");
+
+  vmax = vmaxget();
+  buf = (char *)R_alloc(need, 1);
+  memcpy(buf, nm.prefix.ptr, nm.prefix.len);
+  buf[nm.prefix.len] = ':';
+  memcpy(buf + nm.prefix.len + 1, nm.local.ptr, nm.local.len);
+  out = Rf_mkCharLenCE(buf, (int)need, CE_UTF8);
+  vmaxset(vmax);
+  return out;
+}
+
 static int
 name_matches(zux_name nm, SEXP local, SEXP uri) {
   if (local != R_NilValue) {
@@ -272,6 +312,23 @@ idbuf_add(idbuf *b, zux_id id) {
     b->cap = cap;
   }
   b->v[b->n++] = (int)id;
+}
+
+/* Reverse the run [from, n) in place. Children are pushed in document order
+ * and then flipped, so popping yields document order -- the same result the
+ * old per-node "kids" temporary produced, without allocating one buffer for
+ * every node visited. */
+static void
+idbuf_reverse_from(idbuf *b, size_t from) {
+  size_t lo = from, hi = b->n;
+  while (hi - lo > 1) {
+    int t;
+    hi--;
+    t = b->v[lo];
+    b->v[lo] = b->v[hi];
+    b->v[hi] = t;
+    lo++;
+  }
 }
 
 static SEXP
@@ -340,20 +397,7 @@ C_zux_node_info(SEXP xp, SEXP ids, SEXP what) {
       SET_STRING_ELT(out, i,
                      nm.prefix.len ? mk_utf8(nm.prefix) : NA_STRING);
     } else { /* qualified name */
-      if (nm.prefix.len) {
-        char buf[512];
-        size_t need = nm.prefix.len + 1 + nm.local.len;
-        if (need < sizeof(buf)) {
-          memcpy(buf, nm.prefix.ptr, nm.prefix.len);
-          buf[nm.prefix.len] = ':';
-          memcpy(buf + nm.prefix.len + 1, nm.local.ptr, nm.local.len);
-          SET_STRING_ELT(out, i, Rf_mkCharLenCE(buf, (int)need, CE_UTF8));
-        } else {
-          SET_STRING_ELT(out, i, mk_utf8(nm.local));
-        }
-      } else {
-        SET_STRING_ELT(out, i, mk_utf8(nm.local));
-      }
+      SET_STRING_ELT(out, i, mk_qname(nm));
     }
   }
   UNPROTECT(1);
@@ -399,31 +443,26 @@ C_zux_select(SEXP xp, SEXP ids, SEXP mode_, SEXP local, SEXP uri) {
     } else {
       /* Iterative pre-order descent with an explicit stack: deep documents
        * must not be able to recurse the C stack here either. */
-      idbuf stack, seed;
-      size_t s0;
+      idbuf stack;
       memset(&stack, 0, sizeof(stack));
-      memset(&seed, 0, sizeof(seed));
       /* Seed reversed, like every later push, so popping yields document
        * order rather than reverse document order. */
       for (c = zux_first_child(d, root); c != ZUX_NONE;
            c = zux_next_sibling(d, c))
-        idbuf_add(&seed, c);
-      for (s0 = seed.n; s0 > 0; s0--)
-        idbuf_add(&stack, (zux_id)seed.v[s0 - 1]);
+        idbuf_add(&stack, c);
+      idbuf_reverse_from(&stack, 0);
       while (stack.n > 0) {
         zux_id id = (zux_id)stack.v[--stack.n];
         zux_id k;
-        idbuf kids;
-        size_t j;
+        size_t base;
         if (zux_node_kind(d, id) == ZUX_ELEMENT
             && name_matches(zux_node_name(d, id), local, uri))
           idbuf_add(&b, id);
-        memset(&kids, 0, sizeof(kids));
+        base = stack.n;
         for (k = zux_first_child(d, id); k != ZUX_NONE;
              k = zux_next_sibling(d, k))
-          idbuf_add(&kids, k);
-        for (j = kids.n; j > 0; j--)
-          idbuf_add(&stack, (zux_id)kids.v[j - 1]);
+          idbuf_add(&stack, k);
+        idbuf_reverse_from(&stack, base);
       }
     }
   }
@@ -437,7 +476,13 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
   int recursive = Rf_asLogical(recursive_) == TRUE;
   SEXP out = PROTECT(Rf_allocVector(STRSXP, n));
 
+  /* The traversal scratch below is R_alloc'd, which is released only when
+   * .Call returns -- so without an explicit reclaim a vectorized call over a
+   * large nodeset accumulates one buffer per visited node, for every element
+   * of the nodeset at once. That scratch is charged to neither max_memory nor
+   * max_nodes, so it has to be bounded here instead. */
   for (i = 0; i < n; i++) {
+    void *vmax = vmaxget();
     zux_id id = check_id(d, INTEGER(ids)[i]);
     int kind = zux_node_kind(d, id);
     size_t total = 0;
@@ -445,6 +490,7 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
 
     if (kind == ZUX_TEXT || kind == ZUX_COMMENT) {
       SET_STRING_ELT(out, i, mk_utf8(zux_node_text(d, id)));
+      vmaxset(vmax);
       continue;
     }
 
@@ -466,6 +512,8 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
       /* Order is irrelevant for the measuring pass; the filling pass below
        * collects text nodes in document order. */
     }
+    if (total > (size_t)INT_MAX)
+      Rf_error("zuxml: node text is too long to represent as a string");
     buf = (char *)R_alloc(total + 1, 1);
     {
       size_t off = 0;
@@ -478,17 +526,15 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
       while (stack.n > 0) {
         zux_id cur = (zux_id)stack.v[--stack.n];
         zux_id c;
-        idbuf kids;
-        size_t m;
+        size_t base;
         if (cur != id && zux_node_kind(d, cur) == ZUX_TEXT)
           idbuf_add(&order, cur);
         if (cur == id || recursive) {
-          memset(&kids, 0, sizeof(kids));
+          base = stack.n;
           for (c = zux_first_child(d, cur); c != ZUX_NONE;
                c = zux_next_sibling(d, c))
-            idbuf_add(&kids, c);
-          for (m = kids.n; m > 0; m--)
-            idbuf_add(&stack, (zux_id)kids.v[m - 1]);
+            idbuf_add(&stack, c);
+          idbuf_reverse_from(&stack, base);
         }
       }
       for (j = 0; j < order.n; j++) {
@@ -499,6 +545,7 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
       buf[off] = '\0';
       SET_STRING_ELT(out, i, Rf_mkCharLenCE(buf, (int)off, CE_UTF8));
     }
+    vmaxset(vmax);
   }
   UNPROTECT(1);
   return out;
@@ -517,21 +564,7 @@ C_zux_attrs(SEXP xp, SEXP ids) {
     for (k = 0; k < na; k++) {
       zux_attr a = zux_attr_at(d, id, k);
       SET_STRING_ELT(v, k, mk_utf8(a.value));
-      if (a.name.prefix.len) {
-        char buf[512];
-        size_t need = a.name.prefix.len + 1 + a.name.local.len;
-        if (need < sizeof(buf)) {
-          memcpy(buf, a.name.prefix.ptr, a.name.prefix.len);
-          buf[a.name.prefix.len] = ':';
-          memcpy(buf + a.name.prefix.len + 1, a.name.local.ptr,
-                 a.name.local.len);
-          SET_STRING_ELT(nms, k, Rf_mkCharLenCE(buf, (int)need, CE_UTF8));
-        } else {
-          SET_STRING_ELT(nms, k, mk_utf8(a.name.local));
-        }
-      } else {
-        SET_STRING_ELT(nms, k, mk_utf8(a.name.local));
-      }
+      SET_STRING_ELT(nms, k, mk_qname(a.name));
     }
     Rf_setAttrib(v, R_NamesSymbol, nms);
     SET_VECTOR_ELT(out, i, v);

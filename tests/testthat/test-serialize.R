@@ -18,7 +18,13 @@ corpus <- c(
   wide        = paste0("<r>", strrep('<i a="1">t</i>', 30), "</r>"),
   deep        = paste0(strrep("<a>", 60), "x", strrep("</a>", 60)),
   attr_ws     = '<a t="line1&#10;line2&#9;tab"/>',
-  cdata_close = "<a>a ]]&gt; b</a>"
+  cdata_close = "<a>a ]]&gt; b</a>",
+  # A carriage return that arrived as a character reference survives parsing,
+  # so it has to leave as one: end-of-line normalization would rewrite a
+  # literal CR to LF on re-parse.
+  cr_text     = "<a>x&#13;y</a>",
+  cr_crlf     = "<a>line1&#13;&#10;line2</a>",
+  cr_attr     = '<a v="x&#13;y"/>'
 )
 
 structure_of <- function(doc) zuxml:::zux_tree_info(xml_serialize(doc))$dump
@@ -118,4 +124,56 @@ test_that("UTF-8 survives round-tripping byte for byte", {
   txt <- "naïve café 中文 \U0001F600"
   d2 <- xml_parse(xml_serialize(xml_parse(paste0("<a>", txt, "</a>"))))
   expect_identical(xml_text(xml_root(d2)), txt)
+})
+
+test_that("a carriage return in text is escaped, not emitted literally", {
+  # Escaping it in attribute values but not in text left the round trip
+  # lossy: XML 1.0 section 2.11 rewrites a literal CR in content to LF.
+  d <- xml_parse("<a>x&#13;y</a>")
+  expect_identical(xml_text(xml_root(d)), "x\ry")
+
+  s <- xml_serialize(d)
+  expect_match(s, "&#13;", fixed = TRUE)
+  expect_false(grepl("\r", s, fixed = TRUE))
+
+  expect_identical(xml_text(xml_root(xml_parse(s))), "x\ry")
+  expect_identical(xml_serialize(xml_parse(s)), s)
+})
+
+test_that("a literal CR in the source is still normalized to LF", {
+  # The parser side of section 2.11 is unchanged: only a character reference
+  # is meant to survive.
+  expect_identical(xml_text(xml_root(xml_parse("<a>x\ry</a>"))), "x\ny")
+})
+
+test_that("the declaration states the encoding actually emitted", {
+  # The serializer always emits UTF-8. Echoing the source document's
+  # declared encoding produced a file whose declaration contradicted its
+  # own bytes, so xml_write() -> xml_read() silently corrupted text.
+  lat <- c(charToRaw('<?xml version="1.0" encoding="ISO-8859-1"?><a>caf'),
+           as.raw(0xe9), charToRaw("</a>"))
+  d <- xml_parse(lat)
+  expect_identical(xml_encoding(d), "ISO-8859-1")
+
+  s <- xml_serialize(d, declaration = TRUE)
+  expect_match(s, '^<\\?xml version="1\\.0" encoding="UTF-8"\\?>')
+
+  f <- tempfile(fileext = ".xml")
+  xml_write(d, f)
+  expect_identical(xml_text(xml_root(xml_read(f))), xml_text(xml_root(d)))
+})
+
+test_that("a declaration is refused for a multi-node nodeset", {
+  # paste0() is vectorized, so this used to prepend one declaration per node
+  # and write a file that zuxml itself could not re-parse.
+  ns <- xml_children(xml_root(xml_parse("<r><a>1</a><b>2</b></r>")))
+  expect_length(ns, 2L)
+  expect_error(xml_serialize(ns, declaration = TRUE), "single node")
+  expect_error(xml_write(ns, tempfile(fileext = ".xml")), "single node")
+
+  # Writing a fragment without a declaration stays allowed.
+  f <- tempfile(fileext = ".xml")
+  xml_write(ns, f, declaration = FALSE)
+  expect_identical(readChar(f, file.size(f), useBytes = TRUE),
+                   "<a>1</a><b>2</b>")
 })

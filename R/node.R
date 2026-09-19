@@ -141,21 +141,37 @@ xml_attrs <- function(x) .Call(C_zux_attrs, zux_ptr(x), zux_ids(x))
 #' @rdname xml_properties
 #' @export
 xml_attr <- function(x, name, ns = NULL, default = NA_character_) {
+  if (length(default) != 1L)
+    stop("zuxml: `default` must be length 1")
   v <- .Call(C_zux_attr, zux_ptr(x), zux_ids(x), zux_chr(name), zux_chr(ns))
-  v[is.na(v)] <- default
+  v[is.na(v)] <- as.character(default)
   v
 }
 
 #' @rdname xml_properties
 #' @export
 xml_text <- function(x, recursive = TRUE, trim = FALSE) {
+  recursive <- zux_flag(recursive, "recursive")
+  trim <- zux_flag(trim, "trim")
   v <- .Call(C_zux_text, zux_ptr(x), zux_ids(x), recursive)
-  if (isTRUE(trim)) trimws(v) else v
+  if (trim) trimws(v) else v
+}
+
+# Coercing silently would let NA -- which is what a flag carried along in a
+# data frame degrades to -- mean FALSE, quietly answering a different
+# question than the one asked.
+zux_flag <- function(v, arg) {
+  v <- as.logical(v)
+  if (length(v) != 1L || is.na(v))
+    stop(sprintf("zuxml: `%s` must be TRUE or FALSE", arg))
+  v
 }
 
 #' Document metadata
 #' @param x A `zuxml_document`.
-#' @return A length-1 vector.
+#' @return A length-1 vector: a character string for `xml_version()` and
+#'   `xml_encoding()`, a logical for `xml_standalone()`. Each is `NA` when the
+#'   XML declaration did not state that property.
 #' @name xml_metadata
 #' @examples
 #' xml_encoding(xml_parse('<?xml version="1.0" encoding="UTF-8"?><a/>'))

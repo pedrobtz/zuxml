@@ -53,3 +53,21 @@ test_that("limit failures report a position", {
 test_that("nonsensical limits are rejected rather than silently clamped", {
   expect_identical(st("<a/>", max_depth = 0), "ok")  # 0 falls back to default
 })
+
+test_that("a limit above 2^32 clamps instead of wrapping", {
+  # max_depth, max_nodes and max_attrs are uint32_t in C. A bare cast wrapped,
+  # so asking for an effectively unlimited value produced a tiny one:
+  # max_nodes = 2^32 + 10 became 10 and the parse failed immediately.
+  wide <- paste0("<r>", strrep("<i/>", 50), "</r>")
+  deep <- paste0(strrep("<d>", 40), strrep("</d>", 40))
+
+  expect_s3_class(xml_parse(wide, max_nodes = 2^32 + 10), "zuxml_document")
+  expect_s3_class(xml_parse(wide, max_nodes = 2^40), "zuxml_document")
+  expect_s3_class(xml_parse(deep, max_depth = 2^32 + 5), "zuxml_document")
+  expect_s3_class(xml_parse('<r a="1" b="2" c="3"/>', max_attrs = 2^32 + 2),
+                  "zuxml_document")
+
+  # Limits below the wrap point are still enforced exactly as before.
+  expect_error(xml_parse(wide, max_nodes = 5), class = "zuxml_node_limit")
+  expect_error(xml_parse(deep, max_depth = 5), class = "zuxml_depth_limit")
+})

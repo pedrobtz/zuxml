@@ -27,8 +27,10 @@ src/vendor/PROVENANCE.
 
 The bundled files are unmodified. zuxml adds no code to that directory: the
 build configuration Expat would normally generate with autotools or CMake is
-kept outside it, in the project-owned src/expat_config.h, so that
-tools/verify-vendor can prove the tree is byte-identical to upstream.
+kept outside it, in the project-owned src/expat_config.h, so that the
+tree can be proven byte-identical to upstream. The script that checks this,
+tools/verify-vendor, is not part of the distributed package; it lives in the
+source repository at <https://github.com/pedrobtz/zuxml>.
 
 Only the parser library is bundled. Expat's xmlwf utility, examples, test
 suite, fuzzers and build systems are not included.

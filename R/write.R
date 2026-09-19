@@ -19,11 +19,19 @@
 #' doc <- xml_parse("<p>Hello <em>XML</em> world</p>")
 #' xml_serialize(doc)
 xml_serialize <- function(x, declaration = FALSE) {
+  declaration <- zux_flag(declaration, "declaration")
   s <- .Call(C_zux_serialize, zux_ptr(x), zux_ids(x))
-  if (isTRUE(declaration)) {
-    enc <- tryCatch(xml_encoding(x), error = function(e) NA_character_)
-    s <- paste0(sprintf('<?xml version="1.0" encoding="%s"?>',
-                        if (is.na(enc)) "UTF-8" else enc), s)
+  if (declaration) {
+    # One declaration belongs to one document. paste0() is vectorized, so a
+    # nodeset would otherwise get a declaration prepended to every element
+    # and xml_write() would emit a file that is not well-formed XML.
+    if (length(s) != 1L)
+      stop("zuxml: `declaration = TRUE` needs a single node, not a nodeset ",
+           "of length ", length(s))
+    # Always UTF-8, whatever the source document declared: that is what the
+    # serializer emits. Echoing the original encoding produced a declaration
+    # that contradicted its own bytes, so a written file did not round-trip.
+    s <- paste0('<?xml version="1.0" encoding="UTF-8"?>', s)
   }
   s
 }
