@@ -14,6 +14,12 @@
 #' @param ... Ignored.
 #' @return `xml_serialize()` returns a character vector, one element per node.
 #'   `xml_write()` returns `path` invisibly.
+#' @details Each element of the result is escaped for its own node. Two
+#'   adjacent text nodes -- which is what `comments = FALSE` or `pis = FALSE`
+#'   leaves behind where a dropped node used to sit -- are therefore escaped
+#'   independently, so concatenating the pieces yourself can produce content
+#'   a parser will reject. Serialize the common parent instead, which escapes
+#'   across the whole subtree.
 #' @export
 #' @examples
 #' doc <- xml_parse("<p>Hello <em>XML</em> world</p>")

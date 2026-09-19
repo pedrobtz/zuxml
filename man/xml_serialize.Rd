@@ -37,6 +37,13 @@ namespace semantics are preserved. The original \emph{formatting} is not: parsin
 does not retain quote style, whitespace between attributes, CDATA
 boundaries, entity spelling, or whether an empty element was written as
 \verb{<a/>} or \verb{<a></a>}. \code{zuxml} is not a lossless source editor.
+
+Each element of the result is escaped for its own node. Two
+adjacent text nodes -- which is what \code{comments = FALSE} or \code{pis = FALSE}
+leaves behind where a dropped node used to sit -- are therefore escaped
+independently, so concatenating the pieces yourself can produce content
+a parser will reject. Serialize the common parent instead, which escapes
+across the whole subtree.
 }
 \examples{
 doc <- xml_parse("<p>Hello <em>XML</em> world</p>")
