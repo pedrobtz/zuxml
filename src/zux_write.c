@@ -78,8 +78,16 @@ esc_text(obuf *b, zux_str s) {
       ob_cstr(b, "&amp;");
     else if (c == '<')
       ob_cstr(b, "&lt;");
-    else if (c == '>' && i >= 2 && s.ptr[i - 1] == ']' && s.ptr[i - 2] == ']')
-      /* Only where it would close a CDATA section; a bare '>' is legal text. */
+    else if (c == '>' && b->n >= 2
+             && b->p[b->n - 1] == ']' && b->p[b->n - 2] == ']')
+      /* Only where it would close a CDATA section; a bare '>' is legal text.
+       * Tested against the bytes already emitted rather than against this
+       * string: dropping a comment or PI leaves two text nodes adjacent in
+       * the output, so the "]]" can belong to the previous one and neither
+       * node contains "]]>" on its own. Everything else that can end the
+       * output in "]]" -- an attribute value, a comment, PI data -- is
+       * followed by its own delimiter before any text, so this cannot
+       * over-escape either. */
       ob_cstr(b, "&gt;");
     else if (c == '\r')
       /* End-of-line normalization (XML 1.0 section 2.11) rewrites a literal
