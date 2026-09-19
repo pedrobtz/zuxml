@@ -40,6 +40,11 @@ Filtering is uniform. \code{name} matches the \emph{local} name. \code{ns = NULL
 any namespace, \code{ns = NA} matches only nodes in no namespace, and a string
 matches that namespace URI. Matching never considers the prefix: two
 prefixes bound to one URI are the same name.
+
+\code{xml_elements()} and \code{xml_find()} return elements only, including when
+\code{name} is \code{NULL}: they search by name, and only elements have one. Use
+\code{xml_children()} to reach text, comment and processing-instruction nodes,
+which it returns along with elements.
 }
 \examples{
 doc <- xml_parse("<r><a><b>1</b></a><b>2</b></r>")

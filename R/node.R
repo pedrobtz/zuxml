@@ -38,6 +38,11 @@ zux_as_doc <- function(x) {
 #' matches that namespace URI. Matching never considers the prefix: two
 #' prefixes bound to one URI are the same name.
 #'
+#' `xml_elements()` and `xml_find()` return elements only, including when
+#' `name` is `NULL`: they search by name, and only elements have one. Use
+#' `xml_children()` to reach text, comment and processing-instruction nodes,
+#' which it returns along with elements.
+#'
 #' @param x A `zuxml_document`, node, or nodeset.
 #' @param name Local name to match, or `NULL` for any.
 #' @param ns Namespace URI, `NA` for none, `NULL` for any.
