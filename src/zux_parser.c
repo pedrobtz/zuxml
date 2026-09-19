@@ -181,7 +181,9 @@ zux_count_node(zux_parser *p) {
 }
 
 /* Emit and reset any buffered character data. Called before every non-text
- * event and at finish, so text nodes are maximal. */
+ * event that is actually emitted, and at finish, so text nodes are maximal:
+ * a comment or PI the caller asked to drop does not flush, and so does not
+ * leave two text nodes where there should be one. */
 static int
 zux_flush_text(zux_parser *p) {
   zux_str t;
@@ -329,9 +331,13 @@ on_comment(void *user, const XML_Char *data) {
 
   if (p->status != ZUX_OK)
     return;
-  if (! zux_flush_text(p))
-    return;
+  /* Tested before flushing: a comment that is being dropped must not break
+   * the text run around it, or the tree ends up holding two adjacent text
+   * nodes where every other case -- chunk boundaries, entity references,
+   * CDATA boundaries -- yields one. */
   if (! p->opt.keep_comments || p->h.comment == NULL)
+    return;
+  if (! zux_flush_text(p))
     return;
   if (! zux_count_node(p))
     return;
@@ -350,9 +356,10 @@ on_pi(void *user, const XML_Char *target, const XML_Char *data) {
 
   if (p->status != ZUX_OK)
     return;
-  if (! zux_flush_text(p))
-    return;
+  /* Same as on_comment(): dropping the node must not split the text. */
   if (! p->opt.keep_pis || p->h.pi == NULL)
+    return;
+  if (! zux_flush_text(p))
     return;
   if (! zux_count_node(p))
     return;

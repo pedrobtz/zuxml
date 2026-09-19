@@ -75,3 +75,26 @@ test_that("an error is reported identically regardless of chunking", {
     expect_identical(r$byte_offset, base$byte_offset, info = paste("chunk", k))
   }
 })
+
+test_that("chunk boundaries are still irrelevant when comments or PIs are dropped", {
+  # Text coalescing across a dropped node is new, and it interacts with the
+  # buffering that makes chunk size irrelevant: text now spans a node that
+  # used to flush it. Criterion 2 has to hold in that combination too.
+  ti <- function(...) zuxml:::zux_tree_info(...)$dump
+  docs <- c(
+    "<a>aaa<!--comment-->bbb</a>",
+    "<a>aaa<?pi data?>bbb</a>",
+    "<a>x<!--c-->y<!--d-->z<?p q?>w</a>",
+    paste0("<a>", strrep("u", 300), "<!--c-->", strrep("v", 300), "</a>")
+  )
+  settings <- list(list(comments = FALSE), list(pis = FALSE),
+                   list(comments = FALSE, pis = FALSE))
+  for (d in docs) for (o in settings) {
+    whole <- do.call(ti, c(list(d), o))
+    for (k in c(1L, 2L, 3L, 7L, 31L, 4096L)) {
+      expect_identical(do.call(ti, c(list(d), list(chunk = k), o)), whole,
+                       info = sprintf("%s chunk=%d %s", substr(d, 1, 24), k,
+                                      paste(names(o), collapse = ",")))
+    }
+  }
+})
