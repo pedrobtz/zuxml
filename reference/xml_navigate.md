@@ -44,6 +44,11 @@ matches any namespace, `ns = NA` matches only nodes in no namespace, and
 a string matches that namespace URI. Matching never considers the
 prefix: two prefixes bound to one URI are the same name.
 
+`xml_elements()` and `xml_find()` return elements only, including when
+`name` is `NULL`: they search by name, and only elements have one. Use
+`xml_children()` to reach text, comment and processing-instruction
+nodes, which it returns along with elements.
+
 ## Examples
 
 ``` r
