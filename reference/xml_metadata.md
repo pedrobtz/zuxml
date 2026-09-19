@@ -20,7 +20,9 @@ xml_standalone(x)
 
 ## Value
 
-A length-1 vector.
+A length-1 vector: a character string for `xml_version()` and
+`xml_encoding()`, a logical for `xml_standalone()`. Each is `NA` when
+the XML declaration did not state that property.
 
 ## Examples
 

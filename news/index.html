@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">zuxml</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -40,10 +40,6 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="development version" id="zuxml-development-version">zuxml (development version)<a class="anchor" aria-label="anchor" href="#zuxml-development-version"></a></h2>
-<ul><li>An installed zuxml now ships <code>lib/libzuxml.a</code> together with Expat’s <code>expat.h</code> and <code>expat_external.h</code>, so a package whose C code is written against Expat itself can link the parser statically through <code>LinkingTo</code> rather than being rewritten around the function table. The table remains the recommended interface; see “Using zuxml from C” in the README for the differences that come with the archive, the parser policy compiled into it among them.</li>
-</ul></div>
-    <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="zuxml-010">zuxml 0.1.0<a class="anchor" aria-label="anchor" href="#zuxml-010"></a></h2>
 <p>First release.</p>
 <div class="section level3">
@@ -67,6 +63,7 @@
 <h3 id="writing-0-1-0">Writing<a class="anchor" aria-label="anchor" href="#writing-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/xml_serialize.html">xml_serialize()</a></code> returns XML text and <code><a href="../reference/xml_serialize.html">xml_write()</a></code> sends it to a file. Order, attributes, text and namespace semantics round-trip; original formatting (quote style, inter-attribute whitespace, CDATA boundaries) does not.</li>
+<li>Output is always UTF-8, and a prepended declaration says so whatever the source document declared. <code>declaration = TRUE</code> applies to a single node, so it cannot produce a file carrying one declaration per node.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="security-0-1-0">Security<a class="anchor" aria-label="anchor" href="#security-0-1-0"></a></h3>
@@ -82,6 +79,7 @@
 <h3 id="for-package-authors-0-1-0">For package authors<a class="anchor" aria-label="anchor" href="#for-package-authors-0-1-0"></a></h3>
 <ul><li>A registered C function table lets other packages parse XML without linking against Expat themselves: <code>Imports: zuxml</code> plus <code>LinkingTo: zuxml</code>, then <code>zuxml_api_get()</code> from <code>&lt;zuxml.h&gt;</code>. The header documents the string-lifetime contract and the versioning rules.</li>
 <li>Tree construction, traversal, text concatenation, serialization and freeing are all iterative, so arbitrarily deep documents cannot overflow the C stack.</li>
+<li>An installed zuxml also ships <code>lib/libzuxml.a</code> together with Expat’s <code>expat.h</code> and <code>expat_external.h</code>, so a package whose C code is written against Expat itself can link the parser statically through <code>LinkingTo</code> rather than being rewritten around the function table. The table remains the recommended interface; see “Using zuxml from C” in the README for the differences that come with the archive, the parser policy compiled into it among them.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="bundled-software-0-1-0">Bundled software<a class="anchor" aria-label="anchor" href="#bundled-software-0-1-0"></a></h3>

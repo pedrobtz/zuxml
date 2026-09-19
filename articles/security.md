@@ -23,7 +23,7 @@ for”:
 ``` r
 
 zuxml_info()
-#> zuxml 0.1.0.9000
+#> zuxml 0.1.0
 #> Expat:             expat_2.8.4
 #> Namespaces:        yes
 #> DTD:               disabled

@@ -1,15 +1,5 @@
 # Changelog
 
-## zuxml (development version)
-
-- An installed zuxml now ships `lib/libzuxml.a` together with Expat’s
-  `expat.h` and `expat_external.h`, so a package whose C code is written
-  against Expat itself can link the parser statically through
-  `LinkingTo` rather than being rewritten around the function table. The
-  table remains the recommended interface; see “Using zuxml from C” in
-  the README for the differences that come with the archive, the parser
-  policy compiled into it among them.
-
 ## zuxml 0.1.0
 
 First release.
@@ -71,6 +61,9 @@ First release.
   sends it to a file. Order, attributes, text and namespace semantics
   round-trip; original formatting (quote style, inter-attribute
   whitespace, CDATA boundaries) does not.
+- Output is always UTF-8, and a prepended declaration says so whatever
+  the source document declared. `declaration = TRUE` applies to a single
+  node, so it cannot produce a file carrying one declaration per node.
 
 ### Security
 
@@ -98,6 +91,13 @@ First release.
 - Tree construction, traversal, text concatenation, serialization and
   freeing are all iterative, so arbitrarily deep documents cannot
   overflow the C stack.
+- An installed zuxml also ships `lib/libzuxml.a` together with Expat’s
+  `expat.h` and `expat_external.h`, so a package whose C code is written
+  against Expat itself can link the parser statically through
+  `LinkingTo` rather than being rewritten around the function table. The
+  table remains the recommended interface; see “Using zuxml from C” in
+  the README for the differences that come with the archive, the parser
+  policy compiled into it among them.
 
 ### Bundled software
 

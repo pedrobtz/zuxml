@@ -19,8 +19,9 @@ for a file, and both take the complete document. An R-level pull or
 callback API is planned but is deliberately not in this release; the C
 seam it would sit on is what exists today, and it is what a downstream
 package uses. If you are working purely in R, this vignette will not
-give you anything to call — the getting started article covers the
-surface you want.
+give you anything to call — the [getting started
+article](https://pedrobtz.github.io/zuxml/articles/zuxml.html) covers
+the surface you want.
 
 ## Why the seam is C, not R
 
