@@ -12,13 +12,19 @@ lets other packages parse XML without linking against Expat themselves.
 ## Test environments
 
 * local macOS 15.7.9 (x86_64-apple-darwin20), R 4.5.2 — `R CMD check --as-cran`
-* GitHub Actions on every push:
-  - ubuntu-latest, R devel / release / oldrel-1
+* GitHub Actions on every push and pull request:
+  - R-devel in three R-hub containers — `r-hub/containers/clang23`
+    (which builds C as `-std=gnu23`), `ubuntu-clang` and `ubuntu-gcc16`
+  - ubuntu-latest, R release and oldrel-1
   - macOS-latest, R release
   - windows-latest, R release
-* win-builder, R release — *(pending; results to be added before submission)*
-* win-builder, R devel — *(pending)*
-* R-hub — *(pending)*
+
+R-devel is covered by the R-hub containers rather than by a plain R-devel
+runner: the runner's own toolchain matches no CRAN flavor, whereas the
+containers are the compilers CRAN checks on. A diagnostic that exists only
+in the newer compiler, or only under `-pedantic`, is what they are there to
+surface before submission rather than after. R-hub is therefore already
+exercised on every push, and no separate submission to it is reported here.
 
 In addition to `R CMD check`, the package's own gates run in CI on every push:
 AddressSanitizer and UndefinedBehaviorSanitizer (with LeakSanitizer on Linux),
