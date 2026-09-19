@@ -89,6 +89,12 @@ namespace semantics are preserved. The original <em>formatting</em> is not: pars
 does not retain quote style, whitespace between attributes, CDATA
 boundaries, entity spelling, or whether an empty element was written as
 <code>&lt;a/&gt;</code> or <code>&lt;a&gt;&lt;/a&gt;</code>. <code>zuxml</code> is not a lossless source editor.</p>
+<p>Each element of the result is escaped for its own node. Two
+adjacent text nodes – which is what <code>comments = FALSE</code> or <code>pis = FALSE</code>
+leaves behind where a dropped node used to sit – are therefore escaped
+independently, so concatenating the pieces yourself can produce content
+a parser will reject. Serialize the common parent instead, which escapes
+across the whole subtree.</p>
     </div>
 
     <div class="section level2">

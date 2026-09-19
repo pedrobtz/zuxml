@@ -47,6 +47,13 @@ parsing does not retain quote style, whitespace between attributes,
 CDATA boundaries, entity spelling, or whether an empty element was
 written as `<a/>` or `<a></a>`. `zuxml` is not a lossless source editor.
 
+Each element of the result is escaped for its own node. Two adjacent
+text nodes – which is what `comments = FALSE` or `pis = FALSE` leaves
+behind where a dropped node used to sit – are therefore escaped
+independently, so concatenating the pieces yourself can produce content
+a parser will reject. Serialize the common parent instead, which escapes
+across the whole subtree.
+
 ## Examples
 
 ``` r
