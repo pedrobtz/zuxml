@@ -81,6 +81,12 @@ esc_text(obuf *b, zux_str s) {
     else if (c == '>' && i >= 2 && s.ptr[i - 1] == ']' && s.ptr[i - 2] == ']')
       /* Only where it would close a CDATA section; a bare '>' is legal text. */
       ob_cstr(b, "&gt;");
+    else if (c == '\r')
+      /* End-of-line normalization (XML 1.0 section 2.11) rewrites a literal
+       * CR in content to LF on re-parse, so a CR that survived parsing as a
+       * character reference has to leave as one. Same reasoning as the
+       * whitespace cases in esc_attr() below. */
+      ob_cstr(b, "&#13;");
     else
       ob_put(b, &c, 1);
   }

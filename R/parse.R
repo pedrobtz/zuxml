@@ -38,7 +38,12 @@ xml_parse <- function(x, encoding = NULL, comments = TRUE, pis = TRUE,
                       max_text = 64 * 1024^2, max_memory = 1024 * 1024^2) {
   if (is.character(x)) {
     if (anyNA(x)) stop("zuxml: `x` must not contain NA")
-    x <- charToRaw(paste(x, collapse = ""))
+    # enc2utf8() before paste(), not after: paste() has to pick one encoding
+    # for its result and falls back to the native one, so in a C locale it
+    # renders an unrepresentable character as the literal escape "<e9>" --
+    # which the parser would then read as markup rather than as text. Once
+    # every element is already UTF-8, paste() keeps it that way.
+    x <- charToRaw(paste(enc2utf8(x), collapse = ""))
     encoding <- encoding %||% "UTF-8"
   }
   if (!is.raw(x)) stop("zuxml: `x` must be a character string or a raw vector")
@@ -70,6 +75,11 @@ xml_parse <- function(x, encoding = NULL, comments = TRUE, pis = TRUE,
 #' @rdname xml_parse
 #' @export
 xml_read <- function(path, encoding = NULL, ...) {
+  if (!is.character(path) || length(path) != 1L || is.na(path))
+    stop("zuxml: `path` must be a single file path")
+  # file.exists() is TRUE for a directory, which would otherwise reach
+  # readBin() and surface as a base R warning about a non-regular file.
+  if (dir.exists(path)) stop(sprintf("zuxml: not a file: %s", path))
   if (!file.exists(path)) stop(sprintf("zuxml: no such file: %s", path))
   n <- file.info(path)$size
   xml_parse(readBin(path, "raw", n = n), encoding = encoding, ...)

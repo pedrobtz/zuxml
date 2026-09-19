@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<roundtrip>
+  <cr>x&#13;y</cr>
+  <crlf>line1&#13;&#10;line2</crlf>
+  <cr_hex>a&#xD;b</cr_hex>
+  <tab>col1&#9;col2</tab>
+  <lf>top&#10;bottom</lf>
+  <attrs a="x&#13;y" b="p&#9;q" c="m&#10;n" d="he said &quot;hi&quot;"/>
+  <mixed>lead<em>in&#13;ner</em>trail&#13;</mixed>
+  <cdata_edge>a ]]&gt; b</cdata_edge>
+  <p:q xmlns:p="urn:p" p:k="v&#13;w">text&#13;</p:q>
+  <comment><!-- a&#13;b --></comment>
+  <pi><?tgt data&#13;more?></pi>
+</roundtrip>
