@@ -55,3 +55,21 @@ test_that("the namespace separator cannot be injected through a URI", {
   expect_identical(st('<a xmlns="urn:a&#12;b"/>'), "invalid XML")
   expect_identical(st("<a xmlns=\"urn:a\fb\"/>"), "invalid XML")
 })
+
+test_that("a qualified name longer than 512 bytes keeps its prefix", {
+  # Both accessors built "prefix:local" in a fixed 512-byte buffer and, when
+  # it did not fit, returned the bare local name -- so an attacker-chosen
+  # prefix length could disguise a qualified name as an unqualified one,
+  # while xml_serialize() still reported the full name.
+  for (n in c(509L, 510L, 4096L)) {
+    p <- strrep("p", n)
+    r <- xml_root(xml_parse(
+      sprintf('<%s:e xmlns:%s="urn:x" %s:a="v"/>', p, p, p)))
+
+    expect_identical(xml_name(r), paste0(p, ":e"), info = n)
+    expect_identical(xml_prefix(r), p, info = n)
+    expect_identical(xml_local(r), "e", info = n)
+    expect_identical(names(xml_attrs(r)[[1L]]), paste0(p, ":a"), info = n)
+    expect_match(xml_serialize(r), paste0(p, ":e"), fixed = TRUE)
+  }
+})

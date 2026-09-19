@@ -17,7 +17,9 @@ xml_standalone(x)
 \item{x}{A \code{zuxml_document}.}
 }
 \value{
-A length-1 vector.
+A length-1 vector: a character string for \code{xml_version()} and
+\code{xml_encoding()}, a logical for \code{xml_standalone()}. Each is \code{NA} when the
+XML declaration did not state that property.
 }
 \description{
 Document metadata

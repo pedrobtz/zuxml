@@ -149,3 +149,51 @@ test_that("a large document parses in bounded time and memory", {
   expect_length(xml_elements(xml_root(doc), "i"), n)
   expect_identical(unique(xml_attr(xml_elements(xml_root(doc), "i"), "a")), "1")
 })
+
+test_that("as.integer() returns a bare integer vector", {
+  # unclass() drops the class but keeps every other attribute, so the
+  # document rode along on the result: printing an integer vector dumped a
+  # document, identical() against a plain vector failed, and the whole arena
+  # stayed reachable through something that looked like an integer.
+  doc <- xml_parse("<r><a/><b/></r>")
+  ids <- as.integer(xml_children(xml_root(doc)))
+
+  expect_null(attributes(ids))
+  expect_type(ids, "integer")
+  expect_identical(ids, unname(ids))
+  expect_length(ids, 2L)
+})
+
+test_that("xml_text() rejects a flag that is not TRUE or FALSE", {
+  # Coercing silently let NA -- what a flag carried in a data frame degrades
+  # to -- mean FALSE, quietly answering the non-recursive question instead.
+  root <- xml_root(xml_parse("<p>Hello <em>XML</em> world</p>"))
+  expect_identical(xml_text(root, recursive = TRUE), "Hello XML world")
+  expect_identical(xml_text(root, recursive = FALSE), "Hello  world")
+
+  expect_error(xml_text(root, recursive = NA), "must be TRUE or FALSE")
+  expect_error(xml_text(root, recursive = "yes"), "must be TRUE or FALSE")
+  expect_error(xml_text(root, recursive = NULL), "must be TRUE or FALSE")
+  expect_error(xml_text(root, recursive = c(TRUE, FALSE)), "must be TRUE or FALSE")
+  expect_error(xml_text(root, trim = NA), "must be TRUE or FALSE")
+})
+
+test_that("xml_attr() rejects a default that is not length 1", {
+  root <- xml_root(xml_parse("<a/>"))
+  expect_identical(xml_attr(root, "missing"), NA_character_)
+  expect_identical(xml_attr(root, "missing", default = "fallback"), "fallback")
+  expect_error(xml_attr(root, "missing", default = NULL), "length 1")
+  expect_error(xml_attr(root, "missing", default = c("a", "b")), "length 1")
+})
+
+test_that("xml_read() reports a bad path as a zuxml error", {
+  # file.exists() is TRUE for a directory, which used to reach readBin() and
+  # surface as a base R warning about a non-regular file.
+  d <- tempfile()
+  dir.create(d)
+  expect_error(xml_read(d), "^zuxml: not a file")
+  expect_error(xml_read(file.path(d, "absent.xml")), "^zuxml: no such file")
+  expect_error(xml_read(c("a.xml", "b.xml")), "^zuxml: `path` must be")
+  expect_error(xml_read(NA_character_), "^zuxml: `path` must be")
+  expect_error(xml_read(1L), "^zuxml: `path` must be")
+})

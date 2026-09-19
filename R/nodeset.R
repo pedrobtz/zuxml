@@ -21,7 +21,7 @@ c.zuxml_nodeset <- function(...) {
 rev.zuxml_nodeset <- function(x) new_nodeset(rev(unclass(x)), zux_doc_of(x))
 
 #' @export
-as.integer.zuxml_nodeset <- function(x, ...) unclass(x)
+as.integer.zuxml_nodeset <- function(x, ...) as.vector(unclass(x), "integer")
 
 #' @export
 print.zuxml_nodeset <- function(x, n = 10L, ...) {
