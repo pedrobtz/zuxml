@@ -60,3 +60,17 @@ test_that("malformed XML fails rather than producing partial nonsense", {
   expect_identical(st("not xml at all"), "invalid XML")
   expect_identical(st(""), "invalid XML")
 })
+
+test_that("a dropped comment or PI does not break the text run at the seam", {
+  # The event API permits chunked text and guarantees no maximality, so
+  # emitting fewer and larger text events stays within its contract; the
+  # tree layer relies on it to keep text nodes maximal.
+  expect_identical(evs("<a>aaa<!--c-->bbb</a>", comments = FALSE),
+                   c("start|{}a^|n=0", "text|aaabbb", "end|{}a^"))
+  expect_identical(evs("<a>aaa<?p d?>bbb</a>", pis = FALSE),
+                   c("start|{}a^|n=0", "text|aaabbb", "end|{}a^"))
+  # Kept nodes still split the run, exactly as before.
+  expect_identical(evs("<a>aaa<!--c-->bbb</a>"),
+                   c("start|{}a^|n=0", "text|aaa", "comment|c", "text|bbb",
+                     "end|{}a^"))
+})

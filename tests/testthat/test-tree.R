@@ -124,3 +124,41 @@ test_that("a wide document is handled as easily as a deep one", {
   expect_identical(r$status, "ok")
   expect_identical(r$n_nodes, 50002)
 })
+
+test_that("dropping a comment or PI does not split the text around it", {
+  # Text was flushed before the keep_comments/keep_pis check, so a dropped
+  # node left two adjacent text nodes -- the only case in the tree that was
+  # not maximal. Chunk boundaries, entity references and CDATA boundaries all
+  # coalesce, so this was an inconsistency rather than a design property, and
+  # it is what let a "]]>" straddle a text-node boundary on serialization.
+  expect_length(xml_children(xml_root(
+    xml_parse("<a>aaa<!--c-->bbb</a>", comments = FALSE))), 1L)
+  expect_length(xml_children(xml_root(
+    xml_parse("<a>aaa<?p d?>bbb</a>", pis = FALSE))), 1L)
+  expect_length(xml_children(xml_root(
+    xml_parse("<a>a<!--c--><!--d-->b</a>", comments = FALSE))), 1L)
+
+  x <- "<a>aaa<!--c-->bbb<?p d?>ccc</a>"
+  for (kc in c(TRUE, FALSE)) for (kp in c(TRUE, FALSE)) {
+    k <- xml_children(xml_root(xml_parse(x, comments = kc, pis = kp)))
+    ty <- xml_type(k)
+    # No two text nodes may ever be neighbours, whatever is being dropped.
+    expect_false(any(head(ty, -1) == "text" & tail(ty, -1) == "text"),
+                 info = sprintf("comments=%s pis=%s", kc, kp))
+    # And the text itself is unaffected by what was dropped.
+    expect_identical(xml_text(xml_root(xml_parse(x, comments = kc, pis = kp))),
+                     "aaabbbccc")
+  }
+})
+
+test_that("the text node a dropped comment used to split is not charged twice", {
+  # The pre-flush also counted the extra text node the split created, so
+  # "<a>a<!--c-->b</a>" cost three nodes with the comment dropped and two
+  # with it kept. It now costs two either way: the element and one text node.
+  expect_s3_class(
+    xml_parse("<a>a<!--c-->b</a>", comments = FALSE, max_nodes = 2),
+    "zuxml_document")
+  # Still genuinely enforced one below that.
+  expect_error(xml_parse("<a>a<!--c-->b</a>", comments = FALSE, max_nodes = 1),
+               class = "zuxml_node_limit")
+})
