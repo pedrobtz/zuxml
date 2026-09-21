@@ -1,8 +1,8 @@
+# No import directive, deliberately, and no Imports: entry in DESCRIPTION to
+# permit one. Nothing here calls into zuxml's namespace: Expat is linked
+# statically from inst/lib/libzuxml.a, so zuxml never has to be loadable at
+# run time. Adding an importFrom() here would hide a regression in exactly
+# the wiring this fixture exists to check.
 useDynLib(zuxmltest, .registration = TRUE)
 export(consume_xml)
-# REQUIRED, and easy to miss: "Imports: zuxml" in DESCRIPTION only guarantees
-# that zuxml is installed. R_GetCCallable() resolves nothing until zuxml's
-# namespace is actually LOADED, which is what an import directive causes.
-# Without this line the C API fails at run time with
-#   function 'zuxml_api_v1' not provided by package 'zuxml'
-importFrom(zuxml, zuxml_info)
+export(expat_version)

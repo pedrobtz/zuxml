@@ -1,0 +1,30 @@
+#!/bin/sh
+# Windows counterpart of ./configure. Resolves the static archive that LinkingTo cannot point at.
+#
+# LinkingTo gets the *headers* onto the include path by itself. There is no
+# equivalent for a library, and the alternatives are worse: $(shell ...) in
+# Makevars would force SystemRequirements: GNU make, and an Imports: entry
+# would add a runtime dependency the design does not want -- nothing here
+# calls R code in zuxml, and the archive is linked in statically, so zuxml
+# does not need to be loadable at run time.
+#
+# This is a copy of zuxlsx's configure on purpose: it is the wiring under
+# test, so it has to be the same wiring.
+set -eu
+
+: "${R_HOME:?configure must be run by R CMD INSTALL, which sets R_HOME}"
+RSCRIPT="${R_HOME}/bin/Rscript"
+
+ZUXML_LIB=$("${RSCRIPT}" --vanilla -e "cat(system.file('lib', package = 'zuxml'))")
+
+if [ -z "${ZUXML_LIB}" ] || [ ! -f "${ZUXML_LIB}/libzuxml.a" ]; then
+  echo "configure: zuxml/lib/libzuxml.a was not found." >&2
+  echo "" >&2
+  echo "  zuxmltest links it statically. It ships with zuxml 0.1.0.9000 and" >&2
+  echo "  later; an older installed zuxml does not have it." >&2
+  exit 1
+fi
+
+sed -e "s|@ZUXML_LIB@|${ZUXML_LIB}|g" src/Makevars.in > src/Makevars.win
+
+echo "configure: linking ${ZUXML_LIB}/libzuxml.a"

@@ -1,7 +1,8 @@
 #!/bin/sh
-# Build and exercise tools/zuxmltest, which consumes zuxml exactly as zuhttp
-# will: Imports + LinkingTo + the registered function table, with no Expat
-# header on its include path and no linking against Expat.
+# Build and exercise tools/zuxmltest, which consumes zuxml exactly as zuxlsx
+# does: LinkingTo alone, Expat's headers off the LinkingTo include path, and
+# inst/lib/libzuxml.a linked statically by the fixture's own ./configure.
+# There is no Imports: entry and no run-time dependency on zuxml.
 # Run from the package root.
 set -eu
 LIB=$(mktemp -d)
@@ -10,9 +11,10 @@ trap 'rm -rf "$LIB"' EXIT
 echo "==> installing zuxml"
 R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
 
-echo "==> installing the downstream fixture"
-R_LIBS="$LIB" R CMD INSTALL --preclean --no-multiarch --library="$LIB" \
-  tools/zuxmltest >/dev/null
+echo "==> the LinkingTo archive and Expat headers are installed"
+for f in lib/libzuxml.a include/expat.h include/expat_external.h include/zuxml.h; do
+  [ -f "$LIB/zuxml/$f" ] || { echo "FAIL: $f is missing from the installation" >&2; exit 1; }
+done
 
 echo "==> the public header must expose no Expat type"
 # zuxml.h specifically, not inst/include/ as a whole: since the LinkingTo
@@ -24,93 +26,76 @@ if grep -nE '\bXML_(Parser|Char|Error|Bool)\b' inst/include/zuxml.h; then
   exit 1
 fi
 
-echo "==> exercising the C API"
-R_LIBS="$LIB" Rscript -e '
-  library(zuxmltest)
-  doc <- "<f:a xmlns:f=\"urn:a\"><e id=\"1\">hi</e></f:a>"
-  base <- consume_xml(doc)
-  stopifnot(identical(base$status, "ok"), base$elements == 2, base$attrs == 1)
-  for (k in c(1, 2, 3, 7, 31, 4096))
-    stopifnot(identical(consume_xml(doc, chunk = k), base))
-  # The message has to survive the trip across the table, not just the
-  # status: when zux_error.message was a pointer into the freed parser, every
-  # status here was still correct and every message was empty.
-  bad <- consume_xml("<a><b></a>")
-  stopifnot(identical(bad$status, "invalid XML"),
-            nzchar(bad$message),
-            grepl("[A-Za-z]{4,}", bad$message),
-            !grepl("XML_ERROR", bad$message))
-  dt <- consume_xml("<!DOCTYPE a><a/>")
-  stopifnot(identical(dt$status, "document type declaration is not allowed"),
-            nzchar(dt$message))
-  cat("==> downstream C API works, chunk-independently\n")
-'
-
-so=$(find "$LIB/zuxmltest/libs" -name 'zuxmltest.*' | head -1)
-if command -v nm >/dev/null 2>&1 && [ -n "$so" ]; then
-  n=$(nm -u "$so" 2>/dev/null | grep -c 'XML_' || true)
-  [ "$n" = "0" ] || { echo "FAIL: consumer references $n Expat symbols" >&2; exit 1; }
-  echo "==> consumer links no Expat symbols"
+echo "==> the fixture must not declare a run-time dependency on zuxml"
+# The whole point of the archive: if either of these creeps back in, the
+# fixture would load zuxml's namespace and stop testing the shape zuxlsx
+# actually uses.
+if grep -qE '^(Imports|Depends):' tools/zuxmltest/DESCRIPTION; then
+  echo "FAIL: zuxmltest declares Imports/Depends; it must link, not load" >&2
+  exit 1
+fi
+if grep -qE '^\s*(import|importFrom)\(' tools/zuxmltest/NAMESPACE; then
+  echo "FAIL: zuxmltest imports a namespace; it must link, not load" >&2
+  exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# The other consumer shape: a C library written against Expat itself, which
-# links inst/lib/libzuxml.a and never loads zuxml.so. Everything above proves
-# the table path still works without Expat; this proves the archive path
-# works with it.
-# ---------------------------------------------------------------------------
+# --preclean so ./configure and src/Makevars.in are exercised from scratch on
+# every run: a configure that resolves the archive only because a stale
+# src/Makevars was left behind is the failure this is here to catch.
+echo "==> installing the downstream fixture (configure resolves the archive)"
+R_LIBS="$LIB" R CMD INSTALL --preclean --no-multiarch --library="$LIB" \
+  tools/zuxmltest >/dev/null
 
-echo "==> the LinkingTo archive and Expat headers are installed"
-for f in lib/libzuxml.a include/expat.h include/expat_external.h include/zuxml.h; do
-  [ -f "$LIB/zuxml/$f" ] || { echo "FAIL: $f is missing from the installation" >&2; exit 1; }
-done
-
-echo "==> a C consumer compiles against the headers and links the archive"
-# A relative path, not mktemp: on Windows the compiler is a native mingw
-# binary and does not understand a Git Bash /tmp path.
-PROBE=./.downstream-probe
-rm -rf "$PROBE"
-mkdir -p "$PROBE"
-trap 'rm -rf "$LIB" "$PROBE"' EXIT
-cat > "$PROBE/probe.c" <<'PROBE_C'
-/* Deliberately uses the suspend/resume pair as well as the streaming buffer
-   API: those are what a pull-style reader needs and what zuxml.h's callback
-   table cannot offer, so they are the reason this archive exists. */
-#include <expat.h>
-#include <stdio.h>
-#include <string.h>
-
-static int elements = 0;
-
-static void start(void *ctx, const XML_Char *name, const XML_Char **atts) {
-  (void)ctx; (void)name; (void)atts;
-  elements++;
-}
-
-int main(void) {
-  const char *doc = "<a><b/><c/></a>";
-  XML_Parser p = XML_ParserCreate(NULL);
-  void *buf;
-  if (!p) return 1;
-  XML_SetStartElementHandler(p, start);
-  buf = XML_GetBuffer(p, (int)strlen(doc));
-  if (!buf) return 1;
-  memcpy(buf, doc, strlen(doc));
-  if (XML_ParseBuffer(p, (int)strlen(doc), 1) == XML_STATUS_ERROR) {
-    fprintf(stderr, "parse failed: %s\n", XML_ErrorString(XML_GetErrorCode(p)));
-    return 1;
+echo "==> Expat must be linked in, not left for the loader"
+# This runs before anything is executed because on macOS it is the only thing
+# that catches a dropped PKG_LIBS. R links a package .so with
+# -undefined dynamic_lookup there, so a consumer that never linked the
+# archive still builds, still loads and still parses -- against whatever
+# Expat the process happens to have (the system one, via another R library).
+# Every assertion below would pass. On Linux and Windows the same mistake
+# fails at link time instead.
+so=$(find "$LIB/zuxmltest/libs" -name 'zuxmltest.*' | head -1)
+if command -v nm >/dev/null 2>&1 && [ -n "$so" ]; then
+  u=$(nm -u "$so" 2>/dev/null | grep -c 'XML_' || true)
+  [ "$u" = "0" ] || {
+    echo "FAIL: $u Expat symbols are undefined in $so." >&2
+    echo "  libzuxml.a was not linked in; check PKG_LIBS in src/Makevars.in" >&2
+    echo "  and what ./configure substituted into it." >&2
+    exit 1
   }
-  XML_ParserFree(p);
-  if (elements != 3) { fprintf(stderr, "saw %d elements\n", elements); return 1; }
-  printf("ok\n");
-  return 0;
-}
-PROBE_C
-CC=$(R CMD config CC)
-CFLAGS=$(R CMD config CFLAGS)
-# XML_STATIC matters on Windows only, where expat_external.h would otherwise
-# decorate every declaration with __declspec(dllimport) and the link fails.
-$CC $CFLAGS -DXML_STATIC -I"$LIB/zuxml/include" \
-  -o "$PROBE/probe" "$PROBE/probe.c" "$LIB/zuxml/lib/libzuxml.a"
-[ "$("$PROBE/probe")" = "ok" ] || { echo "FAIL: the linked probe misbehaved" >&2; exit 1; }
-echo "==> archive consumer builds, links and runs"
+  d=$(nm "$so" 2>/dev/null | grep -c ' [TtDd] _*XML_' || true)
+  [ "$d" != "0" ] || { echo "FAIL: no Expat symbols were linked in" >&2; exit 1; }
+  echo "==> $d Expat symbols are statically linked into the consumer"
+fi
+
+echo "==> exercising the archive from R"
+R_LIBS="$LIB" Rscript -e '
+  library(zuxmltest)
+  stopifnot(grepl("^expat_[0-9]", expat_version()))
+
+  doc <- "<f:a xmlns:f=\"urn:a\"><e id=\"1\">hi</e></f:a>"
+  base <- consume_xml(doc)
+  # A plain (non-namespace-aware) parser, so xmlns:f counts as an attribute.
+  stopifnot(identical(base$status, "ok"), base$elements == 2,
+            base$attrs == 2, base$text_bytes == 2)
+  for (k in c(1, 2, 3, 7, 31, 4096))
+    stopifnot(identical(consume_xml(doc, chunk = k), base))
+
+  bad <- consume_xml("<a><b></a>")
+  stopifnot(identical(bad$status, "error"), nzchar(bad$message),
+            grepl("[A-Za-z]{4,}", bad$message))
+  cat("==> archive consumer parses, chunk-independently\n")
+'
+
+echo "==> the fixture loads with zuxml absent from the library path"
+# The strongest statement of "no run-time dependency": move the installed
+# zuxml out of the way entirely and the consumer must still work, because
+# every Expat symbol it needs is inside its own shared object.
+mv "$LIB/zuxml" "$LIB/.zuxml-hidden"
+R_LIBS="$LIB" Rscript -e '
+  stopifnot(!nzchar(system.file(package = "zuxml")))
+  library(zuxmltest)
+  stopifnot(identical(consume_xml("<a><b/><c/></a>")$elements, 3))
+  cat("==> consumer runs with zuxml uninstalled\n")
+'
+mv "$LIB/.zuxml-hidden" "$LIB/zuxml"

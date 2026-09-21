@@ -2,10 +2,12 @@ Package: zuxmltest
 Title: Downstream Consumer Fixture for zuxml
 Version: 0.0.1
 Authors@R: person("Pedro", "Baltazar", , "pedrobtz@gmail.com", role = c("aut", "cre"))
-Description: Not for release. Consumes the zuxml C API exactly as zuhttp will,
-    through Imports plus LinkingTo and the registered function table, so that
-    an unusable public header is discovered here rather than downstream.
+Description: Not for release. Consumes zuxml exactly as zuxlsx does, through
+    LinkingTo alone: the Expat headers come off the LinkingTo include path and
+    inst/lib/libzuxml.a is linked statically by ./configure, so there is no
+    Imports entry and no run-time dependency on zuxml. It exists so that a
+    broken archive, a missing header or a configure that cannot find either is
+    discovered here rather than downstream.
 License: MIT + file LICENSE
 Encoding: UTF-8
-Imports: zuxml
 LinkingTo: zuxml
