@@ -602,6 +602,25 @@ importFrom(zuxml, zuxml_info)   # or import(zuxml)
 
 `Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v2' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h`. No downstream package ever links against Expat.
 
+### Two consumption modes
+
+The table above is one of two ways to consume zuxml from C, and they have different dependency shapes:
+
+| | table (`zuxml_api`) | archive (`libzuxml.a`) |
+|---|---|---|
+| `DESCRIPTION` | `Imports:` **and** `LinkingTo:` | `LinkingTo:` only |
+| `NAMESPACE` | an `importFrom()`/`import()` directive | nothing |
+| Header | `inst/include/zuxml.h`, no Expat type in sight | `<expat.h>`, off the same `LinkingTo` include path |
+| Symbols | resolved at run time by `R_GetCCallable()` | linked into the consumer's own shared object |
+| zuxml at run time | must be installed **and** loadable | need not be installed at all |
+| A zuxml fix reaches it | on zuxml's upgrade alone | only when the consumer is reinstalled |
+
+The archive exists for a C library that is written against Expat itself and cannot be retargeted onto a callback table — `xlsxio` in `zuxlsx` is the case that prompted it, and it needs `XML_GetBuffer`/`XML_StopParser`/`XML_ResumeParser`, which the table does not offer. It holds `EXPAT_OBJECTS` and nothing else (see `src/Makevars`): no R glue, which would be both useless and a duplicate symbol inside a consumer.
+
+There is no `configure`-free way to point at the archive — `LinkingTo` adds `<pkg>/include` to `CLINK_CPPFLAGS` but has no library equivalent — so an archive consumer resolves `system.file("lib", package = "zuxml")` in its own `configure` and substitutes it into `src/Makevars.in`. `tools/zuxmltest` is that shape, deliberately identical to `zuxlsx`'s.
+
+One platform caveat, which `tools/run-downstream-check` checks with `nm -u` rather than trusting the build: on macOS R links a package `.so` with `-undefined dynamic_lookup`, so an archive consumer whose `PKG_LIBS` is wrong still builds, still loads and still parses — against whatever Expat the process happens to have. On Linux and Windows the same mistake fails at link time.
+
 ---
 
 ## 16. `zuhttp` integration
@@ -788,7 +807,7 @@ The real wins are structural and already decided: parse into a compact C arena w
 7. Parse errors carry line, column, and byte offset in an R condition.
 8. Round-trip (`parse → serialize → parse`) is structurally identical across the whole corpus.
 9. Fuzzing under ASan/UBSan finds no memory-safety failure in project-owned code over a sustained run.
-10. `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes the C API through `Imports` + `LinkingTo` successfully.
+10. `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` plus `libzuxml.a` successfully, with zuxml uninstalled at run time.
 11. Vendored Expat provenance is recorded and `tools/verify-vendor` reproduces the tree.
 12. `R CMD check --as-cran` is clean on all three platforms.
 

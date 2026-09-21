@@ -1,0 +1,20 @@
+# Generated into src/Makevars by ./configure (and src/Makevars.win by
+# ./configure.win). Do not edit the generated file: it is .gitignore'd and
+# rewritten on every install.
+#
+# The include path for <expat.h> is NOT set here. R adds <pkg>/include for
+# every LinkingTo package to CLINK_CPPFLAGS, so "LinkingTo: zuxml" in
+# DESCRIPTION is what puts the header on the path. If a build fails with
+# "expat.h: No such file or directory", that line is what is wrong, not this
+# file.
+#
+# XML_STATIC matters on Windows only, where expat_external.h would otherwise
+# decorate every declaration with __declspec(dllimport) and the link fails.
+PKG_CPPFLAGS = -DXML_STATIC
+
+# Single-quoted: the path comes from system.file(), so it sits under the R
+# library, and a library path containing a space -- the norm on Windows,
+# where the user library lives under the profile directory -- would otherwise
+# reach the linker as two nonexistent arguments. R quotes the LinkingTo
+# include paths the same way for the same reason.
+PKG_LIBS = '@ZUXML_LIB@/libzuxml.a'

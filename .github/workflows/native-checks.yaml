@@ -7,8 +7,9 @@
 # compiles the parser seam into a standalone driver with no R in the picture,
 # which is where ASan works unaided and where the fuzzers and the mutation
 # check live. The R-facing sources -- init.c, r_api.c, r_document.c,
-# zux_register.c -- are reached elsewhere too, by the downstream job and by
-# every R CMD check leg, but this is the only place they are instrumented.
+# zux_register.c -- are reached by every R CMD check leg, but this is the only
+# place they are instrumented. The downstream job no longer touches them: it
+# links libzuxml.a statically and never loads zuxml's shared object.
 #
 # paths-ignore skips the whole workflow for prose-only changes. GitHub applies
 # it only when every changed file matches, so a commit touching both a
