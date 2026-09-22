@@ -1,0 +1,181 @@
+# Linking Expat from another package
+
+## Who this is for
+
+Read this if your package has C code that is written against **Expat
+itself** — it calls `XML_ParserCreate()`, `XML_GetBuffer()`,
+`XML_StopParser()` — and you want it to build without a system
+`libexpat`. Typically the code is vendored and cannot be rewritten:
+`xlsxio`, which `zuxlsx` vendors, is that case.
+
+If instead you are writing new C code that you control, **stop here and
+read
+[`vignette("streaming")`](https://pedrobtz.github.io/zuxml/articles/streaming.md)**
+first. The registered function table described there is the better path
+for new code: it needs no `configure`, no linker flags, and picks up a
+zuxml fix when zuxml is upgraded. This vignette is for the case where
+that is not an option.
+
+## The two modes
+
+|  | table (`zuxml_api`) | archive (`libzuxml.a`) |
+|----|----|----|
+| `DESCRIPTION` | `Imports:` **and** `LinkingTo:` | `LinkingTo:` only |
+| `NAMESPACE` | needs an `importFrom()` | nothing |
+| Header | `zuxml.h`, no Expat type in it | `expat.h`, Expat’s own API |
+| API style | callbacks through a table | everything Expat offers |
+| Symbols resolved | at run time, `R_GetCCallable()` | at link time, into your `.so` |
+| zuxml at run time | installed **and** loadable | not needed at all |
+| A zuxml fix reaches you | when zuxml is upgraded | when *you* are reinstalled |
+
+The archive exists because the table cannot express a *pull*-style
+reader. A reader that returns a row to its caller and resumes where it
+left off is built on `XML_StopParser()`/`XML_ResumeParser()`, and there
+is no equivalent in `zuxml.h`.
+
+## What an installed zuxml gives you
+
+``` r
+
+# system.file() returns "" outside an installed layout, and dir("") would then
+# list the working directory rather than nothing.
+installed <- function(what) {
+  path <- system.file(what, package = "zuxml")
+  if (nzchar(path)) dir(path) else "(not an installed layout)"
+}
+
+installed("include")
+#> [1] "expat_external.h" "expat.h"          "zuxml.h"
+installed("lib")
+#> [1] "libzuxml.a"
+```
+
+`LinkingTo: zuxml` puts that `include` directory on your compiler’s path
+(R appends it to `CLINK_CPPFLAGS`), so `#include <expat.h>` resolves
+with no further work.
+
+The headers are not kept under `inst/include/` in zuxml’s sources. They
+are copied out of the vendored tree at install time by
+`src/install.libs.R`, so the header you compile against is by
+construction the one the objects in the archive were compiled from.
+
+## There is no `LinkingTo` for a library
+
+`LinkingTo` handles headers and nothing else. For the archive you have
+to find `system.file("lib", package = "zuxml")` yourself, and the only
+portable place to do that is a `configure` script that writes
+`src/Makevars`.
+
+The two shortcuts are both worse. `$(shell ...)` in `Makevars` forces
+`SystemRequirements: GNU make`. An `Imports: zuxml` entry gets you
+nothing: `Imports` is about loading a namespace at run time, which a
+statically linked consumer never does.
+
+### `configure`
+
+``` sh
+#!/bin/sh
+set -eu
+
+: "${R_HOME:?configure must be run by R CMD INSTALL, which sets R_HOME}"
+RSCRIPT="${R_HOME}/bin/Rscript"
+
+ZUXML_LIB=$("${RSCRIPT}" --vanilla -e "cat(system.file('lib', package = 'zuxml'))")
+
+if [ -z "${ZUXML_LIB}" ] || [ ! -f "${ZUXML_LIB}/libzuxml.a" ]; then
+  echo "configure: zuxml/lib/libzuxml.a was not found." >&2
+  exit 1
+fi
+
+sed -e "s|@ZUXML_LIB@|${ZUXML_LIB}|g" src/Makevars.in > src/Makevars
+```
+
+Check for the **file**, not for a version. An installed zuxml from
+before the archive existed reports the same version as one that carries
+it, so its presence on disk is the only honest test.
+
+`configure.win` is the same script ending in `src/Makevars.win`, and a
+`cleanup` script should remove both, since they are generated:
+
+``` sh
+#!/bin/sh
+rm -f src/Makevars src/Makevars.win
+```
+
+### `src/Makevars.in`
+
+``` make
+PKG_CPPFLAGS = -DXML_STATIC
+PKG_LIBS = '@ZUXML_LIB@/libzuxml.a'
+```
+
+Two details that are easy to get wrong and fail only on one platform:
+
+- **`-DXML_STATIC` matters on Windows.** Without it `expat_external.h`
+  decorates every declaration with `__declspec(dllimport)` and the link
+  fails.
+- **Quote the path.** It comes from
+  [`system.file()`](https://rdrr.io/r/base/system.file.html), so it
+  lives under the R library, and on Windows the user library sits under
+  the profile directory — a path with a space in it reaches the linker
+  as two nonexistent arguments. R quotes its own `LinkingTo` include
+  paths for the same reason.
+
+### `DESCRIPTION`
+
+    LinkingTo: zuxml
+
+That is all. No `Imports: zuxml`, and nothing in `NAMESPACE`.
+
+## Which Expat you are getting
+
+The archive holds the Expat objects zuxml’s own shared object was linked
+from, and **nothing else** — no `zux_*` wrapper, no R glue, since either
+would be dead weight or a duplicate symbol inside your shared object.
+
+It is compiled with zuxml’s feature policy, which is stricter than a
+distro build, and your code inherits every part of it:
+
+- **`XML_GE 0`, and `XML_DTD` never defined.** General entities,
+  parameter entities, external subsets and the external-entity machinery
+  are compiled out, so XXE and entity amplification are impossible
+  rather than disabled. The cost: any entity reference other than the
+  five built-ins and numeric character references is a parse error.
+- **Do not define `XML_GE=1` on your own command line.** `expat.h` would
+  then declare `XML_SetBillionLaughsAttackProtection*()`, which the
+  archive does not define, and you would get a link error. Those
+  limiters are pointless here anyway — the attack they bound is already
+  compiled out.
+- **`XML_NS 1`.** Namespace-aware parsing via `XML_ParserCreateNS()`
+  works.
+- **`XML_CONTEXT_BYTES 1024`**, so `XML_GetInputContext()` is available.
+- **`XML_UNICODE` is not defined**, so `XML_Char` is plain `char` and
+  input is UTF-8. `XML_LARGE_SIZE` and `XML_ATTR_INFO` are not defined
+  either.
+
+## Check that you actually linked it
+
+On Linux and Windows a wrong `PKG_LIBS` fails at link time. **On macOS
+it does not.** R links a package shared object with
+`-undefined dynamic_lookup`, so a consumer that never linked the archive
+still builds, still loads, and still parses — against whatever Expat
+happens to be in the process, usually the system one. Every behavioural
+test passes. The only reliable check is the symbol table:
+
+``` sh
+# Nothing may be left for the loader to resolve.
+nm -u path/to/yourpkg.so | grep XML_
+
+# And Expat has to actually be in there.
+nm path/to/yourpkg.so | grep ' [TtDd] _*XML_' | wc -l
+```
+
+## A worked example
+
+`tools/zuxmltest/` in zuxml’s own sources is a complete, minimal package
+in exactly this shape — `configure`, `configure.win`, `cleanup`,
+`src/Makevars.in`, and a `src/consume.c` that drives
+`XML_GetBuffer`/`XML_ParseBuffer` with a suspend/resume round trip.
+`tools/run-downstream-check` installs it against a freshly built zuxml
+and asserts all of the above, including that it still parses after zuxml
+has been removed from the library path.

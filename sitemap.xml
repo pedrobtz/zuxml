@@ -1,9 +1,11 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://pedrobtz.github.io/zuxml/404.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/CLAUDE.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/LICENSE-text.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/LICENSE.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/articles/hamlet.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/articles/index.html</loc></url>
+<url><loc>https://pedrobtz.github.io/zuxml/articles/linking.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/articles/security.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/articles/streaming.html</loc></url>
 <url><loc>https://pedrobtz.github.io/zuxml/articles/zuxml.html</loc></url>
