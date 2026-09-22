@@ -303,15 +303,18 @@ symbol table:</p>
 <div class="section level2">
 <h2 id="a-worked-example">A worked example<a class="anchor" aria-label="anchor" href="#a-worked-example"></a>
 </h2>
-<p><code>tools/zuxmltest/</code> in zuxml’s own sources is a complete,
-minimal package in exactly this shape — <code>configure</code>,
-<code>configure.win</code>, <code>cleanup</code>,
-<code>src/Makevars.in</code>, and a <code>src/consume.c</code> that
-drives <code>XML_GetBuffer</code>/<code>XML_ParseBuffer</code> with a
-suspend/resume round trip. <code>tools/run-downstream-check</code>
+<p><a href="https://github.com/pedrobtz/zuxml/tree/main/tools/zuxmltest" class="external-link"><code>tools/zuxmltest/</code></a>
+in zuxml’s development sources is a complete, minimal package in exactly
+this shape — <code>configure</code>, <code>configure.win</code>,
+<code>cleanup</code>, <code>src/Makevars.in</code>, and a
+<code>src/consume.c</code> that drives
+<code>XML_GetBuffer</code>/<code>XML_ParseBuffer</code> with a
+suspend/resume round trip. <a href="https://github.com/pedrobtz/zuxml/blob/main/tools/run-downstream-check" class="external-link"><code>tools/run-downstream-check</code></a>
 installs it against a freshly built zuxml and asserts all of the above,
 including that it still parses after zuxml has been removed from the
 library path.</p>
+<p>Both live in the git repository rather than in the installed package,
+since <code>tools/</code> is not shipped.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

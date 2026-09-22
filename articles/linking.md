@@ -172,10 +172,15 @@ nm path/to/yourpkg.so | grep ' [TtDd] _*XML_' | wc -l
 
 ## A worked example
 
-`tools/zuxmltest/` in zuxml’s own sources is a complete, minimal package
-in exactly this shape — `configure`, `configure.win`, `cleanup`,
-`src/Makevars.in`, and a `src/consume.c` that drives
-`XML_GetBuffer`/`XML_ParseBuffer` with a suspend/resume round trip.
-`tools/run-downstream-check` installs it against a freshly built zuxml
-and asserts all of the above, including that it still parses after zuxml
-has been removed from the library path.
+[`tools/zuxmltest/`](https://github.com/pedrobtz/zuxml/tree/main/tools/zuxmltest)
+in zuxml’s development sources is a complete, minimal package in exactly
+this shape — `configure`, `configure.win`, `cleanup`, `src/Makevars.in`,
+and a `src/consume.c` that drives `XML_GetBuffer`/`XML_ParseBuffer` with
+a suspend/resume round trip.
+[`tools/run-downstream-check`](https://github.com/pedrobtz/zuxml/blob/main/tools/run-downstream-check)
+installs it against a freshly built zuxml and asserts all of the above,
+including that it still parses after zuxml has been removed from the
+library path.
+
+Both live in the git repository rather than in the installed package,
+since `tools/` is not shipped.
