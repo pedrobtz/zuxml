@@ -33,6 +33,15 @@
 #     no tests/testthat/_snaps directory, so it uploaded nothing. Worth
 #     restoring the day a snapshot test is added, because a snapshot failure
 #     is close to unreadable without the artifact.
+
+# One row added to the reusable workflow's default `runners`: Windows on
+# R-devel. The containers job is R-devel on Linux and the default runners give
+# Windows on release, so no leg was the combination CRAN's incoming pretest
+# actually runs (r-devel-windows-x86_64). On Windows R-devel means a newer
+# Rtools toolchain than release, and this package compiles a vendored C library
+# -- the same reason the containers exist. This is also what makes a win-builder
+# submission unnecessary before release: it covers the same flavor, once,
+# by hand.
 on:
   push:
     branches: [main, master, develop]
@@ -45,3 +54,10 @@ permissions: read-all
 jobs:
   R-CMD-check:
     uses: pedrobtz/r-actions/.github/workflows/r-cmd-check.yml@v1
+    with:
+      runners: >-
+        [{"os": "macos-latest", "r": "release"},
+         {"os": "windows-latest", "r": "release"},
+         {"os": "windows-latest", "r": "devel"},
+         {"os": "ubuntu-latest", "r": "release"},
+         {"os": "ubuntu-latest", "r": "oldrel-1"}]

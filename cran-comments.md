@@ -11,28 +11,34 @@ lets other packages parse XML without linking against Expat themselves.
 
 ## Test environments
 
-* local macOS 15.7.9 (x86_64-apple-darwin20), R 4.5.2 — `R CMD check --as-cran`
+* local macOS 26.6.2 (aarch64-apple-darwin23), R 4.6.1 — `R CMD check --as-cran`
 * GitHub Actions on every push and pull request:
   - R-devel in three R-hub containers — `r-hub/containers/clang23`
     (which builds C as `-std=gnu23`), `ubuntu-clang` and `ubuntu-gcc16`
   - ubuntu-latest, R release and oldrel-1
   - macOS-latest, R release
-  - windows-latest, R release
+  - windows-latest, R release and R-devel
 
-R-devel is covered by the R-hub containers rather than by a plain R-devel
-runner: the runner's own toolchain matches no CRAN flavor, whereas the
-containers are the compilers CRAN checks on. A diagnostic that exists only
-in the newer compiler, or only under `-pedantic`, is what they are there to
+R-devel on Linux is covered by the R-hub containers rather than by a plain
+R-devel runner: the runner's own toolchain matches no CRAN flavor, whereas the
+containers are the compilers CRAN checks on. A diagnostic that exists only in
+the newer compiler, or only under `-pedantic`, is what they are there to
 surface before submission rather than after. R-hub is therefore already
 exercised on every push, and no separate submission to it is reported here.
+
+Windows R-devel is a runner row instead, since that flavor — a newer Rtools
+toolchain than release, and the one CRAN's incoming pretest uses — has no
+container equivalent. It is also why no win-builder result is reported
+separately: the same ground is covered on every push rather than once by hand
+before release.
 
 In addition to `R CMD check`, the package's own gates run in CI on every push:
 AddressSanitizer and UndefinedBehaviorSanitizer (with LeakSanitizer on Linux),
 libFuzzer over three targets, a mutation check that every security guard is
 load-bearing, a strict-warning build (`-Werror -Wall -Wextra -Wpedantic
--Wconversion -Wcast-qual`), a downstream fixture package that exercises the
-registered C API exactly as a real consumer would, and the W3C XML Conformance
-Test Suite.
+-Wconversion -Wcast-qual`), a downstream fixture package that links
+`inst/lib/libzuxml.a` through `LinkingTo` alone, exactly as a real consumer
+does, and the W3C XML Conformance Test Suite.
 
 ## R CMD check results
 
@@ -106,7 +112,7 @@ what:
 | 7 | Parse errors carry line, column and byte offset in an R condition | `tests/testthat/test-conditions.R` |
 | 8 | Round-trip (parse → serialize → parse) is structurally identical across the corpus | `test-serialize.R`, whose corpus includes the whitespace character references (`&#13;`, `&#13;&#10;`, `&#9;`) that survive end-of-line normalization; the `fuzz_roundtrip` target aborts on any non-fixed-point, survived 2.5M inputs, and it now runs every input under all four comment/PI settings, since dropping a node is what puts two text nodes next to each other in the output; `fuzz/corpus/seed21.xml` and `seed22.xml` seed both families |
 | 9 | Fuzzing under ASan/UBSan finds no memory-safety failure in project-owned code | 5.4M executions, all clean; nightly 30-minutes-per-target run in `hardening.yaml` |
-| 10 | `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes the C API via Imports + LinkingTo | `tools/run-downstream-check`, which also asserts the consumer's object references zero `XML_*` symbols |
+| 10 | `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` and `inst/lib/libzuxml.a`, with no `Imports:` entry and no run-time dependency on zuxml | `tools/run-downstream-check`, which installs the fixture against a freshly built zuxml, asserts that no Expat symbol is left undefined for the loader to satisfy, and asserts the fixture still parses with zuxml absent from the library path |
 | 11 | Vendored Expat provenance is recorded and reproducible | `src/vendor/PROVENANCE`, `inst/COPYRIGHTS`, `LICENSE.note`; `tools/verify-vendor` compares byte-for-byte against the pinned upstream release |
 | 12 | `R CMD check --as-cran` is clean on all three platforms | CI matrix; results above |
 
