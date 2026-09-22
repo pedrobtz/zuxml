@@ -8,6 +8,18 @@ set -eu
 LIB=$(mktemp -d)
 trap 'rm -rf "$LIB"' EXIT
 
+# Only $LIB and R's own base library, nothing else. A developer machine
+# working on zuxlsx has zuxml in its user library, and R_LIBS does not hide
+# that -- it only prepends. Two things go wrong if it stays visible: the
+# "zuxml is absent" leg below finds that copy and fails spuriously, and, if
+# the install into $LIB ever fails, the fixture's configure resolves its
+# archive from the developer's older zuxml instead. Neither shows up on a CI
+# runner, which has no other copy. R's base packages live in R_HOME/library,
+# which is untouched by these two.
+R_LIBS_USER=/nonexistent
+R_LIBS_SITE=/nonexistent
+export R_LIBS_USER R_LIBS_SITE
+
 echo "==> installing zuxml"
 R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
 
@@ -93,7 +105,11 @@ echo "==> the fixture loads with zuxml absent from the library path"
 # every Expat symbol it needs is inside its own shared object.
 mv "$LIB/zuxml" "$LIB/.zuxml-hidden"
 R_LIBS="$LIB" Rscript -e '
-  stopifnot(!nzchar(system.file(package = "zuxml")))
+  # Exactly two: $LIB, and R_HOME/library for the base packages. Any third
+  # entry means R_LIBS_USER or R_LIBS_SITE leaked back in and the assertion
+  # below would no longer be testing anything.
+  stopifnot(length(.libPaths()) == 2L,
+            !nzchar(system.file(package = "zuxml")))
   library(zuxmltest)
   stopifnot(identical(consume_xml("<a><b/><c/></a>")$elements, 3))
   cat("==> consumer runs with zuxml uninstalled\n")
