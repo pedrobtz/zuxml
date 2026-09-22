@@ -20,8 +20,10 @@ ZUXML_LIB=$("${RSCRIPT}" --vanilla -e "cat(system.file('lib', package = 'zuxml')
 if [ -z "${ZUXML_LIB}" ] || [ ! -f "${ZUXML_LIB}/libzuxml.a" ]; then
   echo "configure: zuxml/lib/libzuxml.a was not found." >&2
   echo "" >&2
-  echo "  zuxmltest links it statically. It ships with zuxml 0.1.0.9000 and" >&2
-  echo "  later; an older installed zuxml does not have it." >&2
+  echo "  zuxmltest links it statically. src/Makevars builds the archive and" >&2
+  echo "  src/install.libs.R installs it, so reinstall zuxml from this source" >&2
+  echo "  tree. The version is not a reliable test -- 0.1.0 exists both with" >&2
+  echo "  and without the archive -- which is why this checks for the file." >&2
   exit 1
 fi
 
