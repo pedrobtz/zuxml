@@ -52,9 +52,9 @@
 <h2 id="current-state-2026-09-22">Current state (2026-09-22)<a class="anchor" aria-label="anchor" href="#current-state-2026-09-22"></a></h2>
 <p>Version 0.1.0, not yet on CRAN. The <strong>Status:</strong> line under each stage in the roadmap is authoritative; this is the summary.</p>
 <ul><li>Stages 0–5 are complete. Stage 6 (#31) was complete when written, but its exit criteria 1 and 4 have been unverified since f3392b2 retargeted the fixture at the archive mode (#36).</li>
-<li>Stage 7 (#32) is open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail on a crash (#35). The 24h-per-target fuzzing criterion is not met.</li>
+<li>Stage 7 (#32) is open. The interrupt criterion is unverified but automatable (#37). The 24h-per-target fuzzing criterion is not met yet; the grown corpus is cached between CI runs, so fuzzing time accumulates.</li>
 <li>Stage 8 (#33) is complete. Its one open box is an optional win-builder R-devel run.</li>
-<li>Stage 9 (#34) is blocked on #35, #36, #40 and #44.</li>
+<li>Stage 9 (#34) is blocked on #36, #40 and #44.</li>
 <li>
 <strong>Consumers:</strong> <code>zuxlsx</code> is the only one, and it uses the archive. The registered table has no consumer — <code>zuhttp</code> plans no XML support — and, since f3392b2, no fixture. Whether 0.1.0 ships it is #36.</li>
 <li>An archive consumer does not inherit the seam’s DOCTYPE rejection or its limits (#41).</li>
@@ -134,7 +134,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/
 </tr><tr><td><code>tools/run-sanitizers</code></td>
 <td>the event seam under ASan + UBSan, no R in the way</td>
 </tr><tr><td><code>tools/run-fuzz</code></td>
-<td>libFuzzer over the parser seam — but its exit status is <code>tail</code>’s, so a crash does not fail it yet (#35)</td>
+<td>libFuzzer over the parser seam, after a canary that must crash</td>
 </tr><tr><td><code>tools/run-mutation-check</code></td>
 <td>each security guard is load-bearing</td>
 </tr><tr><td><code>tools/run-conformance</code></td>
@@ -153,7 +153,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/
 <div class="section level2">
 <h2 id="definition-of-done">Definition of done<a class="anchor" aria-label="anchor" href="#definition-of-done"></a></h2>
 <ul><li>A stage is done when its exit criteria pass in CI on all three platforms, not when the code is written. A criterion met differently from how it is worded goes in the stage’s <strong>Status:</strong> line. So does one that a later change invalidates: re-check a closed stage when you touch its subject.</li>
-<li>A gate counts once it has been seen to fail — a deliberate warning, a removed guard, a target that must crash. <code>tools/run-lint</code> passed vacuously until someone checked, and <code>tools/run-fuzz</code> still does (#35).</li>
+<li>A gate counts once it has been seen to fail — a deliberate warning, a removed guard, a target that must crash. <code>tools/run-lint</code> and <code>tools/run-fuzz</code> both passed vacuously until someone checked (#35).</li>
 <li>A change to a contract (<code>zuxml.h</code>, the table, the archive layout, the feature policy) amends the design in the same commit.</li>
 <li>
 <code>devtools::document()</code> leaves no diff, and <code>R CMD check --as-cran</code> shows only the NOTEs that <code>cran-comments.md</code> explains. A user-facing change also needs a test, roxygen documentation and a <code>NEWS.md</code> entry.</li>
