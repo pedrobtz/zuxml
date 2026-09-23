@@ -1,6 +1,6 @@
 # No import directive, deliberately, and no Imports: entry in DESCRIPTION to
 # permit one. Nothing here calls into zuxml's namespace: Expat is linked
-# statically from inst/lib/libzuxml.a, so zuxml never has to be loadable at
+# statically from the installed lib/libzuxml.a, so zuxml never has to be loadable at
 # run time. Adding an importFrom() here would hide a regression in exactly
 # the wiring this fixture exists to check.
 useDynLib(zuxmltest, .registration = TRUE)

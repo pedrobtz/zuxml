@@ -37,8 +37,8 @@ AddressSanitizer and UndefinedBehaviorSanitizer (with LeakSanitizer on Linux),
 libFuzzer over three targets, a mutation check that every security guard is
 load-bearing, a strict-warning build (`-Werror -Wall -Wextra -Wpedantic
 -Wconversion -Wcast-qual`), a downstream fixture package that links
-`inst/lib/libzuxml.a` through `LinkingTo` alone, exactly as a real consumer
-does, and the W3C XML Conformance Test Suite.
+the installed `lib/libzuxml.a` through `LinkingTo` alone, exactly as a real
+consumer does, and the W3C XML Conformance Test Suite.
 
 ## R CMD check results
 
@@ -103,16 +103,16 @@ what:
 
 | # | Criterion | Verified by |
 |---|---|---|
-| 1 | Builds from source on Windows, macOS and Linux with no system Expat, CMake or autotools | CI matrix: 5 jobs across the three platforms, source installs only |
+| 1 | Builds from source on Windows, macOS and Linux with no system Expat, CMake or autotools | CI matrix, source installs only: 5 GitHub runners (Windows release and devel, macOS release, Ubuntu release and oldrel) plus 3 R-devel Linux containers (gcc 16, clang, clang 23) |
 | 2 | Parsing is byte-for-byte independent of input chunk boundaries | `tests/testthat/test-chunking.R` at sizes 1, 2, 3, 7, 31, 4096 and random splits, including splits inside names, attribute values, UTF-8 sequences, entity references and CDATA markers; plus the `fuzz_feed` target choosing boundaries adversarially |
 | 3 | Namespace-aware parsing is correct, including shadowing and unqualified attributes | `tests/testthat/test-namespaces.R`; W3C suite namespace cases |
 | 4 | Mixed-content ordering is preserved exactly | `tests/testthat/test-tree.R`; the round-trip fuzz target |
-| 5 | External entities never cause filesystem or network access | Structural: `XML_GE 0`, `XML_DTD` never defined. Behavioural: `tests/testthat/test-security.R` XXE fixtures assert no file is opened. Proven non-vacuous by `tools/run-mutation-check` |
+| 5 | External entities never cause filesystem or network access | Structural: `XML_GE 0`, `XML_DTD` never defined. Behavioural: `tests/testthat/test-security.R` XXE fixtures assert that a `file://` or `http://` entity is refused at the `DOCTYPE`, that a canary file's contents never reach the event stream, and that a missing path fails exactly as an existing one does, so resolution is never attempted. Nothing observes system calls. Proven non-vacuous by `tools/run-mutation-check` |
 | 6 | Every oversized or malformed input fails through an explicit classed error; none crashes, hangs or aborts on OOM | `test-limits.R`, `test-conditions.R`; 5.4M fuzz executions across three targets under ASan+UBSan; the W3C conformance gate asserts no condition escapes the `zuxml_error` contract |
 | 7 | Parse errors carry line, column and byte offset in an R condition | `tests/testthat/test-conditions.R` |
 | 8 | Round-trip (parse → serialize → parse) is structurally identical across the corpus | `test-serialize.R`, whose corpus includes the whitespace character references (`&#13;`, `&#13;&#10;`, `&#9;`) that survive end-of-line normalization; the `fuzz_roundtrip` target aborts on any non-fixed-point, survived 2.5M inputs, and it now runs every input under all four comment/PI settings, since dropping a node is what puts two text nodes next to each other in the output; `fuzz/corpus/seed21.xml` and `seed22.xml` seed both families |
 | 9 | Fuzzing under ASan/UBSan finds no memory-safety failure in project-owned code | 5.4M executions, all clean; nightly 30-minutes-per-target run in `hardening.yaml` |
-| 10 | `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` and `inst/lib/libzuxml.a`, with no `Imports:` entry and no run-time dependency on zuxml | `tools/run-downstream-check`, which installs the fixture against a freshly built zuxml, asserts that no Expat symbol is left undefined for the loader to satisfy, and asserts the fixture still parses with zuxml absent from the library path |
+| 10 | `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` and the installed `lib/libzuxml.a`, with no `Imports:` entry and no run-time dependency on zuxml | `tools/run-downstream-check`, which installs the fixture against a freshly built zuxml, asserts that no Expat symbol is left undefined for the loader to satisfy, and asserts the fixture still parses with zuxml absent from the library path |
 | 10b | A fixture consumes the registered table through `Imports:` + `LinkingTo:` + `importFrom()` and calls every member | `tools/run-downstream-check`: `tools/zuxmltable` calls all 26 members, with identical results at every chunk size, and links no Expat symbol. A frozen copy of the table's 0.1.0 layout fails its build if a member moves. The same gate compiles `zuxml.h` as C and C++ under `-Wall -Wextra -Werror` |
 | 11 | Vendored Expat provenance is recorded and reproducible | `src/vendor/PROVENANCE`, `inst/COPYRIGHTS`, `LICENSE.note`; `tools/verify-vendor` compares byte-for-byte against the pinned upstream release |
 | 12 | `R CMD check --as-cran` is clean on all three platforms | CI matrix; results above |
