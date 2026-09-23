@@ -1,0 +1,15 @@
+Package: zuxmltable
+Title: Registered-Table Consumer Fixture for zuxml
+Version: 0.0.1
+Authors@R: person("Pedro", "Baltazar", , "pedrobtz@gmail.com", role = c("aut", "cre"))
+Description: Not for release. Consumes zuxml through its registered C
+    function table, the way new C code is meant to: Imports plus LinkingTo in
+    DESCRIPTION, an importFrom() directive in NAMESPACE, and every call made
+    through zuxml_api_get(). It calls all 26 members of the table, so that a
+    broken resolver, a reordered member or a header that states its contract
+    wrongly is discovered here rather than downstream. Its sibling,
+    tools/zuxmltest, covers the other consumption mode: the static archive.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: zuxml
+LinkingTo: zuxml

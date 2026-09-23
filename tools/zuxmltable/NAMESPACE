@@ -1,0 +1,8 @@
+useDynLib(zuxmltable, .registration = TRUE)
+export(table_members, table_events, table_tree, table_abort, table_degrade)
+# REQUIRED, and easy to miss: "Imports: zuxml" in DESCRIPTION only guarantees
+# that zuxml is installed. R_GetCCallable() resolves nothing until zuxml's
+# namespace is actually LOADED, which is what an import directive causes.
+# Without this line every call below fails with
+#   function 'zuxml_api_v2' not provided by package 'zuxml'
+importFrom(zuxml, zuxml_info)

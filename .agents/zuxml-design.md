@@ -22,7 +22,7 @@ A general-purpose XML library for R that:
 Two audiences, one implementation:
 
 - **R users** doing ordinary XML work — the tree and the navigation API.
-- **Sibling C consumers** — the event API and a registered C-callable table. `zuhttp` was the intended one; it plans no XML support (§16), so the table has no consumer today (#36).
+- **Sibling C consumers** — the event API and a registered C-callable table. `zuhttp` was the intended one; it plans no XML support (§16), so the table has no consumer today, and `tools/zuxmltable` stands in for one (§15).
 
 A third audience arrived after the design, and it bypasses the seam:
 
@@ -460,7 +460,7 @@ Illustrative: this is the header as designed, and `inst/include/zuxml.h` is auth
 - **It declares no functions.** Every entry point is a member of the `zuxml_api` table (§15). The `zux_*` prototypes below live only in the internal `src/zux.h`, so a consumer calls `api->parser_feed`, never `zux_parser_feed`.
 - `zux_error.message` is an inline `char[ZUX_MESSAGE_MAX]`, not a pointer (§15).
 - The table also carries the incremental tree builder (`tree_begin`/`feed`/`end`/`error`/`abort`, over an opaque `zux_tree_builder`), `serialize` and `set_message`.
-- It adds `zux_node_type`, `ZUXML_API_HAS()` for guarding appended members, and an opt-in `ZUXML_DEFINE_API_GET` resolver.
+- It adds `zux_node_type`, `ZUXML_API_HAS()` for guarding appended members, and an opt-in `ZUXML_DEFINE_API_GET` resolver that reads `R_GetCCallable()`'s `DL_FUNC` through a union rather than casting it (a direct cast fails under clang's `-Wcast-function-type`).
 
 ```c
 #ifndef ZUXML_H
@@ -614,6 +614,8 @@ importFrom(zuxml, zuxml_info)   # or import(zuxml)
 ```
 
 `Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v2' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h` (and, since the archive mode below, `expat.h` beside it).
+
+`tools/zuxmltable` is that shape, run by `tools/run-downstream-check`. It calls all 26 members through `zuxml_api_get()`, and it carries a frozen copy of the 0.1.0 table whose member offsets must match the current header's, so reordering or removing a member fails its build rather than a consumer's run.
 
 ### Two consumption modes
 
@@ -828,7 +830,7 @@ The real wins are structural and already decided: parse into a compact C arena w
 9. Fuzzing under ASan/UBSan finds no memory-safety failure in project-owned code over a sustained run.
 10. `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` plus `libzuxml.a` successfully, with zuxml uninstalled at run time.
 
-    **10b.** *(Conditional on #36.)* If the registered table ships in 0.1.0, a fixture package consumes it through `Imports:` + `LinkingTo:` + an `importFrom()` directive and calls every `zuxml_api` member. If the table does not ship, this criterion goes with it.
+    **10b.** A fixture package, `tools/zuxmltable`, consumes the registered table through `Imports:` + `LinkingTo:` + an `importFrom()` directive and calls every `zuxml_api` member, linking no Expat symbol (#36).
 11. Vendored Expat provenance is recorded and `tools/verify-vendor` reproduces the tree.
 12. `R CMD check --as-cran` is clean on all three platforms.
 
