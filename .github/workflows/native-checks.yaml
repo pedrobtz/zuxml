@@ -116,8 +116,8 @@ jobs:
     uses: pedrobtz/r-actions/.github/workflows/lto.yml@v1
 
   # The default step of 20 is kept, unlike packages that have to raise it:
-  # this suite is 236 expectations across 12 files and finishes in seconds
-  # uninstrumented, so the most sensitive setting is affordable. Raise `step`
+  # the test suite finishes in seconds uninstrumented, so the most sensitive
+  # setting is affordable. Raise `step`
   # before raising the timeout if that stops being true -- cost scales as
   # roughly 1/step, and what a larger step gives up is the odds of a
   # collection landing while a given unprotected SEXP is live, not coverage.

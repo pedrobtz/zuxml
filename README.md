@@ -84,9 +84,16 @@ Imports:    zuxml
 LinkingTo:  zuxml
 ```
 
-and include `<zuxml.h>`, which resolves `zuxml_api_get()` through
-`R_GetCCallable()`. Nothing links against Expat, no Expat type appears in the
-consumer's code, and a zuxml update reaches it without a rebuild. The
+in `DESCRIPTION`, and `importFrom(zuxml, zuxml_info)` in `NAMESPACE`. The
+import is required: `Imports:` alone does not load zuxml, and the table is
+registered only when it loads. Then include `<zuxml.h>`, which resolves
+`zuxml_api_get()` through `R_GetCCallable()`. Nothing links against Expat,
+and no Expat type appears in the consumer's code. A zuxml update that keeps
+the table's version reaches the consumer without a rebuild. One that changes
+it, which renames the registered table (`zuxml_api_v2` to `zuxml_api_v3`),
+makes the lookup fail with an R error until the consumer is rebuilt. That is
+deliberate: it is how a changed struct layout is kept from being read with
+the old one. The
 [getting started article](https://pedrobtz.github.io/zuxml/articles/zuxml.html)
 documents the table and the string-lifetime rules that go with it.
 
@@ -112,20 +119,29 @@ sed "s|@ZUXML_LIB@|${ZUXML_LIB}|" src/Makevars.in > src/Makevars
 
 ``` make
 PKG_CPPFLAGS = -DXML_STATIC
-PKG_LIBS = @ZUXML_LIB@/libzuxml.a
+PKG_LIBS = '@ZUXML_LIB@/libzuxml.a'
 ```
 
-Three things to know before taking this route:
+The path is quoted because it comes from `system.file()`, and on Windows the
+user library often has a space in its path.
+
+Four things to know before taking this route:
 
 - **The build configuration is zuxml's, not stock Expat's.** `XML_GE` is 0 and
   `XML_DTD` is undefined, so general entities, parameter entities and the
-  external-entity machinery are compiled out rather than switched off. Any
-  entity reference beyond the five built-ins and numeric character references
-  is a parse error. Do not define `XML_GE=1` on your own command line: you
-  would get declarations for limiter functions the archive does not contain.
-- **`-DXML_STATIC` is required on Windows**, where `expat_external.h` would
-  otherwise mark every declaration `__declspec(dllimport)`.
+  external-entity machinery are compiled out rather than switched off. Do not
+  define `XML_GE=1` on your own command line: you would get declarations for
+  limiter functions the archive does not contain.
+- **The rest of zuxml's policy is not in the archive.** DOCTYPE rejection and
+  the depth, node, attribute and text limits live in zuxml's own parser, which
+  an archive consumer does not call. In particular, if a document declares an
+  entity in an internal subset, a reference to it is not an error: it reaches
+  your handler as literal text such as `&e;`. Install a DOCTYPE handler and
+  limits yourself, as `vignette("linking")` shows.
+- **`-DXML_STATIC` is recommended, not required.** Stock `expat_external.h`
+  adds `__declspec(dllimport)` only under Microsoft's compiler, which Rtools
+  is not. The define is still accurate, and costs nothing.
 - **You get your own copy of Expat**, linked into your shared object. It shares
-  no state with the one inside `zuxml.so`, and a zuxml update does not reach it
-  until you rebuild.
+  no state with the one inside `zuxml.so`, and a zuxml update, security fixes
+  included, does not reach your users until you rebuild and re-release.
 

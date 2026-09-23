@@ -1,5 +1,6 @@
 # Internal harness over the event seam, used by the test suite. Not exported:
-# the supported R streaming interface is a phase-2 concern (design section 47).
+# the supported R streaming interface is a phase-2 concern (design section 22,
+# decision 13).
 zux_event_log <- function(x, chunk = 0L, cancel_at = 0L, ...) {
   if (is.character(x)) x <- charToRaw(paste(enc2utf8(x), collapse = ""))
   stopifnot(is.raw(x))

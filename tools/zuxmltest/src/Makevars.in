@@ -8,8 +8,10 @@
 # "expat.h: No such file or directory", that line is what is wrong, not this
 # file.
 #
-# XML_STATIC matters on Windows only, where expat_external.h would otherwise
-# decorate every declaration with __declspec(dllimport) and the link fails.
+# XML_STATIC is accurate -- the archive is linked statically -- but not
+# required: expat_external.h adds __declspec(dllimport) only under _MSC_VER,
+# and Rtools is GCC. It is kept because it costs nothing and would matter
+# under an MSVC-compatible toolchain.
 PKG_CPPFLAGS = -DXML_STATIC
 
 # Single-quoted: the path comes from system.file(), so it sits under the R
