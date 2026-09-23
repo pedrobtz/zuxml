@@ -31,7 +31,7 @@ roadmap is authoritative; this is the summary.
   24h-per-target fuzzing criterion is not met.
 * Stage 8 (#33) is complete. Its one open box is an optional win-builder
   R-devel run.
-* Stage 9 (#34) is blocked on #35, #36, #38, #40 and #44.
+* Stage 9 (#34) is blocked on #35, #36, #40 and #44.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
   registered table has no consumer — `zuhttp` plans no XML support — and,
   since f3392b2, no fixture. Whether 0.1.0 ships it is #36.
@@ -127,8 +127,9 @@ R CMD INSTALL .                     # an installed layout, for test-linking.R
 
 `tests/testthat/test-linking.R` audits the *installed* package
 (`lib/libzuxml.a`, `include/expat.h`), so it skips under `load_all()`. It has
-teeth only under `R CMD check` or against a real install — and today it also
-skips when the artifact it audits is missing (#38).
+teeth only under `R CMD check` or against a real install, and there a missing
+artifact fails rather than skips: whether the layout is installed is read from
+`Meta/package.rds`, never from the artifact under test.
 
 ## Gates
 
