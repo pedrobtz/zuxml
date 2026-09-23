@@ -1,9 +1,8 @@
 # zuxml — Design
 
-**Status:** Design agreed, pre-implementation
+**Status:** Implemented in 0.1.0 (not yet released). This is the specification; amend it in the same commit as the code that changes it.
 **Package:** `zuxml`
-**One line:** A small, strict, secure XML parser and immutable tree for R, vendoring Expat, usable standalone and as the XML backend for `zuhttp`.
-**Supersedes:** `design-zuxml.md` (delete once this is accepted).
+**One line:** A small, strict, secure XML parser and immutable tree for R, vendoring Expat, usable standalone and from other packages' C code.
 
 Every statement here is a decision. Things not yet decided live in §22 and nowhere else.
 
@@ -23,7 +22,11 @@ A general-purpose XML library for R that:
 Two audiences, one implementation:
 
 - **R users** doing ordinary XML work — the tree and the navigation API.
-- **`zuhttp` and sibling C consumers** — the event API and a registered C-callable table.
+- **Sibling C consumers** — the event API and a registered C-callable table. `zuhttp` was the intended one; it plans no XML support (§16), so the table has no consumer today (#36).
+
+A third audience arrived after the design, and it bypasses the seam:
+
+- **C code already written against Expat** — `xlsxio`, vendored by `zuxlsx`, is the case — gets Expat itself as a static archive (§15). It inherits the compile-time policy and nothing the seam enforces (§3).
 
 Design principle:
 
@@ -50,6 +53,7 @@ Conversion to lists is a separate, explicitly lossy operation, and is not in v1.
 | Resource limits | yes | | |
 | C streaming/event API | yes | | |
 | Registered C-callable table | yes | | |
+| Static Expat archive (`libzuxml.a` + `expat.h`) | yes — for C written against Expat (§15) | | |
 | Tree construction / mutation | | yes | |
 | R pull/streaming API | | yes | R callback-per-event API |
 | `xml_as_list()` | | yes (lossy, documented) | as the default return |
@@ -76,7 +80,7 @@ The package should not gradually become a small clone of libxml2. When in doubt,
     ┌────┴────┬──────────────┐
     ▼         ▼              ▼
  tree      C consumer    (future: other producers — see §17)
- builder   (zuhttp)
+ builder   (via the table)
     │
     ▼
  zux_document  ──►  R handles  ──►  R navigation API
@@ -84,9 +88,9 @@ The package should not gradually become a small clone of libxml2. When in doubt,
 
 Three rules that follow from this and are non-negotiable:
 
-1. **No Expat type ever appears in a `zuxml` header.** Not `XML_Parser`, not `XML_Char`, not an Expat error code.
+1. **No Expat type ever appears in `zuxml.h`.** Not `XML_Parser`, not `XML_Char`, not an Expat error code. An installed zuxml also carries `expat.h`, for the archive mode of §15; that is Expat's header, not zuxml's, and a table consumer never needs it.
 2. **The tree builder is an ordinary consumer of `zux_handlers`.** It gets no privileged access. This is what makes a second producer (HTML, or a future Expat replacement) a bounded piece of work rather than a rewrite.
-3. **Limits and security policy live at the seam**, not in the tree builder, so every consumer inherits them.
+3. **Limits and security policy live at the seam**, not in the tree builder, so every consumer *of the seam* inherits them. An archive consumer (§15) links Expat directly and is not one. It inherits the compile-time policy (`XML_GE 0`, no `XML_DTD`), but not the DOCTYPE and internal-subset rejection and none of the five limits (#41).
 
 ---
 
@@ -451,6 +455,13 @@ Canonical XML is out of scope. Pretty-printing is phase 2, because indentation i
 
 ## 14. Public C API
 
+Illustrative: this is the header as designed, and `inst/include/zuxml.h` is authoritative where they differ. The shipped header differs in four ways:
+
+- **It declares no functions.** Every entry point is a member of the `zuxml_api` table (§15). The `zux_*` prototypes below live only in the internal `src/zux.h`, so a consumer calls `api->parser_feed`, never `zux_parser_feed`.
+- `zux_error.message` is an inline `char[ZUX_MESSAGE_MAX]`, not a pointer (§15).
+- The table also carries the incremental tree builder (`tree_begin`/`feed`/`end`/`error`/`abort`, over an opaque `zux_tree_builder`), `serialize` and `set_message`.
+- It adds `zux_node_type`, `ZUXML_API_HAS()` for guarding appended members, and an opt-in `ZUXML_DEFINE_API_GET` resolver.
+
 ```c
 #ifndef ZUXML_H
 #define ZUXML_H
@@ -590,6 +601,8 @@ typedef struct {
 } zuxml_api;
 ```
 
+The member list above is a sketch; the member order that is ABI is the one in `zuxml.h`.
+
 `struct_size` is the sole version discriminator **for this table** — the previous draft carried three overlapping schemes (`ZUXML_API_VERSION`, `abi_version`, `struct_size`). A consumer compares `struct_size` against the offset of the member it wants and degrades gracefully. Fields are only ever appended, never reordered or removed.
 
 What `struct_size` cannot see is a layout change in any *other* public type — `zux_error`, `zux_options`, `zux_name`. The table is byte-identical in that case, so an old consumer goes on passing a differently shaped struct and smashes its own stack, and R does not rebuild `LinkingTo` dependents when zuxml is upgraded. The registered callable **name** versions those types: `zuxml_api_v1` → `zuxml_api_v2` when `zux_error.message` became an inline `char[ZUX_MESSAGE_MAX]` rather than a `const char *`. A stale consumer then fails loudly at `R_GetCCallable()` instead of writing through the wrong offsets. Bump the name for any such change; append to the table for everything else.
@@ -600,7 +613,7 @@ Downstream declares `Imports: zuxml` **and** `LinkingTo: zuxml` — and, critica
 importFrom(zuxml, zuxml_info)   # or import(zuxml)
 ```
 
-`Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v2' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h`. No downstream package ever links against Expat.
+`Imports:` in `DESCRIPTION` only guarantees that zuxml is *installed*. `R_GetCCallable()` resolves nothing until zuxml's namespace is **loaded**, which is what the `NAMESPACE` directive causes; without it `R_init_zuxml` never runs and the consumer fails at run time with `function 'zuxml_api_v2' not provided by package 'zuxml'`. Earlier drafts of this document said `Imports` ensures the package is "installed/loaded", which is wrong on the second half. `LinkingTo:` exposes `inst/include/zuxml.h` (and, since the archive mode below, `expat.h` beside it).
 
 ### Two consumption modes
 
@@ -617,7 +630,9 @@ The table above is one of two ways to consume zuxml from C, and they have differ
 
 The archive exists for a C library that is written against Expat itself and cannot be retargeted onto a callback table — `xlsxio` in `zuxlsx` is the case that prompted it, and it needs `XML_GetBuffer`/`XML_StopParser`/`XML_ResumeParser`, which the table does not offer. It holds `EXPAT_OBJECTS` and nothing else (see `src/Makevars`): no R glue, which would be both useless and a duplicate symbol inside a consumer.
 
-There is no `configure`-free way to point at the archive — `LinkingTo` adds `<pkg>/include` to `CLINK_CPPFLAGS` but has no library equivalent — so an archive consumer resolves `system.file("lib", package = "zuxml")` in its own `configure` and substitutes it into `src/Makevars.in`. `tools/zuxmltest` is that shape, deliberately identical to `zuxlsx`'s.
+What an archive consumer does **not** get is the seam. It inherits the compile-time policy (`XML_GE 0`, no `XML_DTD`), but not the DOCTYPE and internal-subset rejection and none of the §11 limits (§3, rule 3). With `XML_GE 0`, a reference to an entity declared in an internal subset reaches such a consumer as literal text — the defect roadmap Stage 2 found and closed only at the seam. The consumer has to install its own `XML_SetStartDoctypeDeclHandler` to refuse it (#41, zuxlsx#47).
+
+There is no `configure`-free way to point at the archive — `LinkingTo` adds `<pkg>/include` to `CLINK_CPPFLAGS` but has no library equivalent — so an archive consumer resolves `system.file("lib", package = "zuxml")` in its own `configure` and substitutes it into `src/Makevars.in`. `tools/zuxmltest` is that shape, modelled on `zuxlsx`'s. `zuxlsx`'s `configure` has since learned to try `lib/<r_arch>` before `lib/`, which the fixture has not (#42).
 
 One platform caveat, which `tools/run-downstream-check` checks with `nm -u` rather than trusting the build: on macOS R links a package `.so` with `-undefined dynamic_lookup`, so an archive consumer whose `PKG_LIBS` is wrong still builds, still loads and still parses — against whatever Expat the process happens to have. On Linux and Windows the same mistake fails at link time.
 
@@ -625,10 +640,12 @@ One platform caveat, which `tools/run-downstream-check` checks with `nm -u` rath
 
 ## 16. `zuhttp` integration
 
+**Status (2026-09-22): `zuhttp` plans no XML support.** Its design does not mention XML, and it consumes no sibling in 0.x (§25). zuxml could at most be a `Suggests:` for a future `zu_resp_xml()`. What follows records the intended shape only; nothing in 0.1.0 depends on it.
+
 Boundary: **`zuhttp` owns bytes and content types. `zuxml` owns XML semantics and knows nothing about HTTP.**
 
 ```text
-TLS → HTTP framing → Content-Encoding → [zudeflate] → bytes → zuxml → tree/events
+TLS → HTTP framing → Content-Encoding → [zukomp] → bytes → zuxml → tree/events
 ```
 
 `zuhttp` declares `Suggests: zuxml`, not `Imports`. Rationale: content decoding is transport-level and belongs in `zuhttp`'s core; XML is a high-level convenience, and most `zuhttp` users will never parse XML. `resp_xml()` errors with an install hint if `zuxml` is absent.
@@ -670,7 +687,7 @@ Pinned at **Expat 2.8.4** (2026-08-31), which is also the floor. It is a securit
 
 **Expat is not treated as a trusted component.** Upstream publicly tracks unfixed non-public vulnerabilities at libexpat issue #1160 — seven open at import time, three with reserved CVEs. That is normal for a heavily fuzzed XML parser and is not a reason to prefer a different one; it is the reason the security model does not rest on the parser being correct. `XML_GE 0` with no `XML_DTD` deletes whole vulnerability classes from the binary, and the project-owned limits at the event seam bound what a parser bug can cost. Re-vendor promptly on each upstream release.
 
-Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
+Record in `src/vendor/PROVENANCE` — one level above the vendored tree, so the tree stays byte-identical to upstream: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
 
 ### Configuration
 
@@ -689,7 +706,7 @@ Record in `src/vendor/expat/PROVENANCE`: upstream repo, release tag, commit SHA,
 These are the specific things that break Expat vendoring, named so CI does not have to discover them:
 
 1. **`BYTEORDER`.** Expat's `expat_config.h` requires it. Do not copy a generated header from one machine. Derive it in a project-owned header from `__BYTE_ORDER__`/`_WIN32`/`__BIG_ENDIAN__`, with a compile-time `#error` on the unknown case rather than a silent wrong default.
-2. **Entropy source.** Expat wants `getrandom`/`arc4random_buf`/`RtlGenRandom`, and availability differs per platform and glibc version. Getting this wrong is the most common vendoring build failure. Probe in a project-owned header and fall back to `XML_POOR_ENTROPY` with a documented consequence (weaker hash-salt only — mitigated by `XML_SetHashSalt` in §11).
+2. **Entropy source.** Expat wants `getrandom`/`arc4random_buf`/`RtlGenRandom`, and availability differs per platform and glibc version. Getting this wrong is the most common vendoring build failure. Probe in the project-owned `src/expat_config.h`, and make an unknown platform a compile-time `#error`. There is no fallback: `XML_POOR_ENTROPY` is never acceptable, and `XML_SetHashSalt` is not a mitigation (§11).
 3. **MinGW printf formats.** Expat's `internal.h` selects MSVC-style `"%I64x"` / `"%I64u"` whenever `_WIN32` is defined and `__USE_MINGW_ANSI_STDIO` is not. Rtools' GCC rejects those under `-Wformat`, which R CMD check escalates to a WARNING and CI to a hard failure. Define `-D__USE_MINGW_ANSI_STDIO=1` in `Makevars` — Expat supports the macro explicitly, so this is configuration, not a patch — and set it there rather than in a header so it precedes any system `stdio.h` in every translation unit.
 4. **`src/Makevars`.** No GNU-make-only syntax unless `SystemRequirements: GNU make` is declared — and it is cleaner not to need it. Do not attempt `-Wno-*` suppression for vendored sources; CRAN rejects compiler-flag overrides. Vendor only the parser sources (`xmlparse.c`, `xmltok*.c`, `xmlrole.c`) plus headers. Never vendor `xmlwf`, examples, tests, benchmarks, or the CMake/autotools build.
 
@@ -697,7 +714,7 @@ These are the specific things that break Expat vendoring, named so CI does not h
 
 ### Updating
 
-`tools/update-expat` — fetch the pinned release, verify SHA-256, extract the parser subset, install `COPYING`, reapply ordered patches from `tools/patches/`, regenerate `PROVENANCE`, run the portability and fuzz suites, print a diff summary. `tools/verify-vendor` re-derives the tree and fails if it differs from what is committed. XML parsers get security releases; this has to be a 10-minute job.
+`tools/update-expat <version>` fetches the release tarball and records its SHA-256 (trust on first use, as `PROVENANCE` says). It replaces `src/vendor/expat/` with the files listed in `tools/expat-files.txt`, `COPYING` and `AUTHORS` among them, rewrites `src/vendor/PROVENANCE`, and names the next steps: `tools/verify-vendor`, then `R CMD check`, then fuzzing. It does not run them itself. There is no `tools/patches/`, since no local patch is carried. Rewriting `PROVENANCE` drops its hand-written *Why this version is the floor* and *Known unfixed issues* sections, so restore them by hand. `tools/verify-vendor` re-derives the tree and fails if it differs from what is committed. XML parsers get security releases; this has to be a 10-minute job.
 
 ---
 
@@ -748,6 +765,8 @@ Small local fixtures only: Atom, RSS, SOAP, SVG, S3/AWS XML error responses, Web
 
 Targets: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer. libFuzzer primary, AFL++ where useful, under ASan + UBSan (MSan where practical). Seed from the corpus and from upstream Expat corpora. Run in CI on a schedule, not only on push.
 
+Built: **three** targets. `fuzz_tree` covers whole-document parse and tree building. `fuzz_feed` covers incremental feed, with the fuzzer choosing the chunk size. `fuzz_roundtrip` covers the serializer, as a fixed point. Namespace splitting, attribute copying and text coalescing are reached through those rather than targeted on their own. Neither MSan nor AFL++ is used, and the seeds are the 22 files in `fuzz/corpus/`, not upstream Expat corpora. The CI gate over them is #35.
+
 ---
 
 ## 21. Performance targets
@@ -762,7 +781,7 @@ Not "beat xml2" — `xml2`/libxml2 is a mature, heavily optimized stack and matc
 | R object churn | zero R allocations during parsing; handles created lazily on access |
 | Install time | seconds, from source, everywhere |
 
-Benchmark fixtures: 1 KiB, 100 KiB API response, 1 MiB feed, 10 MiB synthetic, many-tiny-nodes, large-text-nodes, namespace-heavy. Plus the full `zu*` pipeline — gzip response → `zudeflate` streaming → `zuxml` streaming → consumer — at 1/4/16/64 KiB chunks.
+Benchmark fixtures: 1 KiB, 100 KiB API response, 1 MiB feed, 10 MiB synthetic, many-tiny-nodes, large-text-nodes, namespace-heavy. Plus the full `zu*` pipeline — gzip response → `zukomp` streaming → `zuxml` streaming → consumer — at 1/4/16/64 KiB chunks. (No consumer runs that pipeline today, §16, so this fixture is not built.)
 
 The real wins are structural and already decided: parse into a compact C arena with zero R allocation, create R handles lazily, intern names, keep nodesets as one integer vector.
 
@@ -808,6 +827,8 @@ The real wins are structural and already decided: parse into a compact C arena w
 8. Round-trip (`parse → serialize → parse`) is structurally identical across the whole corpus.
 9. Fuzzing under ASan/UBSan finds no memory-safety failure in project-owned code over a sustained run.
 10. `inst/include/zuxml.h` exposes no Expat type; a fixture package consumes zuxml through `LinkingTo` plus `libzuxml.a` successfully, with zuxml uninstalled at run time.
+
+    **10b.** *(Conditional on #36.)* If the registered table ships in 0.1.0, a fixture package consumes it through `Imports:` + `LinkingTo:` + an `importFrom()` directive and calls every `zuxml_api` member. If the table does not ship, this criterion goes with it.
 11. Vendored Expat provenance is recorded and `tools/verify-vendor` reproduces the tree.
 12. `R CMD check --as-cran` is clean on all three platforms.
 
@@ -831,4 +852,66 @@ The real wins are structural and already decided: parse into a compact C arena w
 
 > **`zuxml` is a small, strict, secure XML parser and tree for R — not a replacement for the XML ecosystem.**
 
-Its value to `zuhttp` is safe incremental parsing of untrusted XML with no libxml2 dependency. Its value on its own is that ordinary XML work in R gets an intuitive, vectorized API over a faithful tree. The event seam is what lets both of those, plus HTML later, share one implementation.
+Its value to other packages' C code is safe incremental parsing of untrusted XML with no libxml2 dependency. Code already written against Expat gets the archive instead, and with it only the compile-time half of that safety (§15). Its value on its own is that ordinary XML work in R gets an intuitive, vectorized API over a faithful tree. The event seam is what lets both of those, plus HTML later, share one implementation.
+
+---
+
+## 25. Position in the `zu*` family (reviewed 2026-09-22)
+
+This table is identical in all five repositories' design documents. Change it in all five
+together, or not at all.
+
+| | zukomp | zuxml | zucrypt | zuxlsx | zuhttp |
+|---|---|---|---|---|---|
+| Role | provider | provider | provider | consumer | standalone |
+| R prefix | `komp_` | `xml_` | `crypt_` | `read_xlsx()`, `xlsx_` | `zu_` |
+| Info function | `komp_info()` | `zuxml_info()` | `crypt_info()` | `zuxlsx_native()` ([zuxlsx#46](https://github.com/pedrobtz/zuxlsx/issues/46)) | `zu_info()` |
+| Root condition class | `zukomp_error` | `zuxml_error` | `zucrypt_error` | `zuxlsx_error` | `zu_error` ([zuhttp#19](https://github.com/pedrobtz/zuhttp/issues/19)) |
+| Public C prefix | `zu_` / `ZU_` | `zux_` / `ZUX_` | `zuc_` / `ZUC_` | none | none — but the internal C code uses `zu_` and collides with `zukomp.h` ([zuhttp#15](https://github.com/pedrobtz/zuhttp/issues/15)) |
+| Registered table | `zukomp_get_api(version)` via `zukomp-r.h` | `zuxml_api_v2` via `ZUXML_DEFINE_API_GET` in `zuxml.h` ([zuxml#36](https://github.com/pedrobtz/zuxml/issues/36)) | `zucrypt_get_api(version)` via `zucrypt-r.h` | — | — |
+| Table consumers today | none (fixture `tools/zukomptest`) | none (no fixture) | none (fixture `tests/consumer/zucrypttest`) | — | — |
+| Static archive | `lib${R_ARCH}/libzukomp.a` + `miniz.h` | `lib/libzuxml.a` + `expat.h`, `expat_external.h` | `lib/libzucrypt.a` + `zucrypt.h` | — | — |
+| Archive consumers today | zuxlsx (miniz ZIP reader only); fixture `tools/zukomplink` | zuxlsx (xlsxio); fixture `tools/zuxmltest` | none; zuxlsx 0.2.0 agile decryption ([zuxlsx#22](https://github.com/pedrobtz/zuxlsx/issues/22)); no fixture package ([zucrypt#32](https://github.com/pedrobtz/zucrypt/issues/32)) | — | — |
+| Upstream licence installed | `licenses/miniz-LICENSE` | no ([zuxml#42](https://github.com/pedrobtz/zuxml/issues/42)) | no ([zucrypt#33](https://github.com/pedrobtz/zucrypt/issues/33)) | Expat's and miniz's in `inst/licenses/`; xlsxio's not ([zuxlsx#62](https://github.com/pedrobtz/zuxlsx/issues/62)) | no: vendored picohttpparser and uriparser ([zuhttp#52](https://github.com/pedrobtz/zuhttp/issues/52)); zlib and TLS are system libraries |
+| Symbols hidden (`$(C_VISIBILITY)`) | no ([zukomp#34](https://github.com/pedrobtz/zukomp/issues/34)) | no ([zuxml#39](https://github.com/pedrobtz/zuxml/issues/39)) | yes, audited | no | no ([zuhttp#15](https://github.com/pedrobtz/zuhttp/issues/15)) |
+| r-actions pin | commit, v1.7.0 | mostly floating `@v1` ([zuxml#39](https://github.com/pedrobtz/zuxml/issues/39)) | commit, v1.9.0 | not used ([zuxlsx#44](https://github.com/pedrobtz/zuxlsx/issues/44)) | coverage only, `@v1` ([zuhttp#18](https://github.com/pedrobtz/zuhttp/issues/18)) |
+| `Depends: R` | 4.0 | 4.1 | 4.1 | 4.1 | 3.5 |
+
+**Relationships, as decided rather than as hoped:**
+
+- **zuhttp consumes no sibling in 0.x.** Compression is system zlib (zuhttp D-7, accepted
+  2026-09-07). Pin digests come from the TLS backend: OpenSSL computes them today, and
+  macOS and Windows refuse pins until SubjectPublicKeyInfo extraction lands
+  ([zuhttp#4](https://github.com/pedrobtz/zuhttp/issues/4), [zuhttp#12](https://github.com/pedrobtz/zuhttp/issues/12)). zuxml could at most
+  be a `Suggests:` for a future `zu_resp_xml()`. So zukomp's criterion 11 is deferred beyond 0.1.0
+  ([zukomp#32](https://github.com/pedrobtz/zukomp/issues/32)), and zucrypt's hope of a
+  table-mode consumer in zuhttp ([zucrypt#14](https://github.com/pedrobtz/zucrypt/issues/14))
+  has no taker today.
+- **zuxlsx is the only real consumer in the family**, and it consumes archives only: zuxml's
+  Expat and zukomp's miniz ZIP reader now, and zucrypt's primitives for agile decryption in
+  0.2.0. None of zukomp's codec registry, stream driver or `max_output`/`max_ratio` limits
+  reaches zuxlsx. Standard (ECB) encryption is out of scope there, so zucrypt's ECB has no
+  consumer ([zucrypt#29](https://github.com/pedrobtz/zucrypt/issues/29)).
+- **No sibling uses any registered table.** All three tables are proven only by fixtures (or,
+  for zuxml, not at all). That is an argument for keeping each table small and marked as the
+  part most likely to change before a first consumer exists.
+- **An archive fix reaches a consumer only when the consumer is rebuilt.** A security bump
+  in Expat, miniz or TF-PSA-Crypto therefore means re-releasing zuxlsx too
+  ([zuxlsx#15](https://github.com/pedrobtz/zuxlsx/issues/15)).
+
+**Convergence targets** (each tracked where the change has to happen):
+
+- Archives install under `lib${R_ARCH}`, with the upstream licence under `licenses/` and every
+  `file.copy()` checked, as zukomp does ([zuxml#42](https://github.com/pedrobtz/zuxml/issues/42),
+  [zucrypt#33](https://github.com/pedrobtz/zucrypt/issues/33)).
+- Table resolvers follow `zukomp-r.h`: a pure-C99 `<pkg>.h` with an R-only `<pkg>-r.h`, a
+  union cast of `DL_FUNC`, lazy resolution, and NULL on a version mismatch.
+- Only `R_init_<pkg>` is exported from each shared object.
+- Each consumer shape has one fixture package under `tools/` that runs on all three OSes.
+  A plain `main()` does not count ([zucrypt#32](https://github.com/pedrobtz/zucrypt/issues/32)).
+- Providers that zuxlsx tracks at `@main` build zuxlsx in CI
+  ([zukomp#35](https://github.com/pedrobtz/zukomp/issues/35), [zuxml#39](https://github.com/pedrobtz/zuxml/issues/39)).
+- `main` carries a `.9000` development version between releases, so a consumer can test a
+  version instead of probing for files.
+- **CRAN order:** zuxml and zukomp first, then zuxlsx 0.1.0. zucrypt must reach CRAN before
+  zuxlsx 0.2.0 (decryption). zuhttp is independent.

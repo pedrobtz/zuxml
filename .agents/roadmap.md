@@ -1,4 +1,4 @@
-# zuxml — Roadmap to v1.0.0
+# zuxml — Roadmap to 0.1.0 (first CRAN release)
 
 Companion to [zuxml-design.md](zuxml-design.md). Section references (§) point there.
 
@@ -12,9 +12,15 @@ Companion to [zuxml-design.md](zuxml-design.md). Section references (§) point t
 
 Sizes are relative: **S** ≈ a sitting, **M** ≈ a few, **L** ≈ the stage is the week.
 
+**"v1" means the first release's scope**, here and in the design. That release ships as 0.1.0 (Stage 9); 1.0.0 comes later.
+
+**Status never goes in a heading — issue links use the anchors.** A heading is `## Stage N — Title · Size` and nothing else; a stage's state is the **Status:** line directly under it. Status words in a heading change its GitHub anchor, which silently breaks every issue that links to the stage.
+
 ---
 
-## Stage 0 — Repo hygiene · S — **complete**
+## Stage 0 — Repo hygiene · S
+
+**Status:** complete.
 
 The package arrived as the `usethis` template; cleared before building on it.
 
@@ -34,19 +40,21 @@ Two further fixes, found only by actually running the check rather than by plann
 
 ---
 
-## Stage 1 — Vendor Expat and prove it builds · L — **complete**
+## Stage 1 — Vendor Expat and prove it builds · L
+
+**Status:** complete.
 
 The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
 **Do**
 - Import Expat 2.7.x (floor 2.7.1, CVE-2024-8176 — verify the current release) into `src/vendor/expat/`. Parser sources only: `xmlparse.c`, `xmltok*.c`, `xmlrole.c`, headers, `COPYING`. No `xmlwf`, examples, tests, benchmarks, CMake, or autotools.
-- Write `src/zux_config.h` — the project-owned configuration header (§18): `XML_Char = char`, `XML_NS` on, **`XML_DTD` off**, `XML_CONTEXT_BYTES = 1024`.
+- Write the project-owned configuration header (§18) — it landed as `src/expat_config.h`, see below: `XML_Char = char`, `XML_NS` on, **`XML_DTD` off**, `XML_CONTEXT_BYTES = 1024`.
 - Solve the three traps (§18) *here*:
   - `BYTEORDER` derived from `__BYTE_ORDER__` / `_WIN32` / `__BIG_ENDIAN__`, with `#error` on the unknown case. Never copy a generated `expat_config.h`.
-  - Entropy probe: `getrandom` / `arc4random_buf` / `RtlGenRandom`, falling back to `XML_POOR_ENTROPY` with the consequence documented.
+  - Entropy probe: `getrandom` / `arc4random_buf` / `RtlGenRandom`, with a compile-time `#error` on an unknown platform. Never `XML_POOR_ENTROPY` (design §11).
   - `src/Makevars` with no GNU-make-only syntax and no `-Wno-*` overrides.
 - `src/init.c` with `R_useDynamicSymbols(dll, FALSE)` and one smoke entry point that creates and frees a parser.
-- `tools/update-expat` and `tools/verify-vendor`; write `src/vendor/expat/PROVENANCE`.
+- `tools/update-expat` and `tools/verify-vendor`; write `src/vendor/PROVENANCE` (one level above the vendored tree, so the tree itself stays byte-identical to upstream).
 - **Licensing and attribution.** CRAN policy requires copyright held by anyone other than the package authors to be declared. Expat's `COPYING` names three holders; the notice is, verbatim:
 
       Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
@@ -62,7 +70,7 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 - `Authors@R` lists the three Expat copyright holders; `inst/COPYRIGHTS`, `LICENSE.note`, and `src/vendor/expat/COPYING` are present.
 - `R CMD check --as-cran` clean.
 
-**Trap:** if Windows fights the entropy probe, fix the probe — do not reach for `XML_POOR_ENTROPY` unconditionally. `XML_SetHashSalt` (Stage 2) mitigates it, but only if the probe is honest about what it chose.
+**Trap:** if Windows fights the entropy probe, fix the probe — never fall back to `XML_POOR_ENTROPY`. An unknown platform is a compile error (`src/expat_config.h`), and `XML_SetHashSalt` is not a mitigation: Stage 2 deliberately does not call it (design §11).
 
 **What actually happened**
 
@@ -80,7 +88,9 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
 ---
 
-## Stage 2 — Event seam and security policy · L — **complete**
+## Stage 2 — Event seam and security policy · L
+
+**Status:** complete. One criterion is met more weakly than written: the XXE fixture is asserted by a canary file never reaching the event stream (`tests/testthat/test-security.R`), not at the syscall level. `cran-comments.md` still claims the stronger form ("assert no file is opened") and needs the same correction.
 
 The core of the package. Everything downstream is a consumer of what this stage defines.
 
@@ -111,10 +121,9 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
+## Stage 3 — Tree builder · M
 
----
-
-## Stage 3 — Tree builder · M — **complete**
+**Status:** complete.
 
 **Do**
 - `src/zux_tree.c` — the three growable arrays, name interning with an open-addressed hash, and `zux_tree_parse` (§5). Iterative construction and iterative free; no recursion anywhere.
@@ -140,10 +149,9 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
+## Stage 4 — R document and node API · M
 
----
-
-## Stage 4 — R document and node API · M — **complete, with one criterion unverifiable**
+**Status:** complete except the interrupt criterion, which is carried to Stage 7 and is automatable after all (#37).
 
 **Do**
 - `R/parse.R`, `R/node.R`, `R/nodeset.R`, `R/conditions.R`; `src/r_api.c`.
@@ -174,13 +182,12 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
+## Stage 5 — Serializer and round-trip · M
 
----
-
-## Stage 5 — Serializer and round-trip · M — **complete**
+**Status:** complete.
 
 **Do**
-- `src/zux_write.c` + `src/zux_escape.c`; `R/write.R` with `xml_serialize`, `xml_write`, `as.character`.
+- `src/zux_write.c` (escaping landed there too; there is no separate `zux_escape.c`); `R/write.R` with `xml_serialize`, `xml_write`, `as.character`.
 - Context-correct escaping (§13) — not blanket escaping. `--` in a comment and `?>` in PI data are errors, not escapes.
 - Namespace declarations re-emitted from node namespace fields at first binding.
 - Iterative serialization with an explicit worklist.
@@ -202,10 +209,9 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ---
 
+## Stage 6 — Streaming C API and downstream contract · M
 
----
-
-## Stage 6 — Streaming C API and downstream contract · M — **complete**
+**Status:** complete when written. Since f3392b2 retargeted the fixture, exit criteria 1 and 4 are unverified: nothing exercises the registered table, and an installed zuxml now puts `expat.h` on every `LinkingTo: zuxml` include path, so criterion 1 cannot hold as worded (#36).
 
 **Do**
 - Finalize `inst/include/zuxml.h` (§14) and the `zuxml_api` table with `struct_size` as the sole discriminator (§15); register via `R_RegisterCCallable`.
@@ -223,16 +229,15 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - The fixture package earned its place immediately. It failed at run time with `function 'zuxml_api_v1' not provided by package 'zuxml'` despite `Imports: zuxml` in `DESCRIPTION` and the symbols being present and registered in the shared object. **`Imports:` guarantees only that the package is installed; `R_GetCCallable()` resolves nothing until the namespace is actually loaded**, which needs an `importFrom()`/`import()` directive in the consumer's `NAMESPACE`. The design's claim that `Imports` ensures the package is "installed/loaded" was wrong on the second half and is now corrected. Finding this here rather than in `zuhttp` is exactly why this stage exists.
 - `inst/include/zuxml.h` is now the single source of truth: `src/zux.h` includes it rather than redeclaring the types, so the public and internal views cannot drift.
 - The consumer exercises streaming events, the tree and the serializer through the table, is chunk-independent, and links **zero** Expat symbols (`nm -u` count is 0).
-- **Later, the fixture was retargeted.** `tools/zuxmltest` now models `zuxlsx` rather than the planned `zuhttp`: `LinkingTo` alone, Expat's own headers, `libzuxml.a` linked statically by its own `configure`, no `Imports` and no run-time dependency on zuxml. The reason is that `zuxlsx` is the consumer that exists, and its shape was covered only by a hand-compiled `main()` inside `tools/run-downstream-check` — which never went through `R CMD INSTALL` and so tested none of what actually breaks: `configure` under `R_HOME`, `system.file("lib", ...)`, path quoting, `Makevars.in` substitution, or the archive linking into a real package `.so`. The table path (`zuxml_api_v2`, `zux_register.c`) is unchanged and still registered, but now has **no fixture**; covering it again is part of the `zuhttp` work in §16.
+- **Later, the fixture was retargeted.** `tools/zuxmltest` now models `zuxlsx` rather than the planned `zuhttp`: `LinkingTo` alone, Expat's own headers, `libzuxml.a` linked statically by its own `configure`, no `Imports` and no run-time dependency on zuxml. The reason is that `zuxlsx` is the consumer that exists, and its shape was covered only by a hand-compiled `main()` inside `tools/run-downstream-check` — which never went through `R CMD INSTALL` and so tested none of what actually breaks: `configure` under `R_HOME`, `system.file("lib", ...)`, path quoting, `Makevars.in` substitution, or the archive linking into a real package `.so`. The table path (`zuxml_api_v2`, `zux_register.c`) is unchanged and still registered, but now has **no fixture**. It was meant to be covered again by the `zuhttp` work in §16, but `zuhttp` plans no XML support, so the table has no consumer either; whether to restore a fixture or stop registering it for 0.1.0 is #36.
 - Retargeting turned up a platform trap worth recording: with `PKG_LIBS` emptied, the fixture still built, loaded and parsed correctly on macOS, because R links package shared objects with `-undefined dynamic_lookup` and the loader satisfied `XML_*` from the system Expat already in the process. Every behavioural assertion passed. Only `nm -u` caught it, which is why that check now runs before the R-level ones.
 - `tools/run-downstream-check` makes the whole thing re-runnable, including the header-purity grep and the Expat-symbol check.
 
 ---
 
+## Stage 7 — Hardening · L
 
----
-
-## Stage 7 — Hardening · L — **complete, except the interrupt criterion**
+**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail on a crash, because `tools/run-fuzz` tests `tail`'s exit status rather than the fuzzer's (#35). The 24h-per-target criterion is not met — the nightly job restarts from the seeds, since the grown corpus is not persisted — and should be replaced by cumulative hours on a persisted corpus (#35). The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -257,9 +262,9 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Wiring the prototypes header surfaced a **name collision**: `init.c` had a static helper called `zux_str`, which is also the public *string type*. Invisible until the public header was included there. Renamed.
 - **`tools/run-mutation-check` proves the security tests are not vacuous.** It deletes each guard from a throwaway copy and requires the hostile input to stop being rejected. All six — DOCTYPE, internal subset, `max_depth`, `max_nodes`, `max_attrs`, `max_text` — flip from their specific error to `ok` when removed. A guard whose removal changes nothing was never doing anything.
 - Small-stack coverage now spans every operation the design claims is iterative: build, walk, **descendant search**, **text concatenation**, serialize and free, all at 100k depth under a 1 MB stack.
-- New `hardening.yaml` workflow runs lint, sanitizers with **LeakSanitizer** (the Linux-only gap called out at Stage 2), mutation, downstream and fuzz on every push, plus a nightly 30-minutes-per-target fuzz run.
+- New `hardening.yaml` workflow runs lint, sanitizers with **LeakSanitizer** (the Linux-only gap called out at Stage 2), mutation, downstream and fuzz on every push, plus a nightly 30-minutes-per-target fuzz run. **The fuzz step has never been able to fail on a crash:** `tools/run-fuzz` pipes each target into `tail -12` under POSIX `sh`, so the status it tests is `tail`'s (#35). The 5.4M clean executions above were read from the output, not enforced by the gate.
 
-**Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. Validate by pressing Ctrl-C during a large `xml_parse()` in a real terminal.
+**Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. It does not need a person at a terminal. `R_CheckUserInterrupt()` also enforces `setTimeLimit()`, so an elapsed limit raises from the same call site and unwinds through the same cleanup, with no signal involved. The control above most likely set the limit as its own top-level expression, which the default `transient = TRUE` resets before the next one. And GitHub runners deliver signals normally; it was this environment that did not. Automating it is #37.
 
 **Added after 0.1.0: the W3C XML Conformance Test Suite** (`tools/run-conformance`, `tools/xmlconformance.R`), pinned to the dated `xmlts20130923` archive — frozen since 2013, so it is a stronger pin than a git commit.
 
@@ -291,10 +296,9 @@ Gate verified non-vacuous the same way the mutation check is: removing the `hst-
 
 ---
 
+## Stage 8 — Documentation, benchmarks, CRAN prep · M
 
----
-
-## Stage 8 — Documentation, benchmarks, CRAN prep · M — **complete, except the external check runs**
+**Status:** complete. The valgrind criterion is met by the valgrind job in `native-checks.yaml` on every push, and win-builder and R-hub are covered by CI rows, as `cran-comments.md` explains. #33 now says the same; its one open box is an optional win-builder R-devel run, since that is the machine CRAN's incoming pre-test uses.
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
@@ -302,15 +306,15 @@ Gate verified non-vacuous the same way the mutation check is: removing the `hst-
 - ~~Remaining vignettes: *Parsing untrusted XML*, *Streaming large documents*~~ **done**, both shipped in the tarball (`VignetteBuilder: knitr`), unlike the getting-started article which stays pkgdown-only. `vignettes/security.Rmd` is deliberately named so that `vignette("security")` resolves — `R/parse.R` had referenced it as "once written" since Stage 4, so this closed a dangling cross-reference as well as a gap. `vignettes/streaming.Rmd` documents the **C** seam and says plainly that there is no R-level streaming API in 0.1.0, because there is not one; an R pull API is phase 2 and pretending otherwise in a vignette would be the wrong kind of documentation.
 - ~~README rewrite~~ **done**: states plainly that this is XML, **not HTML** (§17), with the `<br>` failure shown rather than described.
 - ~~Benchmarks against the §21 fixtures and targets, versus `xml2`~~ **done**: `tools/run-benchmarks` + `tools/benchmarks.R`, all seven §21 fixtures generated rather than shipped. Deliberately **not** in CI — shared-runner timings are too noisy to gate on, and ratio targets belong to a release check rather than every push. `xml2` and `bench` are not in `Suggests`, because `tools/` is `.Rbuildignore`d and CRAN should not install them to check the package.
-- ~~`cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance~~ **done**. `cran-comments.md` is `.Rbuildignore`d; it still needs the win-builder/R-hub results pasted in before submitting.
+- ~~`cran-comments.md`, `NEWS.md`, `LICENSE.note` with Expat provenance~~ **done**. `cran-comments.md` is `.Rbuildignore`d. It no longer waits on win-builder/R-hub results: it argues that the R-hub containers and the Windows R-devel runner cover that ground on every push.
 - ~~Resolve the `___stderrp` NOTE from Expat's `ENTROPY_DEBUG` (see Stage 1)~~ **done**, via the justification route: `cran-comments.md` quotes the `getDebugLevel("EXPAT_ENTROPY_DEBUG", 0) >= 1u` guard and argues that a local patch would cost more than it buys, because `tools/verify-vendor` compares the vendored tree byte-for-byte against upstream and a patch would weaken that. Offer to patch if CRAN asks.
-- `R CMD check --as-cran` on win-builder (release + devel) and R-hub. **Still outstanding** — these need a human to submit and collect the emailed results; `cran-comments.md` has the rows stubbed and marked pending.
+- ~~`R CMD check --as-cran` on win-builder (release + devel) and R-hub~~ **covered by CI instead**: the three R-hub containers and a `windows-latest`/R-devel row in `R-CMD-check.yaml` run on every push, and `cran-comments.md` says why no separate submission is reported.
 
 **Exit**
 - Zero NOTEs beyond "New submission" and the `___stderrp` one from vendored Expat. (The anticipated "installed size" NOTE does not in fact appear.) **Met** — a third NOTE appears locally, "'tidy' doesn't look like recent enough HTML Tidy", which is a property of the maintainer's macOS install and absent on every CI platform. Recorded in `cran-comments.md` rather than chased.
 - Every example runs under `--run-donttest`. **Met.**
 - Benchmarks meet the §21 targets, or the gap is documented with a reason. **Met on three of four, with one documented gap.**
-- The `_R_CHECK_*` compiled-code checks pass, including `--use-valgrind` on one Linux run. **Outstanding** — valgrind is not viable on the maintainer's macOS; this needs a Linux run.
+- The `_R_CHECK_*` compiled-code checks pass, including `--use-valgrind` on one Linux run. **Met** — valgrind is not viable on the maintainer's macOS, but the valgrind job in `native-checks.yaml` runs on Linux on every push, with `--leak-check=full`.
 
 **Benchmark results** (local macOS, R 4.5.2; absolute numbers are machine-dependent, the ratios are the targets):
 
@@ -325,15 +329,18 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 
 ---
 
-## Stage 9 — first CRAN release · S — **ready to submit; submission itself outstanding**
+## Stage 9 — first CRAN release · S
+
+**Status:** open, and not yet ready to submit: blocked on #35, #36, #38, #40 and #44. Then tag `v0.1.0` and submit (#34).
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
   promising API stability before `zuhttp` has actually used it would be
   premature, and CRAN version numbers only go up.
 - ~~Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`~~ **done** — a table naming, for each criterion, the test file, tool or CI job that verifies it. Writing it out was worth the effort: every criterion had something behind it, but three were verified only by a gate that nothing in `cran-comments.md` had previously mentioned.
-- **Tag, submit, respond to CRAN — outstanding, and deliberately a human step.** Everything mechanical is done: the pre-submission checklist in `cran-comments.md` is cleared (the pkgdown site is live, so the DESCRIPTION URL resolves), the README offers `install.packages("zuxml")` as well as the development install, and `R CMD check --as-cran --run-donttest` is clean. What remains needs a person: the win-builder and R-hub runs (results arrive by email), a Linux `--use-valgrind` run, and the submission itself.
-- Then start `zuhttp`'s `resp_xml()`. v1.0.0 follows once the public R and C
+- **Tag, submit, respond to CRAN — outstanding, and deliberately a human step, but not reachable yet.** This bullet used to say everything mechanical was done. The 2026-09-22 review found mechanical work left: #35, #36, #38, #40 and #44 (see *Review 2026-09-22* below). What was done stands: the pkgdown site is live, so the DESCRIPTION URL resolves; the README offers `install.packages("zuxml")` as well as the development install; and `R CMD check --as-cran --run-donttest` is clean. The win-builder, R-hub and Linux valgrind runs are no longer outstanding (Stage 8). The submission itself remains.
+- The next consumer work was to be `zuhttp`'s `resp_xml()`, but `zuhttp` plans
+  no XML support today (design §16). v1.0.0 follows once the public R and C
   APIs have survived a real downstream consumer.
 
 ---
@@ -345,7 +352,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 | Expat vendoring fails on Windows | 1 | ~~Resolved.~~ Four traps hit, all fixed in configuration; green on all five CI jobs |
 | Namespace triplet splitting is subtly wrong | 2 | Split-from-right rule specified; injection test written alongside the splitter |
 | Undefined-entity errors on real feeds (`&nbsp;`) | post-v1 | Known and documented (§22 Q4). Decide the phase-2 answer from actual user reports, not speculation |
-| C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it |
+| C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it. Since f3392b2 the fixture models the archive, so the table has no fixture and no consumer (#36) |
 | Users expect HTML to work | 8 | Say so in the README, the vignette, and the error message for `text/html` |
 | CRAN objects to vendored source size | 8 | Parser subset only; provenance documented; precedent exists across CRAN |
 | Scope creep toward libxml2 | all | §2's "Never" column is a commitment, not a suggestion |
@@ -362,8 +369,45 @@ Each is either phase 2 in §2 or permanently out of scope. None blocks v1, and n
 
 ## After v1
 
-1. `zuhttp::resp_xml()` on buffered bodies (design §16).
+1. `zuhttp::resp_xml()` on buffered bodies (design §16) — not planned by `zuhttp` today, which could at most take zuxml as a `Suggests:`.
 2. R pull/batched streaming API.
 3. Tree construction and mutation.
 4. `zuhtml` — HTML5 tokenizer on the same event seam, sharing zuxml's tree, node API, and serializer (design §17). This is the stage that makes `resp_html()` possible, and the whole reason the seam exists.
 5. `zuhttp` streaming: response chunks fed straight into `zux_parser_feed` with no body materialization.
+
+---
+
+## Review 2026-09-22
+
+A read-through of the whole repository against this roadmap, the design and the siblings, done before submission. The findings are issues #35–#44; the stage **Status:** lines above already reflect them.
+
+**What should have been done differently**
+
+- **Inventory the confirmed consumers at Stage 0.** Stage 6 modelled `zuhttp`, which plans no XML support. The consumer that existed was `zuxlsx`, whose vendored `xlsxio` is written against Expat itself. An inventory would have put the archive into Stage 6, rather than widening a finished package on 2026-09-17 and retargeting its fixture on 2026-09-21.
+- **Add a fixture; never replace one.** f3392b2 turned the table's only fixture into the archive's, so `zuxml_api_v2` has no caller at all. Two consumer shapes need two fixtures, as zukomp has (`tools/zukomptest`, `tools/zukomplink`).
+- **Try an in-process lever before deferring a criterion to a person.** `setTimeLimit()` reaches the same `R_CheckUserInterrupt()` call site as Ctrl-C, and a GitHub runner delivers signals normally. The interrupt criterion sat unverified across two stages for want of that (#37).
+- **Gates need canaries.** Two gates here have passed vacuously: `tools/run-lint` before it had `-Werror` (Stage 7), and `tools/run-fuzz`, which tests `tail`'s exit status (#35). A gate is trusted once it has been seen to fail — a warning introduced on purpose, a target that must crash — not before.
+- **Change the design in the same commit as the contract.** ad79f28 shipped `libzuxml.a` and the installed `expat.h` without touching the design. §15 caught up four days later in f3392b2, and §1–§3 not until this review.
+- **Re-check a closed stage when a later change touches its subject.** f3392b2 invalidated two Stage 6 exit criteria and the stage stayed "complete".
+
+**Recommended 0.1.0 scope**
+
+- **Keep the R API as it is**: the 21 exports, the `xml_*` names, node and nodeset as one integer-vector type. Fix the usability traps in #40 before CRAN, since afterwards each fix is a breaking change: a multi-element `x` collapsed with `""`, invalid limits silently replaced by defaults, unclassed argument errors, and conditions mapped by matching the English status string rather than the status enumerator, which C already returns as `code`.
+- **Keep the archive.** It has the family's only real consumer, `zuxlsx`. Say plainly what an archive consumer does not inherit from the seam (#41, zuxlsx#47).
+- **Decide the table (#36):** either a fixture that calls every `zuxml_api` member through `Imports:` + `LinkingTo:` + `importFrom()`, or stop registering it for 0.1.0. Shipping it untested is the one option not to take.
+- Everything under *Explicitly not in v1* stays out.
+
+**Which issues gate 0.1.0**
+
+| Issue | Gates 0.1.0? | Why |
+|---|---|---|
+| #35 fuzz gate cannot fail | **yes** | `cran-comments.md` cites the fuzz runs as evidence, and the gate that should enforce them cannot fail on a crash. |
+| #36 table: fixture or unregister | **yes** | An ABI shipped with no caller is a commitment nobody has checked. Deciding before CRAN is cheap; after, it is a deprecation. |
+| #37 automate the interrupt criterion | no, but should | Met by construction and review. Automating it is cheap and closes Stage 7's last functional criterion. |
+| #38 `test-linking.R` skips on a missing artifact | **yes** | The skip is reachable from exactly the failure the test exists to catch, and `R CMD check` passes a skip. |
+| #39 CI/build alignment with the family | no | Pins, `.covrignore`, symbol visibility and extra downstream OSes are hygiene. Pinning before the submission run does make that run reproducible. |
+| #40 argument validation, condition mapping | **yes** | This is the R-level contract. Changing it after CRAN breaks callers. |
+| #41 archive consumers bypass the seam | no | The gap has to be closed in the consumer (zuxlsx#47, open). The false "is a parse error" cost in `vignette("linking")`, repeated in the README, is a documentation fix of #44's kind. |
+| #42 `lib${R_ARCH}`, Expat licence, zuxmltest scripts | no | Family convergence. Moving the archive has to be coordinated with `zuxlsx`, whose `configure` already copes with both layouts. |
+| #43 R allocations can longjmp past the arena | no | Reachable only on an R allocation failure, or on serialized output over 2 GiB. |
+| #44 header, vignettes, README out of date | **yes** | The shipped header and vignettes state a contract that is false: that `Imports:` loads zuxml, and that CI asserts zero `XML_*` symbols in the fixture. |
