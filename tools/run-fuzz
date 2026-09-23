@@ -4,14 +4,16 @@
 #   tools/run-fuzz [seconds-per-target] [target ...]
 #
 # Default 60s per target for a quick gate; CI runs a long scheduled job.
-# Findings are written to fuzz/artifacts/.
+# Findings are written to fuzz/artifacts/. Exits 1 on a finding, and 2 when
+# the gate itself cannot work: no libFuzzer compiler, or a canary that does
+# not crash (fuzz/fuzz_canary.c).
 #
 # Two corpus directories, and the split matters. libFuzzer grows its FIRST
 # corpus directory in place, so that one lives outside the package root:
 # 13k+ generated entries under it make `R CMD build` walk every one of them
 # on every run -- over half an hour, versus under a second without them --
 # and .Rbuildignore does not help, because the walk happens before it
-# applies. fuzz/corpus holds only the 20 tracked seeds and is passed as a
+# applies. fuzz/corpus holds only the 22 tracked seeds and is passed as a
 # read-only second directory. Override the writable one with ZUX_FUZZ_CORPUS.
 set -eu
 # Apple's Command Line Tools clang ships no libFuzzer runtime, so prefer a
@@ -44,25 +46,62 @@ trap 'rm -rf "$OUT"' EXIT
 SRC="src/zux_parser.c src/zux_tree.c src/zux_write.c src/zux_expat_random.c \
      src/vendor/expat/xmlparse.c src/vendor/expat/xmltok.c \
      src/vendor/expat/xmlrole.c"
+FLAGS="-std=c99 -g -O1 -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer"
+
+# fuzz_one TARGET SECONDS ARTIFACT_PREFIX CORPUS_DIR...
+#
+# Runs one built target and fails if it found anything. The fuzzer's status
+# is captured on its own, never through a pipe: a POSIX sh pipeline reports
+# its last command's status, and piping the fuzzer into tail made every crash
+# look clean (#35). The canary below goes through this same function, so a
+# regression here fails the run instead of passing silently.
+fuzz_one() {
+  f_target=$1 f_secs=$2 f_artifacts=$3
+  shift 3
+  f_log="$OUT/$f_target.log"
+  : >"$OUT/$f_target.stamp"
+  f_status=0
+  UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+    "$OUT/$f_target" "$@" \
+      -max_total_time="$f_secs" -max_len=65536 -rss_limit_mb=2048 \
+      -artifact_prefix="$f_artifacts" -print_final_stats=1 \
+      >"$f_log" 2>&1 || f_status=$?
+  # libFuzzer exits non-zero whenever it writes an artifact, so this is a
+  # second line of defence: a new artifact is a finding whatever the status.
+  f_found=$(find "$f_artifacts" -type f -newer "$OUT/$f_target.stamp")
+  if [ "$f_status" -eq 0 ] && [ -z "$f_found" ]; then
+    tail -12 "$f_log"
+    return 0
+  fi
+  tail -n 200 "$f_log"
+  echo "FAIL: $f_target exited $f_status${f_found:+; new artifacts: $f_found}" >&2
+  return 1
+}
+
+# The canary must crash. If it comes back clean, fuzz_one cannot see a crash
+# either and every result below would be meaningless, so stop rather than
+# report one.
+echo "==> building fuzz_canary (must crash)"
+# shellcheck disable=SC2086
+"$CC" $FLAGS -o "$OUT/fuzz_canary" fuzz/fuzz_canary.c
+mkdir -p "$OUT/canary-corpus" "$OUT/canary-artifacts"
+if fuzz_one fuzz_canary 30 "$OUT/canary-artifacts/" \
+     "$OUT/canary-corpus" fuzz/corpus >/dev/null 2>&1; then
+  echo "FAIL: fuzz_canary did not crash, so this gate cannot see a crash" >&2
+  exit 2
+fi
+echo "==> fuzz_canary crashed, as it must: the gate can see a crash"
 
 rc=0
 for t in $TARGETS; do
   echo "==> building $t"
   # shellcheck disable=SC2086
-  "$CC" -std=c99 -g -O1 -fsanitize=fuzzer,address,undefined \
-    -fno-omit-frame-pointer \
+  "$CC" $FLAGS \
     -I src -I inst/include -I src/vendor/expat -D__USE_MINGW_ANSI_STDIO=1 \
     -o "$OUT/$t" "fuzz/$t.c" $SRC
 
   echo "==> fuzzing $t for ${SECS}s"
-  if ! UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
-       "$OUT/$t" "$CORPUS" fuzz/corpus \
-         -max_total_time="$SECS" -max_len=65536 -rss_limit_mb=2048 \
-         -artifact_prefix=fuzz/artifacts/ -print_final_stats=1 2>&1 |
-       tail -12; then
-    echo "FAIL: $t found something -- see fuzz/artifacts/" >&2
-    rc=1
-  fi
+  fuzz_one "$t" "$SECS" fuzz/artifacts/ "$CORPUS" fuzz/corpus || rc=1
 done
 [ "$rc" -eq 0 ] && echo "==> fuzzing clean"
 exit "$rc"
