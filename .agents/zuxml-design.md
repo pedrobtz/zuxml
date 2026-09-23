@@ -765,7 +765,7 @@ Small local fixtures only: Atom, RSS, SOAP, SVG, S3/AWS XML error responses, Web
 
 Targets: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer. libFuzzer primary, AFL++ where useful, under ASan + UBSan (MSan where practical). Seed from the corpus and from upstream Expat corpora. Run in CI on a schedule, not only on push.
 
-Built: **three** targets. `fuzz_tree` covers whole-document parse and tree building. `fuzz_feed` covers incremental feed, with the fuzzer choosing the chunk size. `fuzz_roundtrip` covers the serializer, as a fixed point. Namespace splitting, attribute copying and text coalescing are reached through those rather than targeted on their own. Neither MSan nor AFL++ is used, and the seeds are the 22 files in `fuzz/corpus/`, not upstream Expat corpora. The CI gate over them is #35.
+Built: **three** targets. `fuzz_tree` covers whole-document parse and tree building. `fuzz_feed` covers incremental feed, with the fuzzer choosing the chunk size. `fuzz_roundtrip` covers the serializer, as a fixed point. Namespace splitting, attribute copying and text coalescing are reached through those rather than targeted on their own. Neither MSan nor AFL++ is used, and the seeds are the 22 files in `fuzz/corpus/`, not upstream Expat corpora. `tools/run-fuzz` runs them only after `fuzz/fuzz_canary.c`, which must crash, has shown the gate can see a crash. CI caches the grown corpus between runs.
 
 ---
 
