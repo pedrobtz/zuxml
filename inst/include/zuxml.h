@@ -1,14 +1,21 @@
 /* zuxml public C API.
  *
- * Downstream packages use this via:
+ * Downstream packages use this via, in DESCRIPTION:
  *
- *     Imports:    zuxml     (guarantees the package is installed and loaded,
- *                            so the symbols below are registered)
+ *     Imports:    zuxml     (guarantees only that zuxml is INSTALLED)
  *     LinkingTo:  zuxml     (puts this header on the include path)
  *
- * and call through the registered function table -- see zuxml_api_get()
- * below. No downstream package ever links against Expat, and no Expat type
- * appears anywhere in this header.
+ * and, in NAMESPACE, an import directive such as
+ *
+ *     importFrom(zuxml, zuxml_info)
+ *
+ * which is REQUIRED: the table is registered when zuxml's namespace is
+ * LOADED, and Imports: alone does not load it. Without the directive,
+ * R_GetCCallable() fails with "function 'zuxml_api_v2' not provided by
+ * package 'zuxml'". Then call through the registered function table -- see
+ * zuxml_api_get() below. A consumer of this table links no Expat, and no
+ * Expat type appears anywhere in this header. (C code written against Expat
+ * itself links the static archive instead: vignette("linking").)
  *
  * ---- string lifetime contract -------------------------------------------
  * This is the single most important rule here, and the source of every
@@ -181,6 +188,8 @@ typedef struct {
   uint32_t (*attr_count)(const zux_document *d, zux_id id);
   zux_attr (*attr_at)(const zux_document *d, zux_id id, uint32_t i);
 
+  /* *out is allocated by zuxml and owned by the caller, who releases it with
+   * free(). It is NUL-terminated, and *out_len excludes the terminator. */
   zux_status (*serialize)(const zux_document *d, zux_id id, char **out,
                           size_t *out_len);
 
@@ -195,14 +204,26 @@ typedef struct {
 
 #ifdef ZUXML_DEFINE_API_GET
 /* Downstream: define ZUXML_DEFINE_API_GET in exactly one translation unit,
- * after including <R.h> and <R_ext/Rdynload.h>, to emit this accessor. */
+ * after including <R.h> and <R_ext/Rdynload.h>, to emit this accessor.
+ *
+ * R_GetCCallable() returns DL_FUNC, void *(*)(void). Casting that straight
+ * to the real signature compiles, but clang rejects it under
+ * -Wcast-function-type, and -Werror turns that into a build failure for the
+ * consumer. Reading the pointer back through a union avoids the cast, as
+ * zukomp's resolver does. R_GetCCallable() raises an R error itself when
+ * zuxml's namespace is not loaded or the name is unknown, so a stale
+ * consumer stops there instead of calling through a bad pointer. */
 static const zuxml_api *
 zuxml_api_get(void) {
   static const zuxml_api *api = NULL;
   if (api == NULL) {
-    const zuxml_api *(*fn)(void)
-        = (const zuxml_api *(*)(void))R_GetCCallable("zuxml", "zuxml_api_v2");
-    api = fn();
+    union {
+      DL_FUNC fn;
+      const zuxml_api *(*get)(void);
+    } resolve;
+    resolve.fn = R_GetCCallable("zuxml", "zuxml_api_v2");
+    if (resolve.fn != NULL)
+      api = resolve.get();
   }
   return api;
 }

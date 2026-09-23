@@ -1,8 +1,16 @@
 #!/bin/sh
-# Build and exercise tools/zuxmltest, which consumes zuxml exactly as zuxlsx
-# does: LinkingTo alone, Expat's headers off the LinkingTo include path, and
-# inst/lib/libzuxml.a linked statically by the fixture's own ./configure.
-# There is no Imports: entry and no run-time dependency on zuxml.
+# Build and exercise both ways another package's C code consumes zuxml, one
+# fixture package each:
+#
+#   tools/zuxmltest   the static archive, exactly as zuxlsx does: LinkingTo
+#                     alone, Expat's headers off the LinkingTo include path,
+#                     and <pkg>/lib/libzuxml.a linked statically by the
+#                     fixture's own ./configure. No Imports: entry and no
+#                     run-time dependency on zuxml.
+#   tools/zuxmltable  the registered table: Imports + LinkingTo, an
+#                     importFrom() in NAMESPACE, and every call through
+#                     zuxml_api_get(). It calls all 26 members.
+#
 # Run from the package root.
 set -eu
 LIB=$(mktemp -d)
@@ -37,6 +45,54 @@ if grep -nE '\bXML_(Parser|Char|Error|Bool)\b' inst/include/zuxml.h; then
   echo "FAIL: an Expat type reached the public header" >&2
   exit 1
 fi
+
+echo "==> zuxml.h compiles cleanly under strict consumer flags"
+# Two things are checked, in C and in C++. The first is the header alone,
+# with -pedantic: it must be plain C99 and C++11. The second is the resolver
+# that ZUXML_DEFINE_API_GET emits, compiled with R's headers the way a table
+# consumer compiles it. -pedantic is left off there because R's own headers
+# use C11 and C23 features. A warning in that resolver becomes a build
+# failure for any consumer that uses -Werror; the direct DL_FUNC cast it used
+# to make was one, under clang's -Wcast-function-type.
+HDR=$(mktemp -d)
+printf '#include "zuxml.h"\n' > "$HDR/pure.c"
+cp "$HDR/pure.c" "$HDR/pure.cpp"
+cat > "$HDR/resolve.c" <<'EOF'
+#include <R.h>
+#include <Rinternals.h>
+#include <R_ext/Rdynload.h>
+#define ZUXML_DEFINE_API_GET
+#include "zuxml.h"
+const zuxml_api *resolve(void);
+const zuxml_api *resolve(void) { return zuxml_api_get(); }
+EOF
+cp "$HDR/resolve.c" "$HDR/resolve.cpp"
+R_CC=$(R CMD config CC)
+R_CXX=$(R CMD config CXX)
+R_INC=$(R CMD config --cppflags)
+STRICT="-Wall -Wextra -Wcast-function-type -Werror"
+# Word splitting is wanted below: R CMD config returns a command plus flags.
+# shellcheck disable=SC2086
+{
+  $R_CC -std=c99 -Wall -Wextra -pedantic -Werror -I inst/include \
+    -c "$HDR/pure.c" -o "$HDR/pure.o" &&
+  $R_CXX -std=c++11 -Wall -Wextra -pedantic -Werror -I inst/include \
+    -c "$HDR/pure.cpp" -o "$HDR/pure-cpp.o" &&
+  $R_CC $STRICT $R_INC -I inst/include \
+    -c "$HDR/resolve.c" -o "$HDR/resolve.o" &&
+  $R_CXX $STRICT $R_INC -I inst/include \
+    -c "$HDR/resolve.cpp" -o "$HDR/resolve-cpp.o"
+} || { rm -rf "$HDR"; echo "FAIL: zuxml.h warns under strict flags" >&2; exit 1; }
+# GCC accepts the direct cast even with -Wcast-function-type; only clang
+# rejects it. So the resolver is also compiled with clang wherever there is
+# one, which includes GitHub's Linux runners, where R's own compiler is GCC.
+if command -v clang >/dev/null 2>&1 && command -v clang++ >/dev/null 2>&1; then
+  # shellcheck disable=SC2086
+  { clang $STRICT $R_INC -I inst/include -c "$HDR/resolve.c" -o "$HDR/r2.o" &&
+    clang++ $STRICT $R_INC -I inst/include -c "$HDR/resolve.cpp" -o "$HDR/r3.o"
+  } || { rm -rf "$HDR"; echo "FAIL: zuxml.h's resolver warns under clang" >&2; exit 1; }
+fi
+rm -rf "$HDR"
 
 echo "==> the fixture must not declare a run-time dependency on zuxml"
 # The whole point of the archive: if either of these creeps back in, the
@@ -115,3 +171,85 @@ R_LIBS="$LIB" Rscript -e '
   cat("==> consumer runs with zuxml uninstalled\n")
 '
 mv "$LIB/.zuxml-hidden" "$LIB/zuxml"
+
+# ---- the registered table -------------------------------------------------
+
+echo "==> the table fixture must declare the full dependency shape"
+# All three are required, and the NAMESPACE directive is the one that gets
+# forgotten: Imports: only guarantees zuxml is installed, and R_GetCCallable()
+# resolves nothing until zuxml's namespace is loaded (roadmap Stage 6).
+grep -qE '^Imports:.*\bzuxml\b' tools/zuxmltable/DESCRIPTION &&
+  grep -qE '^LinkingTo:.*\bzuxml\b' tools/zuxmltable/DESCRIPTION &&
+  grep -qE '^\s*importFrom\(zuxml,' tools/zuxmltable/NAMESPACE || {
+  echo "FAIL: zuxmltable must carry Imports, LinkingTo and importFrom" >&2
+  exit 1
+}
+
+echo "==> installing the table fixture"
+R_LIBS="$LIB" R CMD INSTALL --preclean --no-multiarch --library="$LIB" \
+  tools/zuxmltable >/dev/null
+
+echo "==> a table consumer links no Expat and no zuxml symbol"
+# Everything goes through the registered table, so nothing of Expat and
+# nothing named zux_ may be referenced, let alone defined. As above, this
+# matters most on macOS, where an undefined symbol would still load.
+so=$(find "$LIB/zuxmltable/libs" -name 'zuxmltable.*' | head -1)
+if command -v nm >/dev/null 2>&1 && [ -n "$so" ]; then
+  n=$(nm "$so" 2>/dev/null | grep -cE ' _*(XML_|zux_)' || true)
+  [ "$n" = "0" ] || {
+    echo "FAIL: $n Expat or zux_ symbols in $so; it must use the table" >&2
+    exit 1
+  }
+fi
+
+echo "==> exercising all 26 table members from R"
+R_LIBS="$LIB" Rscript -e '
+  library(zuxmltable)
+
+  m <- table_members()
+  stopifnot(all(m$present), length(m$present) == 26L,
+            m$struct_size == m$header_size)
+
+  doc <- paste0("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+                "<f:a xmlns:f=\"urn:a\" xmlns=\"urn:d\"><!-- c -->",
+                "<e id=\"1\" f:k=\"v&#10;w\">hi &amp; bye</e>",
+                "<?pi data?><e/>téxt</f:a>")
+
+  # Streaming, through parser_*: chunk boundaries must not show.
+  ev <- table_events(doc)
+  stopifnot(identical(ev$status, "ok"), grepl("start {urn:d}e", ev$events,
+                                              fixed = TRUE))
+  for (k in c(1, 2, 3, 7, 31, 4096))
+    stopifnot(identical(table_events(doc, k), ev))
+
+  # The tree, incrementally through tree_begin/feed/end and whole through
+  # tree_parse, walked with every accessor: the two must agree, the
+  # contracts the header states must hold, and serializing through the table
+  # must match what zuxml itself serializes.
+  tr <- table_tree(doc)
+  stopifnot(identical(tr$status, "ok"), tr$consistent, tr$node_count > 0,
+            identical(tr$dump, tr$dump_whole),
+            identical(tr$serialized, tr$serialized_whole),
+            identical(tr$serialized, as.character(zuxml::xml_parse(doc))))
+  for (k in c(1, 2, 3, 7, 31, 4096))
+    stopifnot(identical(table_tree(doc, k), tr))
+
+  # Failure part-way through a chunked feed: tree_error must still report
+  # where, before tree_abort releases the builder.
+  bad <- table_tree("<a>\n<b></a>", 1)
+  stopifnot(identical(bad$status, "invalid XML"), nzchar(bad$message),
+            bad$line == 2, bad$column == 5)
+  bev <- table_events("<a>\n<b></a>", 1)
+  stopifnot(identical(bev[c("status", "message", "line", "column")],
+                      bad[c("status", "message", "line", "column")]))
+
+  stopifnot(identical(table_abort(doc, 20), "ok"),
+            identical(table_abort(doc, 0), "ok"))
+
+  # struct_size against an older zuxml: ZUXML_API_HAS() must see that
+  # set_message is missing, and the consumer must fall back.
+  d <- table_degrade()
+  stopifnot(d$real_has_set_message, d$old_has_serialize,
+            !d$old_has_set_message, identical(d$message, "fallback"))
+  cat("==> table consumer calls all 26 members, chunk-independently\n")
+'

@@ -23,18 +23,18 @@ distinct consumption modes that are easy to confuse.
 Version 0.1.0, not yet on CRAN. The **Status:** line under each stage in the
 roadmap is authoritative; this is the summary.
 
-* Stages 0–5 are complete. Stage 6 (#31) was complete when written, but its
-  exit criteria 1 and 4 have been unverified since f3392b2 retargeted the
-  fixture at the archive mode (#36).
+* Stages 0–6 are complete. Stage 6's table criteria went unverified from
+  f3392b2, which retargeted the only fixture at the archive, until #36 added
+  `tools/zuxmltable` beside it.
 * Stage 7 (#32) is open. The interrupt criterion is unverified but
   automatable (#37). The 24h-per-target fuzzing criterion is not met yet;
   the grown corpus is cached between CI runs, so fuzzing time accumulates.
 * Stage 8 (#33) is complete. Its one open box is an optional win-builder
   R-devel run.
-* Stage 9 (#34) is blocked on #36, #40 and #44.
+* Stage 9 (#34) is blocked on #40 and #44.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
-  registered table has no consumer — `zuhttp` plans no XML support — and,
-  since f3392b2, no fixture. Whether 0.1.0 ships it is #36.
+  registered table has no consumer yet — `zuhttp` plans no XML support — so
+  `tools/zuxmltable` stands in for one and calls all 26 members.
 * An archive consumer does not inherit the seam's DOCTYPE rejection or its
   limits (#41).
 * Progress is tracked in #24 (v0.1.0): one `stage`-labelled sub-issue per
@@ -73,8 +73,9 @@ suite against the mutant.
 | Resolved          | `R_GetCCallable()`, at run time | linked into the consumer      |
 | Needs zuxml live  | yes, installed **and** loaded   | no, not even installed        |
 
-**The table** is the path for new C code — in principle. Today it has no
-consumer and no test (#36), so treat its contract as unproven. `Imports:` alone
+**The table** is the path for new C code. It has no real consumer yet;
+`tools/zuxmltable` calls every member on every push, and a frozen copy of the
+0.1.0 layout there fails its build if a member moves. `Imports:` alone
 is not enough — `R_GetCCallable()` resolves nothing until zuxml's namespace is
 *loaded*, which needs an actual import directive in the consumer's
 `NAMESPACE`. The registered callable **name** (`zuxml_api_v2`) versions every
@@ -96,8 +97,8 @@ from. Defining `install.libs.R` means R stops installing the shared object
 itself, so its first block is load-bearing, not boilerplate.
 
 `vignette("linking")` is the consumer-facing write-up of the archive mode.
-`tools/zuxmltest/` is a worked example of it, and `tools/run-downstream-check`
-is the gate.
+`tools/zuxmltest/` is a worked example of it and `tools/zuxmltable/` of the
+table, and `tools/run-downstream-check` is the gate for both.
 
 ## Layout
 
@@ -108,7 +109,7 @@ src/               init.c, r_api.c, r_document.c   R-facing glue
                    zux_register.c   R_RegisterCCallable, the zuxml_api table
                    expat_config.h, install.libs.R, Makevars, vendor/expat/
 inst/include/      zuxml.h — the only header in the sources
-tools/             gates and maintenance scripts, plus zuxmltest/
+tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable/
 .agents/           design document and roadmap
 ```
 
@@ -147,7 +148,7 @@ deliberately not, since shared-runner timings are too noisy to gate on, and
 | `tools/run-fuzz`           | libFuzzer over the parser seam, after a canary that must crash |
 | `tools/run-mutation-check` | each security guard is load-bearing                   |
 | `tools/run-conformance`    | the W3C XML Conformance Test Suite                    |
-| `tools/run-downstream-check` | the archive mode works for a real consumer package  |
+| `tools/run-downstream-check` | both consumption modes work for a real consumer package |
 | `tools/run-benchmarks`     | the design §21 performance targets                    |
 | `tools/update-expat <ver>` | re-vendor Expat (then re-run `verify-vendor`)         |
 

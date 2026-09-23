@@ -211,7 +211,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 6 — Streaming C API and downstream contract · M
 
-**Status:** complete when written. Since f3392b2 retargeted the fixture, exit criteria 1 and 4 are unverified: nothing exercises the registered table, and an installed zuxml now puts `expat.h` on every `LinkingTo: zuxml` include path, so criterion 1 cannot hold as worded (#36).
+**Status:** complete. Exit criteria 1 and 4 went unverified from f3392b2, which retargeted the only fixture at the archive, until #36 added `tools/zuxmltable` beside it. Criterion 1 is reworded below: an installed zuxml puts `expat.h` on every `LinkingTo: zuxml` include path, so a table consumer can be held to including no Expat header and linking no Expat symbol, not to having none on its path.
 
 **Do**
 - Finalize `inst/include/zuxml.h` (§14) and the `zuxml_api` table with `struct_size` as the sole discriminator (§15); register via `R_RegisterCCallable`.
@@ -219,7 +219,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Document the string-lifetime contract prominently in the header — borrowed and non-NUL-terminated in handlers, owned and NUL-terminated from document accessors.
 
 **Exit**
-- The fixture package installs against zuxml and parses a document from C with no Expat header on its include path.
+- The fixture package installs against zuxml and parses a document from C, including no Expat header and linking no Expat symbol. (Until the archive mode put `expat.h` beside `zuxml.h`, this read "with no Expat header on its include path".)
 - `grep -riE 'XML_Parser|XML_Char|XML_ERROR' inst/include/` returns nothing.
 - Feeding arbitrary chunk sizes through the C API matches the whole-buffer tree.
 - `struct_size` degradation works: a consumer compiled against a shorter table still runs.
@@ -232,6 +232,13 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - **Later, the fixture was retargeted.** `tools/zuxmltest` now models `zuxlsx` rather than the planned `zuhttp`: `LinkingTo` alone, Expat's own headers, `libzuxml.a` linked statically by its own `configure`, no `Imports` and no run-time dependency on zuxml. The reason is that `zuxlsx` is the consumer that exists, and its shape was covered only by a hand-compiled `main()` inside `tools/run-downstream-check` — which never went through `R CMD INSTALL` and so tested none of what actually breaks: `configure` under `R_HOME`, `system.file("lib", ...)`, path quoting, `Makevars.in` substitution, or the archive linking into a real package `.so`. The table path (`zuxml_api_v2`, `zux_register.c`) is unchanged and still registered, but now has **no fixture**. It was meant to be covered again by the `zuhttp` work in §16, but `zuhttp` plans no XML support, so the table has no consumer either; whether to restore a fixture or stop registering it for 0.1.0 is #36.
 - Retargeting turned up a platform trap worth recording: with `PKG_LIBS` emptied, the fixture still built, loaded and parsed correctly on macOS, because R links package shared objects with `-undefined dynamic_lookup` and the loader satisfied `XML_*` from the system Expat already in the process. Every behavioural assertion passed. Only `nm -u` caught it, which is why that check now runs before the R-level ones.
 - `tools/run-downstream-check` makes the whole thing re-runnable, including the header-purity grep and the Expat-symbol check.
+- **The table got its fixture back, as a second one (#36).** `tools/zuxmltable` consumes the table the way the original fixture did: `Imports:`, `LinkingTo:` and an `importFrom()` directive. It calls all 26 members through `zuxml_api_get()`, and it carries a frozen copy of the 0.1.0 table, so moving a member fails its build: that is criterion 4. The gate checks the rest:
+  - event streams and trees identical at 1/2/3/7/31/4096-byte chunks;
+  - serialization through the table matching zuxml's own;
+  - `tree_error` still reporting line and column after a failed feed;
+  - an older, shorter table detected by `ZUXML_API_HAS()`;
+  - zero Expat and zero `zux_` symbols in the fixture's shared object.
+- Writing it found that the resolver `zuxml.h` emits cast `DL_FUNC` straight to the table getter's type. That compiles under GCC and under clang's defaults, but clang rejects it under `-Wcast-function-type`, so a consumer building with `-Werror` would fail. It now reads the pointer through a union, as zukomp's does. The gate also compiles the header alone as C99 and C++11 with `-pedantic`, and the resolver as C and C++ under `-Wall -Wextra -Wcast-function-type -Werror`, with clang as well as R's own compiler. With the old cast restored, the clang leg fails. With two members swapped, the fixture does not compile.
 
 ---
 
@@ -332,7 +339,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 
 ## Stage 9 — first CRAN release · S
 
-**Status:** open, and not yet ready to submit: blocked on #36, #40 and #44. Then tag `v0.1.0` and submit (#34).
+**Status:** open, and not yet ready to submit: blocked on #40 and #44. Then tag `v0.1.0` and submit (#34).
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
@@ -353,7 +360,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 | Expat vendoring fails on Windows | 1 | ~~Resolved.~~ Four traps hit, all fixed in configuration; green on all five CI jobs |
 | Namespace triplet splitting is subtly wrong | 2 | Split-from-right rule specified; injection test written alongside the splitter |
 | Undefined-entity errors on real feeds (`&nbsp;`) | post-v1 | Known and documented (§22 Q4). Decide the phase-2 answer from actual user reports, not speculation |
-| C header proves unusable downstream | 6 | Fixture consumer package built before `zuhttp` commits to it. Since f3392b2 the fixture models the archive, so the table has no fixture and no consumer (#36) |
+| C header proves unusable downstream | 6 | One fixture package per consumption mode: `tools/zuxmltest` for the archive, `tools/zuxmltable` for the table (#36). The table still has no real consumer |
 | Users expect HTML to work | 8 | Say so in the README, the vignette, and the error message for `text/html` |
 | CRAN objects to vendored source size | 8 | Parser subset only; provenance documented; precedent exists across CRAN |
 | Scope creep toward libxml2 | all | §2's "Never" column is a commitment, not a suggestion |
