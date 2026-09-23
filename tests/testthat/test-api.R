@@ -122,7 +122,7 @@ test_that("node handles survive aggressive garbage collection", {
 test_that("nodes from different documents cannot be combined", {
   a <- xml_root(xml_parse("<a/>"))
   b <- xml_root(xml_parse("<b/>"))
-  expect_error(c(a, b), "different documents")
+  expect_error(c(a, b), class = "zuxml_invalid_argument")
 })
 
 test_that("printing is informative and never dumps the document", {
@@ -140,7 +140,8 @@ test_that("xml_read parses from a file", {
   writeLines('<r><a>x</a></r>', f)
   doc <- xml_read(f)
   expect_identical(xml_text(xml_find(doc, "a")), "x")
-  expect_error(xml_read(file.path(tempdir(), "absent-zz.xml")), "no such file")
+  expect_error(xml_read(file.path(tempdir(), "absent-zz.xml")),
+               class = "zuxml_invalid_argument")
 })
 
 test_that("a large document parses in bounded time and memory", {
@@ -171,19 +172,25 @@ test_that("xml_text() rejects a flag that is not TRUE or FALSE", {
   expect_identical(xml_text(root, recursive = TRUE), "Hello XML world")
   expect_identical(xml_text(root, recursive = FALSE), "Hello  world")
 
-  expect_error(xml_text(root, recursive = NA), "must be TRUE or FALSE")
-  expect_error(xml_text(root, recursive = "yes"), "must be TRUE or FALSE")
-  expect_error(xml_text(root, recursive = NULL), "must be TRUE or FALSE")
-  expect_error(xml_text(root, recursive = c(TRUE, FALSE)), "must be TRUE or FALSE")
-  expect_error(xml_text(root, trim = NA), "must be TRUE or FALSE")
+  expect_error(xml_text(root, recursive = NA),
+               class = "zuxml_invalid_argument")
+  expect_error(xml_text(root, recursive = "yes"),
+               class = "zuxml_invalid_argument")
+  expect_error(xml_text(root, recursive = NULL),
+               class = "zuxml_invalid_argument")
+  expect_error(xml_text(root, recursive = c(TRUE, FALSE)),
+               class = "zuxml_invalid_argument")
+  expect_error(xml_text(root, trim = NA),
+               class = "zuxml_invalid_argument")
 })
 
 test_that("xml_attr() rejects a default that is not length 1", {
   root <- xml_root(xml_parse("<a/>"))
   expect_identical(xml_attr(root, "missing"), NA_character_)
   expect_identical(xml_attr(root, "missing", default = "fallback"), "fallback")
-  expect_error(xml_attr(root, "missing", default = NULL), "length 1")
-  expect_error(xml_attr(root, "missing", default = c("a", "b")), "length 1")
+  expect_error(xml_attr(root, "missing", default = NULL),
+               class = "zuxml_invalid_argument")
+  expect_error(xml_attr(root, "missing", default = c("a", "b")), class = "zuxml_invalid_argument")
 })
 
 test_that("xml_read() reports a bad path as a zuxml error", {
@@ -191,9 +198,9 @@ test_that("xml_read() reports a bad path as a zuxml error", {
   # surface as a base R warning about a non-regular file.
   d <- tempfile()
   dir.create(d)
-  expect_error(xml_read(d), "^zuxml: not a file")
-  expect_error(xml_read(file.path(d, "absent.xml")), "^zuxml: no such file")
-  expect_error(xml_read(c("a.xml", "b.xml")), "^zuxml: `path` must be")
-  expect_error(xml_read(NA_character_), "^zuxml: `path` must be")
-  expect_error(xml_read(1L), "^zuxml: `path` must be")
+  expect_error(xml_read(d), class = "zuxml_invalid_argument")
+  expect_error(xml_read(file.path(d, "absent.xml")), class = "zuxml_invalid_argument")
+  expect_error(xml_read(c("a.xml", "b.xml")), class = "zuxml_invalid_argument")
+  expect_error(xml_read(NA_character_), class = "zuxml_invalid_argument")
+  expect_error(xml_read(1L), class = "zuxml_invalid_argument")
 })

@@ -13,6 +13,7 @@
 #include <R_ext/Rdynload.h>
 
 #include <limits.h>
+#include <math.h>
 #include <string.h>
 
 #include "zux.h"
@@ -151,25 +152,51 @@ opt_get(SEXP opts, const char *name) {
   return R_NilValue;
 }
 
-static size_t
-opt_size(SEXP opts, const char *name, size_t fallback) {
+/* A limit as xml_parse() validated it: a positive whole number, or Inf for
+ * the type's own maximum `cap`. An absent limit keeps the default. R refuses
+ * any other value, so one that reaches here out of range is a caller
+ * bypassing R, and is refused too: a limit that silently became the default
+ * would be a limit nobody set. No resource is held yet, so Rf_error() is
+ * safe. Returns 0 when the limit is absent. */
+static int
+opt_limit(SEXP opts, const char *name, double cap, double *out, int *inf) {
   SEXP v = opt_get(opts, name);
   double d;
-  if (v == R_NilValue || Rf_xlength(v) < 1)
-    return fallback;
+  *inf = 0;
+  if (v == R_NilValue)
+    return 0;
+  if (Rf_xlength(v) != 1)
+    Rf_error("zuxml: internal: limit `%s` was not validated", name);
   d = Rf_asReal(v);
-  if (!(d > 0) || !R_FINITE(d))
-    return fallback;
-  return (size_t)d;
+  if (d == R_PosInf) {
+    *inf = 1;
+    return 1;
+  }
+  if (ISNAN(d) || !(d > 0) || d != floor(d) || d > cap)
+    Rf_error("zuxml: internal: limit `%s` was not validated", name);
+  *out = d;
+  return 1;
 }
 
-/* Clamped, not cast. A bare (uint32_t) cast wraps, so asking for a limit
- * above 2^32 -- the idiom for "effectively unlimited" -- would silently
- * produce a tiny one: max_nodes = 2^32 + 10 became 10. */
 static uint32_t
-opt_u32(SEXP opts, const char *name, uint32_t fallback) {
-  size_t v = opt_size(opts, name, (size_t)fallback);
-  return v > (size_t)UINT32_MAX ? UINT32_MAX : (uint32_t)v;
+opt_u32(SEXP opts, const char *name, uint32_t cap, uint32_t fallback) {
+  int inf;
+  double d;
+  if (!opt_limit(opts, name, (double)cap, &d, &inf))
+    return fallback;
+  return inf ? cap : (uint32_t)d;
+}
+
+/* SIZE_MAX is not a double, so Inf is returned as SIZE_MAX directly rather
+ * than through a cast that would be undefined. Finite values are bounded by
+ * R at 2^53, which every size_t on a 64-bit build holds exactly. */
+static size_t
+opt_size(SEXP opts, const char *name, size_t fallback) {
+  int inf;
+  double d;
+  if (!opt_limit(opts, name, (double)SIZE_MAX, &d, &inf))
+    return fallback;
+  return inf ? SIZE_MAX : (size_t)d;
 }
 
 static int
@@ -180,19 +207,56 @@ opt_flag(SEXP opts, const char *name, int fallback) {
   return Rf_asLogical(v) == TRUE ? 1 : 0;
 }
 
+static const char *
+zux_status_name(zux_status s) {
+  switch (s) {
+  case ZUX_OK: return "ZUX_OK";
+  case ZUX_DONE: return "ZUX_DONE";
+  case ZUX_ERR_INVALID_ARGUMENT: return "ZUX_ERR_INVALID_ARGUMENT";
+  case ZUX_ERR_INVALID_XML: return "ZUX_ERR_INVALID_XML";
+  case ZUX_ERR_ENCODING: return "ZUX_ERR_ENCODING";
+  case ZUX_ERR_DOCTYPE: return "ZUX_ERR_DOCTYPE";
+  case ZUX_ERR_UNDEFINED_ENTITY: return "ZUX_ERR_UNDEFINED_ENTITY";
+  case ZUX_ERR_DEPTH_LIMIT: return "ZUX_ERR_DEPTH_LIMIT";
+  case ZUX_ERR_NODE_LIMIT: return "ZUX_ERR_NODE_LIMIT";
+  case ZUX_ERR_ATTR_LIMIT: return "ZUX_ERR_ATTR_LIMIT";
+  case ZUX_ERR_TEXT_LIMIT: return "ZUX_ERR_TEXT_LIMIT";
+  case ZUX_ERR_MEMORY_LIMIT: return "ZUX_ERR_MEMORY_LIMIT";
+  case ZUX_ERR_MEMORY: return "ZUX_ERR_MEMORY";
+  case ZUX_ERR_CANCELLED: return "ZUX_ERR_CANCELLED";
+  case ZUX_ERR_INTERNAL: return "ZUX_ERR_INTERNAL";
+  }
+  return "ZUX_ERR_UNKNOWN";
+}
+
+/* R-callable view of zux_status_name(), so tests can check the R map
+ * against every enumerator rather than against the ones they can provoke. */
+SEXP
+C_zux_status_names(void) {
+  int i, n = (int)ZUX_ERR_INTERNAL + 1;
+  SEXP out = PROTECT(Rf_allocVector(STRSXP, n));
+  for (i = 0; i < n; i++)
+    SET_STRING_ELT(out, i, Rf_mkChar(zux_status_name((zux_status)i)));
+  UNPROTECT(1);
+  return out;
+}
+
 SEXP
 C_zux_parse(SEXP x, SEXP opts) {
   parse_ctx c;
-  SEXP cont, out, nms;
+  SEXP cont, docx, out, nms;
+  zux_status st;
 
   if (TYPEOF(x) != RAWSXP)
     Rf_error("zuxml: expected a raw vector");
 
   memset(&c, 0, sizeof(c));
   zux_options_init(&c.opt);
-  c.opt.max_depth = opt_u32(opts, "max_depth", c.opt.max_depth);
-  c.opt.max_nodes = opt_u32(opts, "max_nodes", c.opt.max_nodes);
-  c.opt.max_attrs = opt_u32(opts, "max_attrs", c.opt.max_attrs);
+  c.opt.max_depth = opt_u32(opts, "max_depth", UINT32_MAX, c.opt.max_depth);
+  /* Node ids become R integers (design section 5). */
+  c.opt.max_nodes = opt_u32(opts, "max_nodes", (uint32_t)INT_MAX,
+                            c.opt.max_nodes);
+  c.opt.max_attrs = opt_u32(opts, "max_attrs", UINT32_MAX, c.opt.max_attrs);
   c.opt.max_text = opt_size(opts, "max_text", c.opt.max_text);
   c.opt.max_memory = opt_size(opts, "max_memory", c.opt.max_memory);
   c.opt.allow_doctype = opt_flag(opts, "allow_doctype", c.opt.allow_doctype);
@@ -207,22 +271,34 @@ C_zux_parse(SEXP x, SEXP opts) {
   c.data = RAW(x);
   c.n = (size_t)Rf_xlength(x);
 
+  /* The document's external pointer exists, finalizer and all, before the
+   * parse. Once the parse returns, the document goes into it without an
+   * allocation, so no R allocation below can fail while the arena sits in
+   * a bare pointer and leak it. */
+  docx = PROTECT(doc_wrap(NULL));
   cont = PROTECT(R_MakeUnwindCont());
   R_UnwindProtect(parse_body, &c, parse_cleanup, &c, cont);
-  UNPROTECT(1);
+  if (c.doc != NULL) {
+    R_SetExternalPtrAddr(docx, c.doc);
+    c.doc = NULL;
+  }
+  st = c.st != ZUX_OK ? c.st : c.err.status;
 
-  out = PROTECT(Rf_allocVector(VECSXP, 7));
-  SET_VECTOR_ELT(out, 0, Rf_mkString(zux_status_string(
-                             c.st != ZUX_OK ? c.st : c.err.status)));
+  out = PROTECT(Rf_allocVector(VECSXP, 9));
+  SET_VECTOR_ELT(out, 0, Rf_mkString(zux_status_string(st)));
   SET_VECTOR_ELT(out, 1,
-                 c.doc == NULL ? R_NilValue : doc_wrap(c.doc));
+                 R_ExternalPtrAddr(docx) == NULL ? R_NilValue : docx);
   SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)c.err.line));
   SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)c.err.column));
   SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)c.err.byte_offset));
   SET_VECTOR_ELT(out, 5, Rf_mkString(c.err.message));
-  SET_VECTOR_ELT(out, 6, Rf_ScalarInteger((int)(c.st != ZUX_OK ? c.st
-                                                              : c.err.status)));
-  nms = PROTECT(Rf_allocVector(STRSXP, 7));
+  SET_VECTOR_ELT(out, 6, Rf_ScalarInteger((int)st));
+  SET_VECTOR_ELT(out, 7, Rf_mkString(zux_status_name(st)));
+  /* 0 is XML_ERROR_NONE: the failure was a limit or a handler, not Expat. */
+  SET_VECTOR_ELT(out, 8, Rf_ScalarInteger(c.err.expat_code != 0
+                                              ? c.err.expat_code
+                                              : NA_INTEGER));
+  nms = PROTECT(Rf_allocVector(STRSXP, 9));
   SET_STRING_ELT(nms, 0, Rf_mkChar("status"));
   SET_STRING_ELT(nms, 1, Rf_mkChar("doc"));
   SET_STRING_ELT(nms, 2, Rf_mkChar("line"));
@@ -230,8 +306,10 @@ C_zux_parse(SEXP x, SEXP opts) {
   SET_STRING_ELT(nms, 4, Rf_mkChar("byte_offset"));
   SET_STRING_ELT(nms, 5, Rf_mkChar("message"));
   SET_STRING_ELT(nms, 6, Rf_mkChar("code"));
+  SET_STRING_ELT(nms, 7, Rf_mkChar("name"));
+  SET_STRING_ELT(nms, 8, Rf_mkChar("expat_code"));
   Rf_setAttrib(out, R_NamesSymbol, nms);
-  UNPROTECT(2);
+  UNPROTECT(4);
   return out;
 }
 
@@ -622,24 +700,53 @@ C_zux_doc_meta(SEXP xp) {
   return out;
 }
 
+/* Owns the serializer's malloc'd buffer while R allocates the CHARSXP from
+ * it: if that allocation fails and R unwinds, the finalizer frees it. */
+static void
+buf_finalizer(SEXP xptr) {
+  free(R_ExternalPtrAddr(xptr));
+  R_ClearExternalPtr(xptr);
+}
+
+/* Returns a character vector, or on failure a list naming the status and
+ * the 1-based element, which xml_serialize() turns into a classed
+ * condition. R_STRING_LIMIT is not a zux_status: the output was produced,
+ * but is longer than an R string can hold. */
+static SEXP
+serialize_failure(const char *name, R_xlen_t i) {
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
+  SEXP nms = PROTECT(Rf_allocVector(STRSXP, 2));
+  SET_VECTOR_ELT(out, 0, Rf_mkString(name));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarReal((double)i + 1));
+  SET_STRING_ELT(nms, 0, Rf_mkChar("name"));
+  SET_STRING_ELT(nms, 1, Rf_mkChar("index"));
+  Rf_setAttrib(out, R_NamesSymbol, nms);
+  UNPROTECT(2);
+  return out;
+}
+
 SEXP
 C_zux_serialize(SEXP xp, SEXP ids) {
   zux_document *d = doc_ptr(xp);
   R_xlen_t n = Rf_xlength(ids), i;
   SEXP out = PROTECT(Rf_allocVector(STRSXP, n));
+  SEXP hold = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, R_NilValue));
+  R_RegisterCFinalizerEx(hold, buf_finalizer, TRUE);
   for (i = 0; i < n; i++) {
     zux_id id = check_id(d, INTEGER(ids)[i]);
     char *s = NULL;
     size_t len = 0;
     zux_status st = zux_serialize(d, id, &s, &len);
-    if (st != ZUX_OK) {
-      free(s);
-      UNPROTECT(1);
-      Rf_error("zuxml: cannot serialize: %s", zux_status_string(st));
+    R_SetExternalPtrAddr(hold, s);
+    if (st != ZUX_OK || len > (size_t)INT_MAX) {
+      buf_finalizer(hold);
+      UNPROTECT(2);
+      return serialize_failure(st != ZUX_OK ? zux_status_name(st)
+                                            : "R_STRING_LIMIT", i);
     }
     SET_STRING_ELT(out, i, Rf_mkCharLenCE(s, (int)len, CE_UTF8));
-    free(s);
+    buf_finalizer(hold);
   }
-  UNPROTECT(1);
+  UNPROTECT(2);
   return out;
 }

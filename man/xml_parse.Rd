@@ -21,13 +21,16 @@ xml_parse(
 xml_read(path, encoding = NULL, ...)
 }
 \arguments{
-\item{x}{A character string or a raw vector containing XML.}
+\item{x}{A single string, or a raw vector, containing XML. A character
+vector of any other length is an error: to parse lines read with
+\code{\link[=readLines]{readLines()}}, join them first with \code{paste(x, collapse = "\\n")}.}
 
 \item{encoding}{Encoding of the input. \code{NULL} (default) lets the parser
 detect it from a byte-order mark or the XML declaration. An explicit
 value overrides the declaration, which is what an HTTP \code{charset} should
 do. Encodings that Expat cannot handle natively are transcoded with
-\code{\link[=iconv]{iconv()}}.}
+\code{\link[=iconv]{iconv()}}. A character \code{x} is always UTF-8 by the time it is parsed, so
+for one, \code{encoding} must be \code{NULL} or \code{"UTF-8"}.}
 
 \item{comments, pis}{Retain comment and processing-instruction nodes.}
 
@@ -35,8 +38,13 @@ do. Encodings that Expat cannot handle natively are transcoded with
 rejected even when this is \code{TRUE}, because it is the only place a
 document can declare entities.}
 
-\item{max_depth, max_nodes, max_attrs, max_text, max_memory}{Resource limits.
-Each has its own error condition.}
+\item{max_depth, max_nodes, max_attrs, max_text, max_memory}{Resource limits:
+the nesting depth, the number of nodes, the attributes on one element,
+the bytes in one text node, and the bytes the document may allocate.
+Each must be a single positive whole number, or \code{Inf} for the largest
+value the parser can represent. \code{max_nodes} is capped at
+\code{.Machine$integer.max}, because node ids are R integers. Each limit has
+its own error condition.}
 
 \item{path}{Path to a file.}
 
@@ -57,4 +65,7 @@ threat model, or \code{zuxml_info()} for the compiled-in policy.
 \examples{
 doc <- xml_parse("<catalog><book id='1'><title>XML</title></book></catalog>")
 xml_text(xml_find(doc, "title"))
+}
+\seealso{
+\link{zuxml-conditions} for the errors these raise.
 }

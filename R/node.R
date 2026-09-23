@@ -9,7 +9,7 @@ new_nodeset <- function(ids, doc) {
 
 zux_doc_of <- function(x) {
   d <- attr(x, "doc", exact = TRUE)
-  if (is.null(d)) stop("zuxml: not a node or nodeset")
+  if (is.null(d)) zux_invalid_argument("x", "not a node or nodeset")
   d
 }
 
@@ -95,7 +95,8 @@ xml_find <- function(x, name = NULL, ns = NULL) {
 
 zux_chr <- function(v) {
   if (is.null(v)) return(NULL)
-  if (length(v) != 1L) stop("zuxml: `name` and `ns` must be length 1 or NULL")
+  if (length(v) != 1L)
+    zux_invalid_argument("name", "`name` and `ns` must be length 1 or NULL")
   as.character(v)
 }
 
@@ -147,7 +148,7 @@ xml_attrs <- function(x) .Call(C_zux_attrs, zux_ptr(x), zux_ids(x))
 #' @export
 xml_attr <- function(x, name, ns = NULL, default = NA_character_) {
   if (length(default) != 1L)
-    stop("zuxml: `default` must be length 1")
+    zux_invalid_argument("default", "`default` must be length 1")
   v <- .Call(C_zux_attr, zux_ptr(x), zux_ids(x), zux_chr(name), zux_chr(ns))
   v[is.na(v)] <- as.character(default)
   v
@@ -168,7 +169,7 @@ xml_text <- function(x, recursive = TRUE, trim = FALSE) {
 zux_flag <- function(v, arg) {
   v <- as.logical(v)
   if (length(v) != 1L || is.na(v))
-    stop(sprintf("zuxml: `%s` must be TRUE or FALSE", arg))
+    zux_invalid_argument(arg, sprintf("`%s` must be TRUE or FALSE", arg))
   v
 }
 

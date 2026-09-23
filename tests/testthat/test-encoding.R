@@ -97,3 +97,17 @@ test_that("a latin1-marked string cannot smuggle markup into content", {
   check()
   in_c_locale(check())
 })
+
+test_that("common aliases of Expat's encodings are accepted", {
+  # Expat knows only its own spelling of each name, and the aliases were
+  # passed through untranslated, so encoding = "latin1" failed as unknown.
+  latin1 <- as.raw(c(charToRaw("<a>"), 0xe9, charToRaw("</a>")))
+  for (enc in c("latin1", "LATIN1", "ISO-8859-1", "iso-8859-1")) {
+    doc <- xml_parse(latin1, encoding = enc)
+    expect_identical(xml_text(xml_root(doc)), "é", info = enc)
+  }
+  for (enc in c("UTF8", "utf-8", "ASCII", "us-ascii")) {
+    expect_s3_class(xml_parse(charToRaw("<a>x</a>"), encoding = enc),
+                    "zuxml_document")
+  }
+})

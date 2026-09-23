@@ -162,7 +162,18 @@ c(classify("<a/>"),
 ```
 
 `zuxml_limit_error` is the shared parent of the five limit conditions, so the
-branch above catches all of them without naming each.
+branch above catches all of them without naming each. The condition says
+which limit it was, and what it was set to, in `limit` and `limit_value`.
+`?"zuxml-conditions"` lists every class and field.
+
+A limit is only a guarantee if it is the one you asked for, so a value that
+is not a positive whole number is refused rather than replaced by the
+default. `Inf` asks for the largest value the parser can represent:
+
+```{r}
+tryCatch(xml_parse("<a/>", max_depth = -1),
+         zuxml_invalid_argument = function(e) conditionMessage(e))
+```
 
 Parse errors carry the position, which is what makes a bad feed diagnosable
 rather than merely rejected:

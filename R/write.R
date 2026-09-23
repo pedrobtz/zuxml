@@ -27,19 +27,34 @@
 xml_serialize <- function(x, declaration = FALSE) {
   declaration <- zux_flag(declaration, "declaration")
   s <- .Call(C_zux_serialize, zux_ptr(x), zux_ids(x))
+  if (is.list(s)) zux_serialize_abort(s)
   if (declaration) {
     # One declaration belongs to one document. paste0() is vectorized, so a
     # nodeset would otherwise get a declaration prepended to every element
     # and xml_write() would emit a file that is not well-formed XML.
     if (length(s) != 1L)
-      stop("zuxml: `declaration = TRUE` needs a single node, not a nodeset ",
-           "of length ", length(s))
+      zux_invalid_argument("declaration", paste0(
+        "`declaration = TRUE` needs a single node, not a nodeset of length ",
+        length(s)))
     # Always UTF-8, whatever the source document declared: that is what the
     # serializer emits. Echoing the original encoding produced a declaration
     # that contradicted its own bytes, so a written file did not round-trip.
     s <- paste0('<?xml version="1.0" encoding="UTF-8"?>', s)
   }
   s
+}
+
+# C returns list(name, index) instead of a string vector when element
+# `index` could not be serialized.
+zux_serialize_abort <- function(res) {
+  if (identical(res$name, "R_STRING_LIMIT")) {
+    zuxml_abort("zuxml_limit_error", sprintf(
+      "zuxml: element %.0f serializes to more than %d bytes, the longest R string",
+      res$index, .Machine$integer.max), status = res$name, call = NULL)
+  }
+  zuxml_abort(zux_condition_class(res$name), sprintf(
+    "zuxml: cannot serialize element %.0f: %s", res$index, res$name),
+    status = res$name, call = NULL)
 }
 
 #' @rdname xml_serialize

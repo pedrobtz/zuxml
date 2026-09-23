@@ -339,7 +339,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 
 ## Stage 9 — first CRAN release · S
 
-**Status:** open, and not yet ready to submit: blocked on #40 and #44. Then tag `v0.1.0` and submit (#34).
+**Status:** open, and not yet ready to submit: blocked on #44. Then tag `v0.1.0` and submit (#34).
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
@@ -347,6 +347,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
   premature, and CRAN version numbers only go up.
 - ~~Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`~~ **done** — a table naming, for each criterion, the test file, tool or CI job that verifies it. Writing it out was worth the effort: every criterion had something behind it, but three were verified only by a gate that nothing in `cran-comments.md` had previously mentioned.
 - **Tag, submit, respond to CRAN — outstanding, and deliberately a human step, but not reachable yet.** This bullet used to say everything mechanical was done. The 2026-09-22 review found mechanical work left: #35, #36, #38, #40 and #44 (see *Review 2026-09-22* below). What was done stands: the pkgdown site is live, so the DESCRIPTION URL resolves; the README offers `install.packages("zuxml")` as well as the development install; and `R CMD check --as-cran --run-donttest` is clean. The win-builder, R-hub and Linux valgrind runs are no longer outstanding (Stage 8). The submission itself remains.
+- **Fixed after the 2026-09-22 review (#40, #43).** `xml_parse()` refuses a character `x` of any length but one, rather than pasting it with `""`, and an `encoding` other than UTF-8 for character input. Limits are positive whole numbers or `Inf`, never replaced by the default. Every argument error is `zuxml_invalid_argument`; C statuses map to classes by enumerator name; conditions carry `expat_code`, and limit errors the limit's name and value; `?"zuxml-conditions"` documents them. Found on the way: `encoding = "latin1"`, `"UTF8"` and `"ASCII"` reached Expat untranslated and failed as unknown. For #43, the document's external pointer now exists before the parse, and the serializer's buffer is held by one while R allocates, with its length bounded by `INT_MAX`.
 - The next consumer work was to be `zuhttp`'s `resp_xml()`, but `zuhttp` plans
   no XML support today (design §16). v1.0.0 follows once the public R and C
   APIs have survived a real downstream consumer.
