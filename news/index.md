@@ -88,9 +88,12 @@ First release.
 
 - A registered C function table lets other packages parse XML without
   linking against Expat themselves: `Imports: zuxml` plus
-  `LinkingTo: zuxml`, then `zuxml_api_get()` from `<zuxml.h>`. The
-  header documents the string-lifetime contract and the versioning
-  rules.
+  `LinkingTo: zuxml`, an `importFrom(zuxml, ...)` directive in
+  `NAMESPACE` (without it zuxml’s namespace is never loaded and the
+  table is never registered), then `zuxml_api_get()` from `<zuxml.h>`.
+  The header documents the string-lifetime contract and the versioning
+  rules, and compiles cleanly as C and C++ under
+  `-Wall -Wextra -Werror`.
 - Tree construction, traversal, text concatenation, serialization and
   freeing are all iterative, so arbitrarily deep documents cannot
   overflow the C stack.

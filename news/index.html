@@ -79,7 +79,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="for-package-authors-0-1-0">For package authors<a class="anchor" aria-label="anchor" href="#for-package-authors-0-1-0"></a></h3>
-<ul><li>A registered C function table lets other packages parse XML without linking against Expat themselves: <code>Imports: zuxml</code> plus <code>LinkingTo: zuxml</code>, then <code>zuxml_api_get()</code> from <code>&lt;zuxml.h&gt;</code>. The header documents the string-lifetime contract and the versioning rules.</li>
+<ul><li>A registered C function table lets other packages parse XML without linking against Expat themselves: <code>Imports: zuxml</code> plus <code>LinkingTo: zuxml</code>, an <code>importFrom(zuxml, ...)</code> directive in <code>NAMESPACE</code> (without it zuxml’s namespace is never loaded and the table is never registered), then <code>zuxml_api_get()</code> from <code>&lt;zuxml.h&gt;</code>. The header documents the string-lifetime contract and the versioning rules, and compiles cleanly as C and C++ under <code>-Wall -Wextra -Werror</code>.</li>
 <li>Tree construction, traversal, text concatenation, serialization and freeing are all iterative, so arbitrarily deep documents cannot overflow the C stack.</li>
 <li>An installed zuxml also ships <code>lib/libzuxml.a</code> together with Expat’s <code>expat.h</code> and <code>expat_external.h</code>, so a package whose C code is written against Expat itself can link the parser statically through <code>LinkingTo</code> rather than being rewritten around the function table. The table remains the recommended interface; see “Using zuxml from C” in the README for the differences that come with the archive, the parser policy compiled into it among them.</li>
 </ul></div>
