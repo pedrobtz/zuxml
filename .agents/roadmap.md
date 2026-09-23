@@ -237,7 +237,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 7 — Hardening · L
 
-**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail on a crash, because `tools/run-fuzz` tests `tail`'s exit status rather than the fuzzer's (#35). The 24h-per-target criterion is not met — the nightly job restarts from the seeds, since the grown corpus is not persisted — and should be replaced by cumulative hours on a persisted corpus (#35). The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
+**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate could not fail on a crash until #35 fixed it. The 24h-per-target criterion is not met yet. It is now read as cumulative, since #35 also caches the grown corpus between CI runs; before that, every run restarted from the seeds. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -249,7 +249,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - **Validate the Stage 4 interrupt criterion**, which could not be tested there: batch `Rscript` ignores `SIGINT`. Needs an interactive R session or a CI job that can signal a foreground R.
 
 **Exit**
-- 24h+ of fuzzing per target with no crash, leak, or UB in project-owned code.
+- 24h+ of fuzzing per target, cumulative across CI runs on the cached corpus, with no crash, leak, or UB in project-owned code.
 - Every §20 security fixture passes; none can pass vacuously (verify each fails when its guard is deliberately removed).
 - Zero warnings from project-owned sources.
 - No test performs network I/O — assert this, do not assume it.
@@ -263,6 +263,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - **`tools/run-mutation-check` proves the security tests are not vacuous.** It deletes each guard from a throwaway copy and requires the hostile input to stop being rejected. All six — DOCTYPE, internal subset, `max_depth`, `max_nodes`, `max_attrs`, `max_text` — flip from their specific error to `ok` when removed. A guard whose removal changes nothing was never doing anything.
 - Small-stack coverage now spans every operation the design claims is iterative: build, walk, **descendant search**, **text concatenation**, serialize and free, all at 100k depth under a 1 MB stack.
 - New `hardening.yaml` workflow runs lint, sanitizers with **LeakSanitizer** (the Linux-only gap called out at Stage 2), mutation, downstream and fuzz on every push, plus a nightly 30-minutes-per-target fuzz run. **The fuzz step has never been able to fail on a crash:** `tools/run-fuzz` pipes each target into `tail -12` under POSIX `sh`, so the status it tests is `tail`'s (#35). The 5.4M clean executions above were read from the output, not enforced by the gate.
+- **Fixed after the 2026-09-22 review (#35).** `tools/run-fuzz` captures the fuzzer's own status and treats any new file in `fuzz/artifacts/` as a finding. Before any real target, it requires `fuzz/fuzz_canary.c` to crash through the same code path, and exits 2 if it does not. The fuzz job caches the grown corpus under a fresh key per run, restored from the newest one. Checked locally: a clean run exits 0, the canary run as an ordinary target exits 1, and a canary edited not to crash exits 2.
 
 **Still unverified: the interrupt criterion.** Three approaches were tried — batch `Rscript` + `SIGINT`, `setTimeLimit()`, and `R --interactive` + `SIGINT` — each with a control using no zuxml at all. **Every control also failed to interrupt**, including a pure R `repeat {}` loop that had to be `SIGKILL`ed. Signals cannot reach R in this environment, so the criterion is untestable here no matter what the code does. It remains implemented and reviewed (`R_CheckUserInterrupt` between 64 KiB feeds; `R_UnwindProtect` cleanup sharing the tested `zux_tree_abort` path) but **unexercised**. It does not need a person at a terminal. `R_CheckUserInterrupt()` also enforces `setTimeLimit()`, so an elapsed limit raises from the same call site and unwinds through the same cleanup, with no signal involved. The control above most likely set the limit as its own top-level expression, which the default `transient = TRUE` resets before the next one. And GitHub runners deliver signals normally; it was this environment that did not. Automating it is #37.
 
@@ -331,7 +332,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 
 ## Stage 9 — first CRAN release · S
 
-**Status:** open, and not yet ready to submit: blocked on #35, #36, #40 and #44. Then tag `v0.1.0` and submit (#34).
+**Status:** open, and not yet ready to submit: blocked on #36, #40 and #44. Then tag `v0.1.0` and submit (#34).
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;
