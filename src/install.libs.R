@@ -6,11 +6,24 @@
 ## the first block below is not optional boilerplate -- without it the package
 ## installs with no compiled code at all. (Writing R Extensions 1.2.1.1.)
 
+install_or_stop <- function(from, to, what) {
+  dir.create(to, recursive = TRUE, showWarnings = FALSE)
+  ## file.copy() returns a logical per source and never signals, so an
+  ## unchecked call is how a package installs with a piece silently missing.
+  ok <- file.copy(from, to, overwrite = TRUE)
+  if (length(ok) == 0L || !all(ok)) {
+    stop("zuxml: failed to install ", what, " into ", to)
+  }
+  invisible(TRUE)
+}
+
 libs <- file.path(R_PACKAGE_DIR, paste0("libs", R_ARCH))
-dir.create(libs, recursive = TRUE, showWarnings = FALSE)
-file.copy(Sys.glob(paste0("*", SHLIB_EXT)), libs, overwrite = TRUE)
+## Checked like everything else here: Sys.glob() returning nothing is exactly
+## the "no compiled code at all" failure the comment above describes, and an
+## unchecked copy of zero files succeeds quietly.
+install_or_stop(Sys.glob(paste0("*", SHLIB_EXT)), libs, "the shared object")
 if (file.exists("symbols.rds")) {
-  file.copy("symbols.rds", libs, overwrite = TRUE)
+  install_or_stop("symbols.rds", libs, "symbols.rds")
 }
 
 ## The archive is arch-specific but installs to a single arch-neutral path,
@@ -18,10 +31,8 @@ if (file.exists("symbols.rds")) {
 ## It would have to move under R_ARCH before zuxml could support a multi-arch
 ## installation again.
 lib <- file.path(R_PACKAGE_DIR, "lib")
-dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-if (!file.copy("libzuxml.a", lib, overwrite = TRUE)) {
-  stop("zuxml: failed to install libzuxml.a; src/Makevars should have built it")
-}
+install_or_stop("libzuxml.a", lib,
+                "libzuxml.a (src/Makevars should have built it)")
 
 ## Expat's public headers, copied from the vendored tree rather than kept as a
 ## second copy under inst/include/, so they cannot drift from the sources the
@@ -30,8 +41,5 @@ if (!file.copy("libzuxml.a", lib, overwrite = TRUE)) {
 ## than replacing it, which tests/testthat/test-linking.R checks from the
 ## installed package.
 include <- file.path(R_PACKAGE_DIR, "include")
-dir.create(include, recursive = TRUE, showWarnings = FALSE)
-headers <- file.path("vendor", "expat", c("expat.h", "expat_external.h"))
-if (!all(file.copy(headers, include, overwrite = TRUE))) {
-  stop("zuxml: failed to install the Expat headers from src/vendor/expat/")
-}
+install_or_stop(file.path("vendor", "expat", c("expat.h", "expat_external.h")),
+                include, "the Expat headers from src/vendor/expat/")
