@@ -16,3 +16,7 @@ zux_tree_info <- function(x, ...) {
   stopifnot(is.raw(x))
   .Call(C_zux_tree_info, x, list(...))
 }
+
+# Internal: arenas the R glue currently holds, parsed documents included. A
+# test reads it before and after an interrupted parse (#37).
+zux_live_arenas <- function() .Call(C_zux_live_arenas)

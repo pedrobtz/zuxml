@@ -151,7 +151,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 4 — R document and node API · M
 
-**Status:** complete except the interrupt criterion, which is carried to Stage 7 and is automatable after all (#37).
+**Status:** complete. The interrupt criterion was carried to Stage 7 and is now tested there (#37).
 
 **Do**
 - `R/parse.R`, `R/node.R`, `R/nodeset.R`, `R/conditions.R`; `src/r_api.c`.
@@ -244,7 +244,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 7 — Hardening · L
 
-**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate could not fail on a crash until #35 fixed it. The 24h-per-target criterion is not met yet. It is now read as cumulative, since #35 also caches the grown corpus between CI runs; before that, every run restarted from the seeds. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
+**Status:** open. The interrupt criterion is tested since #37. The fuzz gate could not fail on a crash until #35 fixed it. The 24h-per-target criterion is not met yet. It is now read as cumulative, since #35 also caches the grown corpus between CI runs; before that, every run restarted from the seeds. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -253,7 +253,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 - Full security test suite as permanent regressions (§20), including namespace-separator injection.
 - `-Wall -Wextra -Wpedantic` as CI failures for project-owned code only; clang-tidy pass.
 - Small-stack tests for every iterative claim: free, descendant search, text concat, serialization.
-- **Validate the Stage 4 interrupt criterion**, which could not be tested there: batch `Rscript` ignores `SIGINT`. Needs an interactive R session or a CI job that can signal a foreground R.
+- ~~**Validate the Stage 4 interrupt criterion**, which could not be tested there: batch `Rscript` ignores `SIGINT`. Needs an interactive R session or a CI job that can signal a foreground R.~~ **Done (#37)**, with no signal at all. `tests/testthat/test-interrupt.R` sets `setTimeLimit()` inside the same expression as a 32 MiB parse, so the limit fires from the `R_CheckUserInterrupt()` call between feeds and unwinds through `parse_cleanup()` exactly as Ctrl-C does. An internal count of the arenas the R glue holds must be back at its starting value before any garbage collection, and the same input must then parse. The test runs under `--as-cran` too, so the ASan and valgrind jobs see the unwind path. Seen to fail with `parse_cleanup()` made to return early.
 
 **Exit**
 - 24h+ of fuzzing per target, cumulative across CI runs on the cached corpus, with no crash, leak, or UB in project-owned code.

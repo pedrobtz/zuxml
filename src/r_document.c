@@ -21,6 +21,14 @@
 
 static SEXP zux_doc_tag = NULL;
 
+/* Arenas the R glue holds: +1 when a tree builder starts, -1 when that
+ * builder is aborted or ends without a document, or when the document it
+ * produced is freed. Read by C_zux_live_arenas() so a test can assert that
+ * an interrupted parse gave its arena back (#37). R calls into this file
+ * from one thread only, so a plain counter is enough; it lives here, not in
+ * the core, because downstream C code may use the core from any thread. */
+static long zux_live_arenas = 0;
+
 /* ---- document handle --------------------------------------------------- */
 
 static void
@@ -28,6 +36,7 @@ doc_finalizer(SEXP xptr) {
   zux_document *d = (zux_document *)R_ExternalPtrAddr(xptr);
   if (d != NULL) {
     zux_document_free(d);
+    zux_live_arenas--;
     R_ClearExternalPtr(xptr);
   }
 }
@@ -83,6 +92,7 @@ zux_error_of_builder(parse_ctx *c) {
     zux_set_message(&c->err, zux_status_string(c->st));
   }
   zux_tree_abort(c->builder);
+  zux_live_arenas--;
   c->builder = NULL;
 }
 
@@ -97,10 +107,12 @@ parse_cleanup(void *data, Rboolean jump) {
     return;
   if (c->builder != NULL) {
     zux_tree_abort(c->builder);
+    zux_live_arenas--;
     c->builder = NULL;
   }
   if (c->doc != NULL) {
     zux_document_free(c->doc);
+    zux_live_arenas--;
     c->doc = NULL;
   }
 }
@@ -118,6 +130,7 @@ parse_body(void *data) {
     zux_set_message(&c->err, zux_status_string(c->st));
     return R_NilValue;
   }
+  zux_live_arenas++;
 
   /* Feed in bounded chunks so that R_CheckUserInterrupt() has a safe call
    * site BETWEEN feeds. It must never be called from inside an Expat
@@ -134,6 +147,8 @@ parse_body(void *data) {
   if (c->st == ZUX_OK) {
     c->st = zux_tree_end(c->builder, &c->doc, &c->err);
     c->builder = NULL;
+    if (c->doc == NULL)
+      zux_live_arenas--;
   } else {
     zux_error_of_builder(c);
   }
@@ -205,6 +220,11 @@ opt_flag(SEXP opts, const char *name, int fallback) {
   if (v == R_NilValue || Rf_xlength(v) < 1)
     return fallback;
   return Rf_asLogical(v) == TRUE ? 1 : 0;
+}
+
+SEXP
+C_zux_live_arenas(void) {
+  return Rf_ScalarReal((double)zux_live_arenas);
 }
 
 static const char *
