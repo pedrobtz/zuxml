@@ -42,6 +42,21 @@ archive_symbols <- function(archive) {
   grep("^[0-9a-fA-F ]*\\s[A-Za-z]\\s", out, value = TRUE)
 }
 
+test_that("Expat's licence is installed with the Expat it ships", {
+  # The installed package carries Expat compiled into zuxml.so and
+  # libzuxml.a, and as expat.h, so the MIT notice has to come with it.
+  # inst/COPYRIGHTS points here.
+  f <- installed_path("licenses", "expat-COPYING")
+  expect_true(file.exists(f))
+  if (!file.exists(f)) return()
+  txt <- paste(readLines(f), collapse = "\n")
+  expect_match(txt, "Copyright (c) 2001-", fixed = TRUE)
+  expect_match(txt, "Permission is hereby granted", fixed = TRUE)
+  expect_match(paste(readLines(system.file("COPYRIGHTS", package = "zuxml")),
+                     collapse = "\n"),
+               "licenses/expat-COPYING", fixed = TRUE)
+})
+
 test_that("the static archive is installed", {
   archive <- installed_path("lib", "libzuxml.a")
   expect_true(file.exists(archive))

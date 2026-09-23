@@ -152,11 +152,8 @@ deliberately not, since shared-runner timings are too noisy to gate on, and
 | `tools/run-benchmarks`     | the design §21 performance targets                    |
 | `tools/update-expat <ver>` | re-vendor Expat (then re-run `verify-vendor`)         |
 
-Two traps when running them by hand:
+One trap when running them by hand:
 
-* `tools/zuxmltest/cleanup` uses paths relative to the current directory.
-  Run it as `(cd tools/zuxmltest && ./cleanup)` — from the package root it
-  deletes zuxml's own `src/Makevars`.
 * A developer machine that also works on `zuxlsx` has zuxml in its **user**
   library, and `R_LIBS` does not hide it. `tools/run-downstream-check` points
   `R_LIBS_USER`/`R_LIBS_SITE` at nothing for that reason; anything else
@@ -192,5 +189,8 @@ Two traps when running them by hand:
 * `vignettes/articles/` is pkgdown-only and `.Rbuildignore`d; `vignettes/*.Rmd`
   is built *and executed* by `R CMD check`, including under the sanitizers.
 * Expat and its notices are redistributed here: `inst/COPYRIGHTS`,
-  `src/vendor/PROVENANCE`, `LICENSE.note`. Static linking in a consumer
-  redistributes them too.
+  `src/vendor/PROVENANCE`, `LICENSE.note`, and Expat's `COPYING`, which
+  `install.libs.R` installs as `licenses/expat-COPYING`. That copy is a
+  licensing obligation: an installed zuxml carries Expat compiled and as
+  `expat.h`, and nothing outside `inst/` is installed otherwise. Static
+  linking in a consumer redistributes them too.
