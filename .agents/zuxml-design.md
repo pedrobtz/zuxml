@@ -80,7 +80,7 @@ The package should not gradually become a small clone of libxml2. When in doubt,
     ┌────┴────┬──────────────┐
     ▼         ▼              ▼
  tree      C consumer    (future: other producers — see §17)
- builder   (zuhttp)
+ builder   (via the table)
     │
     ▼
  zux_document  ──►  R handles  ──►  R navigation API
@@ -455,7 +455,12 @@ Canonical XML is out of scope. Pretty-printing is phase 2, because indentation i
 
 ## 14. Public C API
 
-Illustrative: this is the header as designed, and `inst/include/zuxml.h` is authoritative where they differ. The shipped header differs in three ways. `zux_error.message` is an inline `char[ZUX_MESSAGE_MAX]`, not a pointer (§15). The incremental tree builder (`zux_tree_begin`/`feed`/`end`/`error`/`abort`) exists. And the table also carries `serialize` and `set_message`.
+Illustrative: this is the header as designed, and `inst/include/zuxml.h` is authoritative where they differ. The shipped header differs in four ways:
+
+- **It declares no functions.** Every entry point is a member of the `zuxml_api` table (§15). The `zux_*` prototypes below live only in the internal `src/zux.h`, so a consumer calls `api->parser_feed`, never `zux_parser_feed`.
+- `zux_error.message` is an inline `char[ZUX_MESSAGE_MAX]`, not a pointer (§15).
+- The table also carries the incremental tree builder (`tree_begin`/`feed`/`end`/`error`/`abort`, over an opaque `zux_tree_builder`), `serialize` and `set_message`.
+- It adds `zux_node_type`, `ZUXML_API_HAS()` for guarding appended members, and an opt-in `ZUXML_DEFINE_API_GET` resolver.
 
 ```c
 #ifndef ZUXML_H
@@ -847,7 +852,7 @@ The real wins are structural and already decided: parse into a compact C arena w
 
 > **`zuxml` is a small, strict, secure XML parser and tree for R — not a replacement for the XML ecosystem.**
 
-Its value to `zuhttp` is safe incremental parsing of untrusted XML with no libxml2 dependency. Its value on its own is that ordinary XML work in R gets an intuitive, vectorized API over a faithful tree. The event seam is what lets both of those, plus HTML later, share one implementation.
+Its value to other packages' C code is safe incremental parsing of untrusted XML with no libxml2 dependency. Code already written against Expat gets the archive instead, and with it only the compile-time half of that safety (§15). Its value on its own is that ordinary XML work in R gets an intuitive, vectorized API over a faithful tree. The event seam is what lets both of those, plus HTML later, share one implementation.
 
 ---
 

@@ -23,18 +23,23 @@ distinct consumption modes that are easy to confuse.
 Version 0.1.0, not yet on CRAN. The **Status:** line under each stage in the
 roadmap is authoritative; this is the summary.
 
-* Stages 0–6 are complete. Stage 6's exit criteria 1 and 4 have been
-  unverified since f3392b2 retargeted the fixture at the archive mode (#36).
+* Stages 0–5 are complete. Stage 6 (#31) was complete when written, but its
+  exit criteria 1 and 4 have been unverified since f3392b2 retargeted the
+  fixture at the archive mode (#36).
 * Stage 7 (#32) is open. The interrupt criterion is unverified but
-  automatable (#37). The fuzz gate cannot fail (#35). The 24h-per-target
-  fuzzing criterion is not met.
-* Stage 8 (#33) is done apart from amending its checklist.
+  automatable (#37). The fuzz gate cannot fail on a crash (#35). The
+  24h-per-target fuzzing criterion is not met.
+* Stage 8 (#33) is complete. Its one open box is an optional win-builder
+  R-devel run.
 * Stage 9 (#34) is blocked on #35, #36, #38, #40 and #44.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
   registered table has no consumer — `zuhttp` plans no XML support — and,
   since f3392b2, no fixture. Whether 0.1.0 ships it is #36.
 * An archive consumer does not inherit the seam's DOCTYPE rejection or its
   limits (#41).
+* Progress is tracked in #24 (v0.1.0): one `stage`-labelled sub-issue per
+  roadmap stage (#25–#34), each linking to its stage's heading anchor. That is
+  why status stays out of the headings.
 
 ## Feature policy — non-negotiable
 
@@ -69,16 +74,15 @@ suite against the mutant.
 | Needs zuxml live  | yes, installed **and** loaded   | no, not even installed        |
 
 **The table** is the path for new C code — in principle. Today it has no
-consumer and no test (#36), so treat its contract as unproven. `Imports:`
-alone is not enough —
-`R_GetCCallable()` resolves nothing until zuxml's namespace is *loaded*, which
-needs an actual import directive in the consumer's `NAMESPACE`. The registered
-callable **name** (`zuxml_api_v2`) versions every public type, and
-`struct_size` versions the table itself; appending a member is safe, changing
-the layout of `zux_error`/`zux_options`/`zux_name` means bumping the name.
-R does not rebuild `LinkingTo` dependents on upgrade, so that name is what
-stands between `install.packages("zuxml")` and memory corruption downstream.
-No Expat type may ever appear in `zuxml.h`.
+consumer and no test (#36), so treat its contract as unproven. `Imports:` alone
+is not enough — `R_GetCCallable()` resolves nothing until zuxml's namespace is
+*loaded*, which needs an actual import directive in the consumer's
+`NAMESPACE`. The registered callable **name** (`zuxml_api_v2`) versions every
+public type, and `struct_size` versions the table itself; appending a member
+is safe, changing the layout of `zux_error`/`zux_options`/`zux_name` means
+bumping the name. R does not rebuild `LinkingTo` dependents on upgrade, so
+that name is what stands between `install.packages("zuxml")` and memory
+corruption downstream. No Expat type may ever appear in `zuxml.h`.
 
 **The archive** is for C code already written against Expat and not worth
 rewriting — `xlsxio` in `zuxlsx` is the case that prompted it. It needs
@@ -155,6 +159,21 @@ Two traps when running them by hand:
   library, and `R_LIBS` does not hide it. `tools/run-downstream-check` points
   `R_LIBS_USER`/`R_LIBS_SITE` at nothing for that reason; anything else
   resolving `system.file(package = "zuxml")` in a test needs the same care.
+
+## Definition of done
+
+* A stage is done when its exit criteria pass in CI on all three platforms,
+  not when the code is written. A criterion met differently from how it is
+  worded goes in the stage's **Status:** line. So does one that a later
+  change invalidates: re-check a closed stage when you touch its subject.
+* A gate counts once it has been seen to fail — a deliberate warning, a
+  removed guard, a target that must crash. `tools/run-lint` passed vacuously
+  until someone checked, and `tools/run-fuzz` still does (#35).
+* A change to a contract (`zuxml.h`, the table, the archive layout, the
+  feature policy) amends the design in the same commit.
+* `devtools::document()` leaves no diff, and `R CMD check --as-cran` shows only
+  the NOTEs that `cran-comments.md` explains. A user-facing change also needs
+  a test, roxygen documentation and a `NEWS.md` entry.
 
 ## Conventions
 

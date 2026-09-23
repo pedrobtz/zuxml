@@ -12,6 +12,8 @@ Companion to [zuxml-design.md](zuxml-design.md). Section references (§) point t
 
 Sizes are relative: **S** ≈ a sitting, **M** ≈ a few, **L** ≈ the stage is the week.
 
+**"v1" means the first release's scope**, here and in the design. That release ships as 0.1.0 (Stage 9); 1.0.0 comes later.
+
 **Status never goes in a heading — issue links use the anchors.** A heading is `## Stage N — Title · Size` and nothing else; a stage's state is the **Status:** line directly under it. Status words in a heading change its GitHub anchor, which silently breaks every issue that links to the stage.
 
 ---
@@ -88,7 +90,7 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
 ## Stage 2 — Event seam and security policy · L
 
-**Status:** complete. One criterion is met more weakly than written: the XXE fixture is asserted by a canary file never reaching the event stream (`tests/testthat/test-security.R`), not at the syscall level.
+**Status:** complete. One criterion is met more weakly than written: the XXE fixture is asserted by a canary file never reaching the event stream (`tests/testthat/test-security.R`), not at the syscall level. `cran-comments.md` still claims the stronger form ("assert no file is opened") and needs the same correction.
 
 The core of the package. Everything downstream is a consumer of what this stage defines.
 
@@ -235,7 +237,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 7 — Hardening · L
 
-**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail, because `tools/run-fuzz` tests `tail`'s exit status rather than the fuzzer's (#35). The 24h-per-target criterion is not met — the nightly job restarts from the seeds, since the grown corpus is not persisted — and should be replaced by cumulative hours on a persisted corpus. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy and four of the seven planned fuzz targets were not done: drop or schedule each.
+**Status:** open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail on a crash, because `tools/run-fuzz` tests `tail`'s exit status rather than the fuzzer's (#35). The 24h-per-target criterion is not met — the nightly job restarts from the seeds, since the grown corpus is not persisted — and should be replaced by cumulative hours on a persisted corpus (#35). The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -296,7 +298,7 @@ Gate verified non-vacuous the same way the mutation check is: removing the `hst-
 
 ## Stage 8 — Documentation, benchmarks, CRAN prep · M
 
-**Status:** complete. The valgrind criterion is met by the valgrind job in `native-checks.yaml` on every push, and win-builder and R-hub are covered by CI rows, as `cran-comments.md` explains. #33's checklist still names them and needs amending to match.
+**Status:** complete. The valgrind criterion is met by the valgrind job in `native-checks.yaml` on every push, and win-builder and R-hub are covered by CI rows, as `cran-comments.md` explains. #33 now says the same; its one open box is an optional win-builder R-devel run, since that is the machine CRAN's incoming pre-test uses.
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
@@ -390,7 +392,7 @@ A read-through of the whole repository against this roadmap, the design and the 
 
 **Recommended 0.1.0 scope**
 
-- **Keep the R API as it is**: the 21 exports, the `xml_*` names, node and nodeset as one integer-vector type. Fix the usability traps in #40 before CRAN, since afterwards each fix is a breaking change: a multi-element `x` collapsed with `""`, invalid limits silently replaced by defaults, unclassed argument errors, and conditions mapped from message text rather than from the status enumerator.
+- **Keep the R API as it is**: the 21 exports, the `xml_*` names, node and nodeset as one integer-vector type. Fix the usability traps in #40 before CRAN, since afterwards each fix is a breaking change: a multi-element `x` collapsed with `""`, invalid limits silently replaced by defaults, unclassed argument errors, and conditions mapped by matching the English status string rather than the status enumerator, which C already returns as `code`.
 - **Keep the archive.** It has the family's only real consumer, `zuxlsx`. Say plainly what an archive consumer does not inherit from the seam (#41, zuxlsx#47).
 - **Decide the table (#36):** either a fixture that calls every `zuxml_api` member through `Imports:` + `LinkingTo:` + `importFrom()`, or stop registering it for 0.1.0. Shipping it untested is the one option not to take.
 - Everything under *Explicitly not in v1* stays out.
@@ -399,13 +401,13 @@ A read-through of the whole repository against this roadmap, the design and the 
 
 | Issue | Gates 0.1.0? | Why |
 |---|---|---|
-| #35 fuzz gate cannot fail | **yes** | `cran-comments.md` cites the fuzz runs as evidence, and the gate that should enforce them cannot fail. |
+| #35 fuzz gate cannot fail | **yes** | `cran-comments.md` cites the fuzz runs as evidence, and the gate that should enforce them cannot fail on a crash. |
 | #36 table: fixture or unregister | **yes** | An ABI shipped with no caller is a commitment nobody has checked. Deciding before CRAN is cheap; after, it is a deprecation. |
 | #37 automate the interrupt criterion | no, but should | Met by construction and review. Automating it is cheap and closes Stage 7's last functional criterion. |
 | #38 `test-linking.R` skips on a missing artifact | **yes** | The skip is reachable from exactly the failure the test exists to catch, and `R CMD check` passes a skip. |
 | #39 CI/build alignment with the family | no | Pins, `.covrignore`, symbol visibility and extra downstream OSes are hygiene. Pinning before the submission run does make that run reproducible. |
 | #40 argument validation, condition mapping | **yes** | This is the R-level contract. Changing it after CRAN breaks callers. |
-| #41 archive consumers bypass the seam | no | The gap is closed in the consumer (zuxlsx#47). The false sentence in `vignette("linking")` is a documentation fix of #44's kind. |
+| #41 archive consumers bypass the seam | no | The gap has to be closed in the consumer (zuxlsx#47, open). The false "is a parse error" cost in `vignette("linking")`, repeated in the README, is a documentation fix of #44's kind. |
 | #42 `lib${R_ARCH}`, Expat licence, zuxmltest scripts | no | Family convergence. Moving the archive has to be coordinated with `zuxlsx`, whose `configure` already copes with both layouts. |
 | #43 R allocations can longjmp past the arena | no | Reachable only on an R allocation failure, or on serialized output over 2 GiB. |
 | #44 header, vignettes, README out of date | **yes** | The shipped header and vignettes state a contract that is false: that `Imports:` loads zuxml, and that CI asserts zero `XML_*` symbols in the fixture. |
