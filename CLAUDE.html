@@ -52,7 +52,7 @@
 <h2 id="current-state-2026-09-22">Current state (2026-09-22)<a class="anchor" aria-label="anchor" href="#current-state-2026-09-22"></a></h2>
 <p>Version 0.1.0, not yet on CRAN. The <strong>Status:</strong> line under each stage in the roadmap is authoritative; this is the summary.</p>
 <ul><li>Stages 0–6 are complete. Stage 6’s table criteria went unverified from f3392b2, which retargeted the only fixture at the archive, until #36 added <code>tools/zuxmltable</code> beside it.</li>
-<li>Stage 7 (#32) is open. The interrupt criterion is unverified but automatable (#37). The 24h-per-target fuzzing criterion is not met yet; the grown corpus is cached between CI runs, so fuzzing time accumulates.</li>
+<li>Stage 7 (#32) is closed; its remaining items (cumulative fuzzing hours, MSan, clang-tidy, three fuzz targets) are #54, which does not gate 0.1.0. The grown fuzz corpus is cached between CI runs, so fuzzing time accumulates.</li>
 <li>Stage 8 (#33) is complete. Its one open box is an optional win-builder R-devel run.</li>
 <li>Stage 9 (#34) has no mechanical blocker left: tag <code>v0.1.0</code> and submit.</li>
 <li>
@@ -145,10 +145,8 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <td>the design §21 performance targets</td>
 </tr><tr><td><code>tools/update-expat &lt;ver&gt;</code></td>
 <td>re-vendor Expat (then re-run <code>verify-vendor</code>)</td>
-</tr></tbody></table><p>Two traps when running them by hand:</p>
-<ul><li>
-<code>tools/zuxmltest/cleanup</code> uses paths relative to the current directory. Run it as <code>(cd tools/zuxmltest &amp;&amp; ./cleanup)</code> — from the package root it deletes zuxml’s own <code>src/Makevars</code>.</li>
-<li>A developer machine that also works on <code>zuxlsx</code> has zuxml in its <strong>user</strong> library, and <code>R_LIBS</code> does not hide it. <code>tools/run-downstream-check</code> points <code>R_LIBS_USER</code>/<code>R_LIBS_SITE</code> at nothing for that reason; anything else resolving <code>system.file(package = "zuxml")</code> in a test needs the same care.</li>
+</tr></tbody></table><p>One trap when running them by hand:</p>
+<ul><li>A developer machine that also works on <code>zuxlsx</code> has zuxml in its <strong>user</strong> library, and <code>R_LIBS</code> does not hide it. <code>tools/run-downstream-check</code> points <code>R_LIBS_USER</code>/<code>R_LIBS_SITE</code> at nothing for that reason; anything else resolving <code>system.file(package = "zuxml")</code> in a test needs the same care.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="definition-of-done">Definition of done<a class="anchor" aria-label="anchor" href="#definition-of-done"></a></h2>
@@ -167,7 +165,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <li>Strings in handlers are <strong>borrowed and not NUL-terminated</strong>; strings from document accessors are <strong>owned by the document and NUL-terminated</strong>. This contract is stated at the top of <code>zuxml.h</code> and is the source of every memory bug if ignored.</li>
 <li>
 <code>vignettes/articles/</code> is pkgdown-only and <code>.Rbuildignore</code>d; <code>vignettes/*.Rmd</code> is built <em>and executed</em> by <code>R CMD check</code>, including under the sanitizers.</li>
-<li>Expat and its notices are redistributed here: <code>inst/COPYRIGHTS</code>, <code>src/vendor/PROVENANCE</code>, <code>LICENSE.note</code>. Static linking in a consumer redistributes them too.</li>
+<li>Expat and its notices are redistributed here: <code>inst/COPYRIGHTS</code>, <code>src/vendor/PROVENANCE</code>, <code>LICENSE.note</code>, and Expat’s <code>COPYING</code>, which <code>install.libs.R</code> installs as <code>licenses/expat-COPYING</code>. That copy is a licensing obligation: an installed zuxml carries Expat compiled and as <code>expat.h</code>, and nothing outside <code>inst/</code> is installed otherwise. Static linking in a consumer redistributes them too.</li>
 </ul></div>
 </div>
 
