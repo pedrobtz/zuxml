@@ -339,7 +339,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
 
 ## Stage 9 — first CRAN release · S
 
-**Status:** open, and not yet ready to submit: blocked on #36, #40 and #44. Then tag `v0.1.0` and submit (#34).
+**Status:** open, and not yet ready to submit: blocked on #40 and #44. Then tag `v0.1.0` and submit (#34).
 
 - **0.1.0 is the first CRAN release, not 1.0.0.** The C ABI already needed one
   bump (`zuxml_api_v1` → `v2`, §15) before a single real consumer existed;

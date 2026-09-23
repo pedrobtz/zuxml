@@ -31,7 +31,7 @@ roadmap is authoritative; this is the summary.
   the grown corpus is cached between CI runs, so fuzzing time accumulates.
 * Stage 8 (#33) is complete. Its one open box is an optional win-builder
   R-devel run.
-* Stage 9 (#34) is blocked on #36, #40 and #44.
+* Stage 9 (#34) is blocked on #40 and #44.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
   registered table has no consumer yet — `zuhttp` plans no XML support — so
   `tools/zuxmltable` stands in for one and calls all 26 members.
