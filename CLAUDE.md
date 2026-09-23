@@ -26,9 +26,9 @@ roadmap is authoritative; this is the summary.
 * Stages 0–6 are complete. Stage 6's table criteria went unverified from
   f3392b2, which retargeted the only fixture at the archive, until #36 added
   `tools/zuxmltable` beside it.
-* Stage 7 (#32) is open. The interrupt criterion is tested
-  (`test-interrupt.R`, #37). The 24h-per-target fuzzing criterion is not met yet;
-  the grown corpus is cached between CI runs, so fuzzing time accumulates.
+* Stage 7 (#32) is closed; its remaining items (cumulative fuzzing hours,
+  MSan, clang-tidy, three fuzz targets) are #54, which does not gate 0.1.0.
+  The grown fuzz corpus is cached between CI runs, so fuzzing time accumulates.
 * Stage 8 (#33) is complete. Its one open box is an optional win-builder
   R-devel run.
 * Stage 9 (#34) has no mechanical blocker left: tag `v0.1.0` and submit.

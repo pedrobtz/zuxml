@@ -244,7 +244,7 @@ The core of the package. Everything downstream is a consumer of what this stage 
 
 ## Stage 7 — Hardening · L
 
-**Status:** open. The interrupt criterion is tested since #37. The fuzz gate could not fail on a crash until #35 fixed it. The 24h-per-target criterion is not met yet. It is now read as cumulative, since #35 also caches the grown corpus between CI runs; before that, every run restarted from the seeds. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
+**Status:** closed before 0.1.0 (2026-09-23), with the rest carried to #54. The interrupt criterion is tested since #37. The fuzz gate could not fail on a crash until #35 fixed it. The 24h-per-target criterion is not met yet. It is now read as cumulative, since #35 also caches the grown corpus between CI runs; before that, every run restarted from the seeds. The no-network criterion is asserted by a grep over `tests/` (`hardening.yaml`), not at run time. MSan, clang-tidy, and dedicated fuzz targets for three of the seven planned areas (namespace splitting, attribute copying, text coalescing) were not done: drop or schedule each. The other four areas are covered by the three targets that exist (design §20).
 
 **Do**
 - libFuzzer targets for: whole-document parse, incremental feed, namespace splitting, tree builder, attribute copying, text coalescing, serializer.
@@ -421,3 +421,5 @@ A read-through of the whole repository against this roadmap, the design and the 
 | #42 `lib${R_ARCH}`, Expat licence, zuxmltest scripts | no | Family convergence. Moving the archive has to be coordinated with `zuxlsx`, whose `configure` already copes with both layouts. |
 | #43 R allocations can longjmp past the arena | no | Reachable only on an R allocation failure, or on serialized output over 2 GiB. |
 | #44 header, vignettes, README out of date | **yes** | The shipped header and vignettes state a contract that is false: that `Imports:` loads zuxml, and that CI asserts zero `XML_*` symbols in the fixture. |
+
+**Outcome, 2026-09-23.** Every gating issue is closed: #35 (#47), #36 (#48), #38 (#46), #40 and #43 (#49), #44 (#50). Of the rest, #37 is closed (#53); #42's licence and `cleanup` parts are done (#52), and its `lib${R_ARCH}` move is deferred past 0.1.0 as a family change with zucrypt#33; #41's documentation half is done (#50), and its archive helper is deferred; #39 is folded into #51, which redesigns CI into a fast PR tier and a slow `main`-and-nightly tier.
