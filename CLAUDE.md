@@ -27,11 +27,11 @@ roadmap is authoritative; this is the summary.
   f3392b2, which retargeted the only fixture at the archive, until #36 added
   `tools/zuxmltable` beside it.
 * Stage 7 (#32) is open. The interrupt criterion is unverified but
-  automatable (#37). The fuzz gate cannot fail on a crash (#35). The
-  24h-per-target fuzzing criterion is not met.
+  automatable (#37). The 24h-per-target fuzzing criterion is not met yet;
+  the grown corpus is cached between CI runs, so fuzzing time accumulates.
 * Stage 8 (#33) is complete. Its one open box is an optional win-builder
   R-devel run.
-* Stage 9 (#34) is blocked on #35, #36, #40 and #44.
+* Stage 9 (#34) is blocked on #36, #40 and #44.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
   registered table has no consumer yet — `zuhttp` plans no XML support — so
   `tools/zuxmltable` stands in for one and calls all 26 members.
@@ -145,7 +145,7 @@ deliberately not, since shared-runner timings are too noisy to gate on, and
 | `tools/run-lint`           | project-owned code compiles warning-free (`-Werror`)  |
 | `tools/verify-vendor`      | `src/vendor/expat` matches the pinned release exactly |
 | `tools/run-sanitizers`     | the event seam under ASan + UBSan, no R in the way    |
-| `tools/run-fuzz`           | libFuzzer over the parser seam — but its exit status is `tail`'s, so a crash does not fail it yet (#35) |
+| `tools/run-fuzz`           | libFuzzer over the parser seam, after a canary that must crash |
 | `tools/run-mutation-check` | each security guard is load-bearing                   |
 | `tools/run-conformance`    | the W3C XML Conformance Test Suite                    |
 | `tools/run-downstream-check` | both consumption modes work for a real consumer package |
@@ -169,8 +169,8 @@ Two traps when running them by hand:
   worded goes in the stage's **Status:** line. So does one that a later
   change invalidates: re-check a closed stage when you touch its subject.
 * A gate counts once it has been seen to fail — a deliberate warning, a
-  removed guard, a target that must crash. `tools/run-lint` passed vacuously
-  until someone checked, and `tools/run-fuzz` still does (#35).
+  removed guard, a target that must crash. `tools/run-lint` and
+  `tools/run-fuzz` both passed vacuously until someone checked (#35).
 * A change to a contract (`zuxml.h`, the table, the archive layout, the
   feature policy) amends the design in the same commit.
 * `devtools::document()` leaves no diff, and `R CMD check --as-cran` shows only

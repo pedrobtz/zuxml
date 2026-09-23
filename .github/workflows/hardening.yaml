@@ -109,11 +109,24 @@ jobs:
     name: fuzz
     steps:
       - uses: actions/checkout@v7
+      # The corpus libFuzzer grows lives outside the package root (see
+      # tools/run-fuzz), so it is cached rather than committed. A fresh key
+      # per run, restored from the newest earlier one, lets each run -- push
+      # and nightly alike -- start from everything the previous ones found,
+      # so fuzzing time accumulates instead of restarting from the seeds.
+      - name: restore the grown corpus
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/zuxml/fuzz-corpus
+          key: fuzz-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: fuzz-corpus-
       - name: fuzz all targets
         # 60s per target on push; 30 minutes per target on the nightly cron.
+        # tools/run-fuzz first requires fuzz/fuzz_canary.c to crash, and exits
+        # 2 if it does not, so a green step means the gate could see a crash.
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then SECS=1800; else SECS=60; fi
-          CC=clang ./tools/run-fuzz "$SECS"
+          ZUX_FUZZ_CORPUS="$HOME/.cache/zuxml/fuzz-corpus" CC=clang ./tools/run-fuzz "$SECS"
       - name: upload any findings
         if: failure()
         uses: actions/upload-artifact@v7
