@@ -26,6 +26,29 @@ stricter than a distro Expat**, and zuxml is a **provider for other
 packages’ C code**, with two distinct consumption modes that are easy to
 confuse.
 
+## Current state (2026-09-22)
+
+Version 0.1.0, not yet on CRAN. The **Status:** line under each stage in
+the roadmap is authoritative; this is the summary.
+
+- Stages 0–5 are complete. Stage 6 (#31) was complete when written, but
+  its exit criteria 1 and 4 have been unverified since f3392b2
+  retargeted the fixture at the archive mode (#36).
+- Stage 7 (#32) is open. The interrupt criterion is unverified but
+  automatable (#37). The fuzz gate cannot fail on a crash (#35). The
+  24h-per-target fuzzing criterion is not met.
+- Stage 8 (#33) is complete. Its one open box is an optional win-builder
+  R-devel run.
+- Stage 9 (#34) is blocked on \#35, \#36, \#38, \#40 and \#44.
+- **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
+  registered table has no consumer — `zuhttp` plans no XML support —
+  and, since f3392b2, no fixture. Whether 0.1.0 ships it is \#36.
+- An archive consumer does not inherit the seam’s DOCTYPE rejection or
+  its limits (#41).
+- Progress is tracked in \#24 (v0.1.0): one `stage`-labelled sub-issue
+  per roadmap stage (#25–#34), each linking to its stage’s heading
+  anchor. That is why status stays out of the headings.
+
 ## Feature policy — non-negotiable
 
 `src/expat_config.h` is project-owned and is the only place local
@@ -47,8 +70,10 @@ enforces that and CI runs it.
   Never copy a generated `expat_config.h` from another machine, and
   never define `XML_POOR_ENTROPY`.
 
-`tools/run-mutation-check` exists to prove the security tests are not
-vacuous: removing a guard must break a test.
+`tools/run-mutation-check` exists to prove the security guards are not
+vacuous: removing a guard must change what its hostile input produces.
+It checks that through `tools/mutation/probe.c`, not by re-running the
+testthat suite against the mutant.
 
 ## Consumers — two modes, do not conflate
 
@@ -60,16 +85,17 @@ vacuous: removing a guard must break a test.
 | Resolved          | `R_GetCCallable()`, at run time | linked into the consumer |
 | Needs zuxml live  | yes, installed **and** loaded   | no, not even installed   |
 
-**The table** is the path for new C code. `Imports:` alone is not enough
-— `R_GetCCallable()` resolves nothing until zuxml’s namespace is
-*loaded*, which needs an actual import directive in the consumer’s
-`NAMESPACE`. The registered callable **name** (`zuxml_api_v2`) versions
-every public type, and `struct_size` versions the table itself;
-appending a member is safe, changing the layout of
-`zux_error`/`zux_options`/`zux_name` means bumping the name. R does not
-rebuild `LinkingTo` dependents on upgrade, so that name is what stands
-between `install.packages("zuxml")` and memory corruption downstream. No
-Expat type may ever appear in `zuxml.h`.
+**The table** is the path for new C code — in principle. Today it has no
+consumer and no test (#36), so treat its contract as unproven.
+`Imports:` alone is not enough — `R_GetCCallable()` resolves nothing
+until zuxml’s namespace is *loaded*, which needs an actual import
+directive in the consumer’s `NAMESPACE`. The registered callable
+**name** (`zuxml_api_v2`) versions every public type, and `struct_size`
+versions the table itself; appending a member is safe, changing the
+layout of `zux_error`/`zux_options`/`zux_name` means bumping the name. R
+does not rebuild `LinkingTo` dependents on upgrade, so that name is what
+stands between `install.packages("zuxml")` and memory corruption
+downstream. No Expat type may ever appear in `zuxml.h`.
 
 **The archive** is for C code already written against Expat and not
 worth rewriting — `xlsxio` in `zuxlsx` is the case that prompted it. It
@@ -103,19 +129,36 @@ The core (`zux_parser.c`, `zux_tree.c`, `zux_write.c`) contains no R.
 Keep it that way: it is what the sanitizer and fuzz drivers compile
 standalone.
 
+## Commands
+
+``` sh
+Rscript -e 'devtools::document()'   # roxygen -> NAMESPACE + man/
+Rscript -e 'devtools::load_all()'   # compile + load for interactive work
+Rscript -e 'devtools::test()'
+Rscript -e 'devtools::check()'      # full R CMD check
+R CMD INSTALL .                     # an installed layout, for test-linking.R
+```
+
+`tests/testthat/test-linking.R` audits the *installed* package
+(`lib/libzuxml.a`, `include/expat.h`), so it skips under `load_all()`.
+It has teeth only under `R CMD check` or against a real install — and
+today it also skips when the artifact it audits is missing (#38).
+
 ## Gates
 
-Run these from the package root. All of them are wired into CI
-(`.github/workflows/`: `R-CMD-check`, `hardening`, `native-checks`,
-`coverage`, `pkgdown`).
+Run these from the package root. All but `tools/run-benchmarks` and
+`tools/update-expat` are wired into CI (`.github/workflows/`:
+`R-CMD-check`, `hardening`, `native-checks`, `coverage`, `pkgdown`). The
+benchmarks are deliberately not, since shared-runner timings are too
+noisy to gate on, and `update-expat` is a maintenance script.
 
 | script | what it proves |
 |----|----|
 | `tools/run-lint` | project-owned code compiles warning-free (`-Werror`) |
 | `tools/verify-vendor` | `src/vendor/expat` matches the pinned release exactly |
 | `tools/run-sanitizers` | the event seam under ASan + UBSan, no R in the way |
-| `tools/run-fuzz` | libFuzzer over the parser seam |
-| `tools/run-mutation-check` | the security tests are not vacuous |
+| `tools/run-fuzz` | libFuzzer over the parser seam — but its exit status is `tail`’s, so a crash does not fail it yet (#35) |
+| `tools/run-mutation-check` | each security guard is load-bearing |
 | `tools/run-conformance` | the W3C XML Conformance Test Suite |
 | `tools/run-downstream-check` | the archive mode works for a real consumer package |
 | `tools/run-benchmarks` | the design §21 performance targets |
@@ -131,6 +174,23 @@ Two traps when running them by hand:
   `tools/run-downstream-check` points `R_LIBS_USER`/`R_LIBS_SITE` at
   nothing for that reason; anything else resolving
   `system.file(package = "zuxml")` in a test needs the same care.
+
+## Definition of done
+
+- A stage is done when its exit criteria pass in CI on all three
+  platforms, not when the code is written. A criterion met differently
+  from how it is worded goes in the stage’s **Status:** line. So does
+  one that a later change invalidates: re-check a closed stage when you
+  touch its subject.
+- A gate counts once it has been seen to fail — a deliberate warning, a
+  removed guard, a target that must crash. `tools/run-lint` passed
+  vacuously until someone checked, and `tools/run-fuzz` still does
+  (#35).
+- A change to a contract (`zuxml.h`, the table, the archive layout, the
+  feature policy) amends the design in the same commit.
+- `devtools::document()` leaves no diff, and `R CMD check --as-cran`
+  shows only the NOTEs that `cran-comments.md` explains. A user-facing
+  change also needs a test, roxygen documentation and a `NEWS.md` entry.
 
 ## Conventions
 

@@ -49,6 +49,18 @@
 <p>Two things make this package unusual, and most mistakes come from missing one of them: the parser’s <strong>feature policy is deliberately stricter than a distro Expat</strong>, and zuxml is a <strong>provider for other packages’ C code</strong>, with two distinct consumption modes that are easy to confuse.</p>
 </div>
 <div class="section level2">
+<h2 id="current-state-2026-09-22">Current state (2026-09-22)<a class="anchor" aria-label="anchor" href="#current-state-2026-09-22"></a></h2>
+<p>Version 0.1.0, not yet on CRAN. The <strong>Status:</strong> line under each stage in the roadmap is authoritative; this is the summary.</p>
+<ul><li>Stages 0–5 are complete. Stage 6 (#31) was complete when written, but its exit criteria 1 and 4 have been unverified since f3392b2 retargeted the fixture at the archive mode (#36).</li>
+<li>Stage 7 (#32) is open. The interrupt criterion is unverified but automatable (#37). The fuzz gate cannot fail on a crash (#35). The 24h-per-target fuzzing criterion is not met.</li>
+<li>Stage 8 (#33) is complete. Its one open box is an optional win-builder R-devel run.</li>
+<li>Stage 9 (#34) is blocked on #35, #36, #38, #40 and #44.</li>
+<li>
+<strong>Consumers:</strong> <code>zuxlsx</code> is the only one, and it uses the archive. The registered table has no consumer — <code>zuhttp</code> plans no XML support — and, since f3392b2, no fixture. Whether 0.1.0 ships it is #36.</li>
+<li>An archive consumer does not inherit the seam’s DOCTYPE rejection or its limits (#41).</li>
+<li>Progress is tracked in #24 (v0.1.0): one <code>stage</code>-labelled sub-issue per roadmap stage (#25–#34), each linking to its stage’s heading anchor. That is why status stays out of the headings.</li>
+</ul></div>
+<div class="section level2">
 <h2 id="feature-policy--non-negotiable">Feature policy — non-negotiable<a class="anchor" aria-label="anchor" href="#feature-policy--non-negotiable"></a></h2>
 <p><code>src/expat_config.h</code> is project-owned and is the only place local configuration lives. Everything under <code>src/vendor/expat/</code> is byte-identical to the pinned upstream release; <code>tools/verify-vendor</code> enforces that and CI runs it.</p>
 <ul><li>
@@ -57,7 +69,7 @@
 <code>XML_NS 1</code>, <code>XML_CONTEXT_BYTES 1024</code>. <code>XML_UNICODE</code>, <code>XML_LARGE_SIZE</code> and <code>XML_ATTR_INFO</code> are not defined, so <code>XML_Char</code> is <code>char</code> and input is UTF-8.</li>
 <li>
 <code>BYTEORDER</code> and the entropy source are <strong>derived from compiler macros</strong> and <code>#error</code> on an unknown platform rather than guessing. Never copy a generated <code>expat_config.h</code> from another machine, and never define <code>XML_POOR_ENTROPY</code>.</li>
-</ul><p><code>tools/run-mutation-check</code> exists to prove the security tests are not vacuous: removing a guard must break a test.</p>
+</ul><p><code>tools/run-mutation-check</code> exists to prove the security guards are not vacuous: removing a guard must change what its hostile input produces. It checks that through <code>tools/mutation/probe.c</code>, not by re-running the testthat suite against the mutant.</p>
 </div>
 <div class="section level2">
 <h2 id="consumers--two-modes-do-not-conflate">Consumers — two modes, do not conflate<a class="anchor" aria-label="anchor" href="#consumers--two-modes-do-not-conflate"></a></h2>
@@ -84,7 +96,7 @@
 </tr><tr><td>Needs zuxml live</td>
 <td>yes, installed <strong>and</strong> loaded</td>
 <td>no, not even installed</td>
-</tr></tbody></table><p><strong>The table</strong> is the path for new C code. <code>Imports:</code> alone is not enough — <code>R_GetCCallable()</code> resolves nothing until zuxml’s namespace is <em>loaded</em>, which needs an actual import directive in the consumer’s <code>NAMESPACE</code>. The registered callable <strong>name</strong> (<code>zuxml_api_v2</code>) versions every public type, and <code>struct_size</code> versions the table itself; appending a member is safe, changing the layout of <code>zux_error</code>/<code>zux_options</code>/<code>zux_name</code> means bumping the name. R does not rebuild <code>LinkingTo</code> dependents on upgrade, so that name is what stands between <code>install.packages("zuxml")</code> and memory corruption downstream. No Expat type may ever appear in <code>zuxml.h</code>.</p>
+</tr></tbody></table><p><strong>The table</strong> is the path for new C code — in principle. Today it has no consumer and no test (#36), so treat its contract as unproven. <code>Imports:</code> alone is not enough — <code>R_GetCCallable()</code> resolves nothing until zuxml’s namespace is <em>loaded</em>, which needs an actual import directive in the consumer’s <code>NAMESPACE</code>. The registered callable <strong>name</strong> (<code>zuxml_api_v2</code>) versions every public type, and <code>struct_size</code> versions the table itself; appending a member is safe, changing the layout of <code>zux_error</code>/<code>zux_options</code>/<code>zux_name</code> means bumping the name. R does not rebuild <code>LinkingTo</code> dependents on upgrade, so that name is what stands between <code>install.packages("zuxml")</code> and memory corruption downstream. No Expat type may ever appear in <code>zuxml.h</code>.</p>
 <p><strong>The archive</strong> is for C code already written against Expat and not worth rewriting — <code>xlsxio</code> in <code>zuxlsx</code> is the case that prompted it. It needs <code>XML_GetBuffer</code>/<code>XML_StopParser</code>/<code>XML_ResumeParser</code>, which the table cannot express. <code>src/Makevars</code> builds it from <code>EXPAT_OBJECTS</code> only: keep R glue out, or a consumer gets dead weight and duplicate symbols. <code>src/install.libs.R</code> installs it to <code>&lt;pkg&gt;/lib/</code> and copies <code>expat.h</code>/<code>expat_external.h</code> out of the vendored tree to <code>&lt;pkg&gt;/include/</code> — deliberately <em>not</em> a second copy under <code>inst/include/</code>, which could drift from the sources the archive was compiled from. Defining <code>install.libs.R</code> means R stops installing the shared object itself, so its first block is load-bearing, not boilerplate.</p>
 <p><code><a href="articles/linking.html">vignette("linking")</a></code> is the consumer-facing write-up of the archive mode. <code>tools/zuxmltest/</code> is a worked example of it, and <code>tools/run-downstream-check</code> is the gate.</p>
 </div>
@@ -101,8 +113,17 @@ tools/             gates and maintenance scripts, plus zuxmltest/
 <p>The core (<code>zux_parser.c</code>, <code>zux_tree.c</code>, <code>zux_write.c</code>) contains no R. Keep it that way: it is what the sanitizer and fuzz drivers compile standalone.</p>
 </div>
 <div class="section level2">
+<h2 id="commands">Commands<a class="anchor" aria-label="anchor" href="#commands"></a></h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::document()'</span>   <span class="co"># roxygen -&gt; NAMESPACE + man/</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::load_all()'</span>   <span class="co"># compile + load for interactive work</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::test()'</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::check()'</span>      <span class="co"># full R CMD check</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL .                     <span class="co"># an installed layout, for test-linking.R</span></span></code></pre></div>
+<p><code>tests/testthat/test-linking.R</code> audits the <em>installed</em> package (<code>lib/libzuxml.a</code>, <code>include/expat.h</code>), so it skips under <code>load_all()</code>. It has teeth only under <code>R CMD check</code> or against a real install — and today it also skips when the artifact it audits is missing (#38).</p>
+</div>
+<div class="section level2">
 <h2 id="gates">Gates<a class="anchor" aria-label="anchor" href="#gates"></a></h2>
-<p>Run these from the package root. All of them are wired into CI (<code>.github/workflows/</code>: <code>R-CMD-check</code>, <code>hardening</code>, <code>native-checks</code>, <code>coverage</code>, <code>pkgdown</code>).</p>
+<p>Run these from the package root. All but <code>tools/run-benchmarks</code> and <code>tools/update-expat</code> are wired into CI (<code>.github/workflows/</code>: <code>R-CMD-check</code>, <code>hardening</code>, <code>native-checks</code>, <code>coverage</code>, <code>pkgdown</code>). The benchmarks are deliberately not, since shared-runner timings are too noisy to gate on, and <code>update-expat</code> is a maintenance script.</p>
 <table class="table"><colgroup><col width="33%"><col width="66%"></colgroup><thead><tr><th>script</th>
 <th>what it proves</th>
 </tr></thead><tbody><tr><td><code>tools/run-lint</code></td>
@@ -113,9 +134,9 @@ tools/             gates and maintenance scripts, plus zuxmltest/
 </tr><tr><td><code>tools/run-sanitizers</code></td>
 <td>the event seam under ASan + UBSan, no R in the way</td>
 </tr><tr><td><code>tools/run-fuzz</code></td>
-<td>libFuzzer over the parser seam</td>
+<td>libFuzzer over the parser seam — but its exit status is <code>tail</code>’s, so a crash does not fail it yet (#35)</td>
 </tr><tr><td><code>tools/run-mutation-check</code></td>
-<td>the security tests are not vacuous</td>
+<td>each security guard is load-bearing</td>
 </tr><tr><td><code>tools/run-conformance</code></td>
 <td>the W3C XML Conformance Test Suite</td>
 </tr><tr><td><code>tools/run-downstream-check</code></td>
@@ -128,6 +149,14 @@ tools/             gates and maintenance scripts, plus zuxmltest/
 <ul><li>
 <code>tools/zuxmltest/cleanup</code> uses paths relative to the current directory. Run it as <code>(cd tools/zuxmltest &amp;&amp; ./cleanup)</code> — from the package root it deletes zuxml’s own <code>src/Makevars</code>.</li>
 <li>A developer machine that also works on <code>zuxlsx</code> has zuxml in its <strong>user</strong> library, and <code>R_LIBS</code> does not hide it. <code>tools/run-downstream-check</code> points <code>R_LIBS_USER</code>/<code>R_LIBS_SITE</code> at nothing for that reason; anything else resolving <code>system.file(package = "zuxml")</code> in a test needs the same care.</li>
+</ul></div>
+<div class="section level2">
+<h2 id="definition-of-done">Definition of done<a class="anchor" aria-label="anchor" href="#definition-of-done"></a></h2>
+<ul><li>A stage is done when its exit criteria pass in CI on all three platforms, not when the code is written. A criterion met differently from how it is worded goes in the stage’s <strong>Status:</strong> line. So does one that a later change invalidates: re-check a closed stage when you touch its subject.</li>
+<li>A gate counts once it has been seen to fail — a deliberate warning, a removed guard, a target that must crash. <code>tools/run-lint</code> passed vacuously until someone checked, and <code>tools/run-fuzz</code> still does (#35).</li>
+<li>A change to a contract (<code>zuxml.h</code>, the table, the archive layout, the feature policy) amends the design in the same commit.</li>
+<li>
+<code>devtools::document()</code> leaves no diff, and <code>R CMD check --as-cran</code> shows only the NOTEs that <code>cran-comments.md</code> explains. A user-facing change also needs a test, roxygen documentation and a <code>NEWS.md</code> entry.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="conventions">Conventions<a class="anchor" aria-label="anchor" href="#conventions"></a></h2>
