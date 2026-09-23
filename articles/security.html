@@ -225,11 +225,21 @@ explicitly:</p>
 <span>  <span class="fu">classify</span><span class="op">(</span><span class="st">"&lt;a&gt;xxxxxxxx&lt;/a&gt;"</span>, max_text <span class="op">=</span> <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "ok"              "doctype refused" "malformed"       "too expensive"</span></span></code></pre></div>
 <p><code>zuxml_limit_error</code> is the shared parent of the five limit
-conditions, so the branch above catches all of them without naming
-each.</p>
+conditions, so the branch above catches all of them without naming each.
+The condition says which limit it was, and what it was set to, in
+<code>limit</code> and <code>limit_value</code>.
+<code><a href="../reference/zuxml-conditions.html">?"zuxml-conditions"</a></code> lists every class and field.</p>
+<p>A limit is only a guarantee if it is the one you asked for, so a
+value that is not a positive whole number is refused rather than
+replaced by the default. <code>Inf</code> asks for the largest value the
+parser can represent:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/xml_parse.html">xml_parse</a></span><span class="op">(</span><span class="st">"&lt;a/&gt;"</span>, max_depth <span class="op">=</span> <span class="op">-</span><span class="fl">1</span><span class="op">)</span>,</span>
+<span>         zuxml_invalid_argument <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">e</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "zuxml: `max_depth` must be a single positive whole number, or Inf for the largest allowed"</span></span></code></pre></div>
 <p>Parse errors carry the position, which is what makes a bad feed
 diagnosable rather than merely rejected:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">e</span> <span class="op">&lt;-</span> <span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/xml_parse.html">xml_parse</a></span><span class="op">(</span><span class="st">"&lt;a&gt;\n  &lt;b&gt;\n&lt;/a&gt;"</span><span class="op">)</span>, zuxml_error <span class="op">=</span> <span class="va">identity</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">e</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "XML parse error at line 3, column 2: mismatched tag"</span></span></code></pre></div>
@@ -240,7 +250,7 @@ diagnosable rather than merely rejected:</p>
 <p>An encoding you pass explicitly overrides whatever the document
 declares, which is the behaviour an HTTP <code>charset</code> parameter
 should have:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/xml_properties.html">xml_text</a></span><span class="op">(</span><span class="fu"><a href="../reference/xml_navigate.html">xml_root</a></span><span class="op">(</span><span class="fu"><a href="../reference/xml_parse.html">xml_parse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/raw.html" class="external-link">as.raw</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0x3c</span>, <span class="fl">0x61</span>, <span class="fl">0x3e</span>, <span class="fl">0xe9</span>, <span class="fl">0x3c</span>, <span class="fl">0x2f</span>, <span class="fl">0x61</span>, <span class="fl">0x3e</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>                            encoding <span class="op">=</span> <span class="st">"ISO-8859-1"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "é"</span></span></code></pre></div>
@@ -248,10 +258,10 @@ should have:</p>
 <code><a href="https://rdrr.io/r/base/iconv.html" class="external-link">iconv()</a></code> first, and the now-stale declaration is overridden
 so it cannot mislead the parser afterwards. An encoding that cannot be
 converted is a classed error rather than mojibake:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/xml_parse.html">xml_parse</a></span><span class="op">(</span><span class="st">"&lt;a&gt;x&lt;/a&gt;"</span>, encoding <span class="op">=</span> <span class="st">"NOT-AN-ENCODING"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;">:</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> zuxml: could not convert input from 'NOT-AN-ENCODING' to UTF-8</span></span></code></pre></div>
+<span><span class="co">#&gt; <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;"> in `xml_parse()`:</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> zuxml: `encoding = "NOT-AN-ENCODING"` applies to raw input only; a character `x` is already decoded</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="what-this-does-not-protect-you-from">What this does not protect you from<a class="anchor" aria-label="anchor" href="#what-this-does-not-protect-you-from"></a>

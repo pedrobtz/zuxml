@@ -189,7 +189,22 @@ c(classify("<a/>"),
 ```
 
 `zuxml_limit_error` is the shared parent of the five limit conditions,
-so the branch above catches all of them without naming each.
+so the branch above catches all of them without naming each. The
+condition says which limit it was, and what it was set to, in `limit`
+and `limit_value`.
+[`?"zuxml-conditions"`](https://pedrobtz.github.io/zuxml/reference/zuxml-conditions.md)
+lists every class and field.
+
+A limit is only a guarantee if it is the one you asked for, so a value
+that is not a positive whole number is refused rather than replaced by
+the default. `Inf` asks for the largest value the parser can represent:
+
+``` r
+
+tryCatch(xml_parse("<a/>", max_depth = -1),
+         zuxml_invalid_argument = function(e) conditionMessage(e))
+#> [1] "zuxml: `max_depth` must be a single positive whole number, or Inf for the largest allowed"
+```
 
 Parse errors carry the position, which is what makes a bad feed
 diagnosable rather than merely rejected:
@@ -223,8 +238,8 @@ mojibake:
 ``` r
 
 xml_parse("<a>x</a>", encoding = "NOT-AN-ENCODING")
-#> Error:
-#> ! zuxml: could not convert input from 'NOT-AN-ENCODING' to UTF-8
+#> Error in `xml_parse()`:
+#> ! zuxml: `encoding = "NOT-AN-ENCODING"` applies to raw input only; a character `x` is already decoded
 ```
 
 ## What this does not protect you from

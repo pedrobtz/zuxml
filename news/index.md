@@ -7,13 +7,19 @@ First release.
 ### Parsing
 
 - [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-  parses XML from a character string or a raw vector, and
+  parses XML from a single string or a raw vector, and
   [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-  from a file. Both build an immutable document tree.
-- Encodings Expat handles natively are passed through; anything else is
-  transcoded with [`iconv()`](https://rdrr.io/r/base/iconv.html), after
-  which the (now stale) encoding declaration is overridden so it cannot
-  mislead the parser.
+  from a file. Both build an immutable document tree. A character vector
+  of another length is an error rather than being joined silently: join
+  the lines of [`readLines()`](https://rdrr.io/r/base/readLines.html)
+  with `"\n"` first.
+- Encodings Expat handles natively are passed through, under any of
+  their common spellings (`"latin1"`, `"UTF8"`, `"ASCII"`); anything
+  else is transcoded with
+  [`iconv()`](https://rdrr.io/r/base/iconv.html), after which the (now
+  stale) encoding declaration is overridden so it cannot mislead the
+  parser. A character string is already decoded, so `encoding` must be
+  `NULL` or UTF-8 for one.
 
 ### Navigation and accessors
 
@@ -78,9 +84,15 @@ First release.
   options.
 - `max_depth`, `max_nodes`, `max_attrs`, `max_text` and `max_memory`
   bound what a hostile document can cost. Each raises its own condition,
-  and all of them inherit from `zuxml_limit_error`.
-- Parse failures are typed conditions carrying line, column and byte
-  offset, under a `zuxml_error` parent.
+  and all of them inherit from `zuxml_limit_error`. A limit must be a
+  positive whole number, or `Inf` for the largest the parser can
+  represent; anything else, including a value above that, is an error,
+  never replaced by the default.
+- Every error is a typed condition under a `zuxml_error` parent. Parse
+  failures carry line, column, byte offset, the C status and Expat’s
+  error code; limit failures also name the limit and its value. Unusable
+  arguments raise `zuxml_invalid_argument`. See
+  [`?"zuxml-conditions"`](https://pedrobtz.github.io/zuxml/reference/zuxml-conditions.md).
 - [`zuxml_info()`](https://pedrobtz.github.io/zuxml/reference/zuxml_info.md)
   reports the policy compiled into the installed build.
 

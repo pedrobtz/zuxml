@@ -46,8 +46,8 @@
 <div class="section level3">
 <h3 id="parsing-0-1-0">Parsing<a class="anchor" aria-label="anchor" href="#parsing-0-1-0"></a></h3>
 <ul><li>
-<code><a href="../reference/xml_parse.html">xml_parse()</a></code> parses XML from a character string or a raw vector, and <code><a href="../reference/xml_parse.html">xml_read()</a></code> from a file. Both build an immutable document tree.</li>
-<li>Encodings Expat handles natively are passed through; anything else is transcoded with <code><a href="https://rdrr.io/r/base/iconv.html" class="external-link">iconv()</a></code>, after which the (now stale) encoding declaration is overridden so it cannot mislead the parser.</li>
+<code><a href="../reference/xml_parse.html">xml_parse()</a></code> parses XML from a single string or a raw vector, and <code><a href="../reference/xml_parse.html">xml_read()</a></code> from a file. Both build an immutable document tree. A character vector of another length is an error rather than being joined silently: join the lines of <code><a href="https://rdrr.io/r/base/readLines.html" class="external-link">readLines()</a></code> with <code>"\n"</code> first.</li>
+<li>Encodings Expat handles natively are passed through, under any of their common spellings (<code>"latin1"</code>, <code>"UTF8"</code>, <code>"ASCII"</code>); anything else is transcoded with <code><a href="https://rdrr.io/r/base/iconv.html" class="external-link">iconv()</a></code>, after which the (now stale) encoding declaration is overridden so it cannot mislead the parser. A character string is already decoded, so <code>encoding</code> must be <code>NULL</code> or UTF-8 for one.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="navigation-and-accessors-0-1-0">Navigation and accessors<a class="anchor" aria-label="anchor" href="#navigation-and-accessors-0-1-0"></a></h3>
@@ -72,8 +72,8 @@
 <ul><li>Document type declarations are rejected by default. <code>allow_doctype = TRUE</code> accepts one, but still rejects an internal subset, which is the only place a document can declare entities.</li>
 <li>External entity resolution is not compiled in at all, so no file or network access is reachable from a parse regardless of input or options.</li>
 <li>
-<code>max_depth</code>, <code>max_nodes</code>, <code>max_attrs</code>, <code>max_text</code> and <code>max_memory</code> bound what a hostile document can cost. Each raises its own condition, and all of them inherit from <code>zuxml_limit_error</code>.</li>
-<li>Parse failures are typed conditions carrying line, column and byte offset, under a <code>zuxml_error</code> parent.</li>
+<code>max_depth</code>, <code>max_nodes</code>, <code>max_attrs</code>, <code>max_text</code> and <code>max_memory</code> bound what a hostile document can cost. Each raises its own condition, and all of them inherit from <code>zuxml_limit_error</code>. A limit must be a positive whole number, or <code>Inf</code> for the largest the parser can represent; anything else, including a value above that, is an error, never replaced by the default.</li>
+<li>Every error is a typed condition under a <code>zuxml_error</code> parent. Parse failures carry line, column, byte offset, the C status and Expat’s error code; limit failures also name the limit and its value. Unusable arguments raise <code>zuxml_invalid_argument</code>. See <code><a href="../reference/zuxml-conditions.html">?"zuxml-conditions"</a></code>.</li>
 <li>
 <code><a href="../reference/zuxml_info.html">zuxml_info()</a></code> reports the policy compiled into the installed build.</li>
 </ul></div>
