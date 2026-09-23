@@ -139,8 +139,9 @@ test_that("a declaration is refused for a multi-node nodeset", {
   # and write a file that zuxml itself could not re-parse.
   ns <- xml_children(xml_root(xml_parse("<r><a>1</a><b>2</b></r>")))
   expect_length(ns, 2L)
-  expect_error(xml_serialize(ns, declaration = TRUE), "single node")
-  expect_error(xml_write(ns, tempfile(fileext = ".xml")), "single node")
+  expect_error(xml_serialize(ns, declaration = TRUE), class = "zuxml_invalid_argument")
+  expect_error(xml_write(ns, tempfile(fileext = ".xml")),
+               class = "zuxml_invalid_argument")
 
   # Writing a fragment without a declaration stays allowed.
   f <- tempfile(fileext = ".xml")

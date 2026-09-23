@@ -13,7 +13,7 @@ c.zuxml_nodeset <- function(...) {
   docs <- lapply(parts, zux_doc_of)
   ptrs <- vapply(docs, function(d) format(d$ptr), character(1))
   if (length(unique(ptrs)) > 1L)
-    stop("zuxml: cannot combine nodes from different documents")
+    zux_invalid_argument("...", "cannot combine nodes from different documents")
   new_nodeset(unlist(lapply(parts, unclass)), docs[[1L]])
 }
 

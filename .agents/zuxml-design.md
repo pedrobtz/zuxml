@@ -382,6 +382,8 @@ Five limits, not eight. The arena cap is the backstop that makes a longer list u
 
 Every limit failure is a distinct, stable error class (§12) — never a crash, never an OOM abort.
 
+A limit must be a positive whole number, or `Inf` for the largest value its C type holds (`INT_MAX` for `max_nodes`, `SIZE_MAX` for the two byte limits). Anything else — `0`, `-1`, `0.5`, `NA`, a string, a vector, or a finite value above that maximum — is `zuxml_invalid_argument`. A limit is a security property: one silently replaced by the default, or truncated from a fraction, is a limit the caller did not set (#40).
+
 Depth is tracked by the seam from start/end events. Never rely on stack exhaustion as a limit, and never build the tree recursively; freeing, descendant search, text concatenation, and serialization are all iterative with an explicit worklist.
 
 ### Interrupts and unwinding
@@ -401,6 +403,7 @@ Project-owned throughout. The native Expat code is retained as metadata for diag
 
 ```text
 zuxml_error
+├── zuxml_invalid_argument an unusable argument, or ZUX_ERR_INVALID_ARGUMENT
 ├── zuxml_parse_error      malformed XML, unexpected EOF, undefined entity
 ├── zuxml_encoding_error
 ├── zuxml_doctype_error
@@ -414,7 +417,9 @@ zuxml_error
 └── zuxml_cancelled
 ```
 
-Every condition carries `line`, `column`, `byte_offset`, `expat_code`, and for `zuxml_limit_error` the limit name and its value.
+Every condition a parse raises carries `line`, `column`, `byte_offset`, `status` (the C enumerator's name, such as `ZUX_ERR_DEPTH_LIMIT`) and `expat_code` (`NA` when the failure was not Expat's). A limit error adds `limit`, the argument's name, and `limit_value`, its value. A `zuxml_invalid_argument` carries `arg`, the argument at fault. The classes are documented for users in `?"zuxml-conditions"`.
+
+R maps a C status to its class by the enumerator's name, which C returns beside the English status string. It never matches the English: rewording a message must not change which handler catches it. `ZUX_ERR_INTERNAL`, or a status the map does not know, is a bare `zuxml_error`. `zuxml_cancelled` is reachable only through the C API, where a downstream package supplies the handler.
 
 Users see:
 

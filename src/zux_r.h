@@ -21,6 +21,7 @@ SEXP C_zux_tree_info(SEXP x, SEXP opts);
 
 /* Document and node API. */
 SEXP C_zux_parse(SEXP x, SEXP opts);
+SEXP C_zux_status_names(void);
 SEXP C_zux_root(SEXP xp);
 SEXP C_zux_node_info(SEXP xp, SEXP ids, SEXP what);
 SEXP C_zux_parent(SEXP xp, SEXP ids);
