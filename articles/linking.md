@@ -111,9 +111,12 @@ PKG_LIBS = '@ZUXML_LIB@/libzuxml.a'
 
 Two details that are easy to get wrong and fail only on one platform:
 
-- **`-DXML_STATIC` matters on Windows.** Without it `expat_external.h`
-  decorates every declaration with `__declspec(dllimport)` and the link
-  fails.
+- **`-DXML_STATIC` is recommended, not required.** It says what is true
+  — the library is linked statically — and it keeps the headers from
+  marking declarations `__declspec(dllimport)`. Stock `expat_external.h`
+  does that only for Microsoft’s compiler (`_MSC_VER`), which Rtools is
+  not, so a build without the define links today. Keep it anyway: it
+  costs nothing and survives a change of toolchain.
 - **Quote the path.** It comes from
   [`system.file()`](https://rdrr.io/r/base/system.file.html), so it
   lives under the R library, and on Windows the user library sits under
@@ -134,13 +137,15 @@ from, and **nothing else** — no `zux_*` wrapper, no R glue, since either
 would be dead weight or a duplicate symbol inside your shared object.
 
 It is compiled with zuxml’s feature policy, which is stricter than a
-distro build, and your code inherits every part of it:
+distro build. Your code inherits the compiled-in half of that policy:
 
 - **`XML_GE 0`, and `XML_DTD` never defined.** General entities,
   parameter entities, external subsets and the external-entity machinery
   are compiled out, so XXE and entity amplification are impossible
-  rather than disabled. The cost: any entity reference other than the
-  five built-ins and numeric character references is a parse error.
+  rather than disabled. In a document with no `DOCTYPE`, any entity
+  reference other than the five built-ins and numeric character
+  references is a parse error. With one, it may not be: see the next
+  section.
 - **Do not define `XML_GE=1` on your own command line.** `expat.h` would
   then declare `XML_SetBillionLaughsAttackProtection*()`, which the
   archive does not define, and you would get a link error. Those
@@ -152,6 +157,56 @@ distro build, and your code inherits every part of it:
 - **`XML_UNICODE` is not defined**, so `XML_Char` is plain `char` and
   input is UTF-8. `XML_LARGE_SIZE` and `XML_ATTR_INFO` are not defined
   either.
+
+## What you do not inherit
+
+The rest of zuxml’s policy is not compiled into Expat. It lives in
+zuxml’s own parser, above Expat, which is exactly the code an archive
+consumer does not call. So `XML_ParserCreate()` on the archive gives you
+none of it:
+
+- **No `DOCTYPE` rejection.** zuxml refuses a `DOCTYPE` by default, and
+  an internal subset always. That matters more than it looks. With
+  `XML_GE 0`, Expat does not record entity declarations, so in a
+  document that declares `<!ENTITY e "x">` in an internal subset, a
+  reference `&e;` does not fail: it arrives in your character-data
+  handler as the four characters `&e;`. The document is silently wrong.
+  A `DOCTYPE` that names an external subset makes Expat skip undeclared
+  references instead of failing on them.
+- **No resource limits.** zuxml’s `max_depth`, `max_nodes`, `max_attrs`
+  and `max_text` are counted in its own handlers. Expat bounds none of
+  them.
+
+If your input can be hostile, install the same guards yourself.
+Rejecting a `DOCTYPE` is one handler, which is what zuxml does in
+`src/zux_parser.c`:
+
+``` c
+static void XMLCALL
+reject_doctype(void *user, const XML_Char *name, const XML_Char *sysid,
+               const XML_Char *pubid, int has_internal_subset) {
+  XML_Parser p = (XML_Parser)user;
+  (void)name; (void)sysid; (void)pubid; (void)has_internal_subset;
+  /* Record why, then stop: XML_Parse() returns XML_STATUS_ERROR. */
+  XML_StopParser(p, XML_FALSE);
+}
+
+/* after XML_ParserCreate(): */
+XML_SetUserData(p, p);   /* or your own struct holding p */
+XML_SetStartDoctypeDeclHandler(p, reject_doctype);
+```
+
+To accept a `DOCTYPE` but refuse an internal subset, as zuxml’s
+`allow_doctype = TRUE` does, stop only when `has_internal_subset` is
+non-zero. Bound depth by counting in your start- and end-element
+handlers, and text by counting in your character-data handler, stopping
+the parser the same way.
+
+**Security fixes reach you only when you rebuild.** Your copy of Expat
+is linked into your shared object. When zuxml updates its bundled Expat,
+for a security fix or otherwise, your users get the fix only once your
+package is rebuilt and re-released against the new zuxml. R does not
+rebuild `LinkingTo` dependents on upgrade.
 
 ## Check that you actually linked it
 

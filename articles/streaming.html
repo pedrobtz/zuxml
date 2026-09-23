@@ -121,21 +121,38 @@ call the per-call overhead starts to show.)</p>
 <h2 id="using-it-from-c">Using it from C<a class="anchor" aria-label="anchor" href="#using-it-from-c"></a>
 </h2>
 <p>A consumer declares <code>Imports: zuxml</code> and
-<code>LinkingTo: zuxml</code>, includes the public header, and fetches
-the function table once:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="pp">#define ZUXML_DEFINE_API_GET</span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;zuxml.h&gt;</span></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="dt">static</span> <span class="dt">const</span> zuxml_api <span class="op">*</span>api<span class="op">;</span></span>
+<code>LinkingTo: zuxml</code> in its <code>DESCRIPTION</code>, and an
+import directive such as <code>importFrom(zuxml, zuxml_info)</code> in
+its <code>NAMESPACE</code>. The directive is required: the function
+table is registered when zuxml’s namespace is loaded, and
+<code>Imports:</code> alone only guarantees that zuxml is installed.
+Without it, every lookup fails with “function ‘zuxml_api_v2’ not
+provided by package ‘zuxml’”.</p>
+<p>In exactly one source file, the consumer defines
+<code>ZUXML_DEFINE_API_GET</code> before including the header, which
+emits <code>zuxml_api_get()</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;R.h&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;R_ext/Rdynload.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="pp">#define ZUXML_DEFINE_API_GET</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;zuxml.h&gt;</span></span>
 <span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="dt">void</span> R_init_mypkg<span class="op">(</span>DllInfo <span class="op">*</span>dll<span class="op">)</span> <span class="op">{</span></span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  api <span class="op">=</span> zuxml_api_get<span class="op">();</span>   <span class="co">/* aborts if the ABI version does not match */</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>The header exposes no Expat type, and the consumer never links
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>SEXP mypkg_parse<span class="op">(</span>SEXP x<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="dt">const</span> zuxml_api <span class="op">*</span>api <span class="op">=</span> zuxml_api_get<span class="op">();</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="co">/* ... */</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Call <code>zuxml_api_get()</code> where the table is needed, not in
+<code>R_init_mypkg()</code>. It looks the table up once and caches it.
+If zuxml’s namespace is not loaded, or the installed zuxml no longer
+provides this table version, the lookup raises an ordinary R error, and
+raising one while your package is still loading would make the package
+fail to load. Members added after the table was first published are
+guarded with <code>ZUXML_API_HAS(api, member)</code>.</p>
+<p>The header exposes no Expat type, and a table consumer never links
 against Expat. That separation is checked on every CI run by a fixture
-package built exactly the way a real consumer would be, including an
-assertion that the compiled object references zero <code>XML_*</code>
-symbols.</p>
+package, <code>tools/zuxmltable</code>, built and installed exactly the
+way a real consumer would be. Its compiled object is asserted to contain
+no Expat symbol and no zuxml-internal one, and it calls every member of
+the table.</p>
 <p>To parse incrementally, create a tree builder, feed it, and
 finish:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>zux_tree_builder <span class="op">*</span>b<span class="op">;</span></span>

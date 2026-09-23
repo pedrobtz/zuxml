@@ -55,24 +55,43 @@ per-call overhead starts to show.)
 
 ## Using it from C
 
-A consumer declares `Imports: zuxml` and `LinkingTo: zuxml`, includes
-the public header, and fetches the function table once:
+A consumer declares `Imports: zuxml` and `LinkingTo: zuxml` in its
+`DESCRIPTION`, and an import directive such as
+`importFrom(zuxml, zuxml_info)` in its `NAMESPACE`. The directive is
+required: the function table is registered when zuxml’s namespace is
+loaded, and `Imports:` alone only guarantees that zuxml is installed.
+Without it, every lookup fails with “function ‘zuxml_api_v2’ not
+provided by package ‘zuxml’”.
+
+In exactly one source file, the consumer defines `ZUXML_DEFINE_API_GET`
+before including the header, which emits `zuxml_api_get()`:
 
 ``` c
+#include <R.h>
+#include <R_ext/Rdynload.h>
 #define ZUXML_DEFINE_API_GET
 #include <zuxml.h>
 
-static const zuxml_api *api;
-
-void R_init_mypkg(DllInfo *dll) {
-  api = zuxml_api_get();   /* aborts if the ABI version does not match */
+SEXP mypkg_parse(SEXP x) {
+  const zuxml_api *api = zuxml_api_get();
+  /* ... */
 }
 ```
 
-The header exposes no Expat type, and the consumer never links against
-Expat. That separation is checked on every CI run by a fixture package
-built exactly the way a real consumer would be, including an assertion
-that the compiled object references zero `XML_*` symbols.
+Call `zuxml_api_get()` where the table is needed, not in
+`R_init_mypkg()`. It looks the table up once and caches it. If zuxml’s
+namespace is not loaded, or the installed zuxml no longer provides this
+table version, the lookup raises an ordinary R error, and raising one
+while your package is still loading would make the package fail to load.
+Members added after the table was first published are guarded with
+`ZUXML_API_HAS(api, member)`.
+
+The header exposes no Expat type, and a table consumer never links
+against Expat. That separation is checked on every CI run by a fixture
+package, `tools/zuxmltable`, built and installed exactly the way a real
+consumer would be. Its compiled object is asserted to contain no Expat
+symbol and no zuxml-internal one, and it calls every member of the
+table.
 
 To parse incrementally, create a tree builder, feed it, and finish:
 

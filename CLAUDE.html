@@ -54,7 +54,7 @@
 <ul><li>Stages 0–6 are complete. Stage 6’s table criteria went unverified from f3392b2, which retargeted the only fixture at the archive, until #36 added <code>tools/zuxmltable</code> beside it.</li>
 <li>Stage 7 (#32) is open. The interrupt criterion is unverified but automatable (#37). The 24h-per-target fuzzing criterion is not met yet; the grown corpus is cached between CI runs, so fuzzing time accumulates.</li>
 <li>Stage 8 (#33) is complete. Its one open box is an optional win-builder R-devel run.</li>
-<li>Stage 9 (#34) is blocked on #44.</li>
+<li>Stage 9 (#34) has no mechanical blocker left: tag <code>v0.1.0</code> and submit.</li>
 <li>
 <strong>Consumers:</strong> <code>zuxlsx</code> is the only one, and it uses the archive. The registered table has no consumer yet — <code>zuhttp</code> plans no XML support — so <code>tools/zuxmltable</code> stands in for one and calls all 26 members.</li>
 <li>An archive consumer does not inherit the seam’s DOCTYPE rejection or its limits (#41).</li>
