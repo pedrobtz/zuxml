@@ -20,8 +20,10 @@ Bundled verbatim in src/vendor/expat/.
 Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
 Copyright (c) 2001-2025 Expat maintainers
 
-Full text in src/vendor/expat/COPYING; contributors in
-src/vendor/expat/AUTHORS. Upstream is https://github.com/libexpat/libexpat
+Full text in src/vendor/expat/COPYING, which is installed as
+licenses/expat-COPYING; contributors in src/vendor/expat/AUTHORS. An
+installed zuxml carries Expat compiled into its shared object and into
+lib/libzuxml.a, and carries Expat's public headers in include/. Upstream is https://github.com/libexpat/libexpat
 and the pinned release, its checksum and the import date are recorded in
 src/vendor/PROVENANCE.
 

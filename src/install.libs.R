@@ -43,3 +43,18 @@ install_or_stop("libzuxml.a", lib,
 include <- file.path(R_PACKAGE_DIR, "include")
 install_or_stop(file.path("vendor", "expat", c("expat.h", "expat_external.h")),
                 include, "the Expat headers from src/vendor/expat/")
+
+## Expat's licence. This is a licensing obligation, not tidiness: MIT requires
+## the copyright and permission notice to accompany every copy, and an
+## installed zuxml carries Expat three times over -- compiled into the shared
+## object, compiled into libzuxml.a, and as expat.h. Nothing outside inst/ is
+## installed, so without this copy the notice reached the source tarball and
+## stopped there; inst/COPYRIGHTS pointed at a file the installed package did
+## not have. Copied from the vendored tree, so it cannot drift from the sources
+## the archive was compiled from. zukomp installs miniz's the same way.
+licenses <- file.path(R_PACKAGE_DIR, "licenses")
+dir.create(licenses, recursive = TRUE, showWarnings = FALSE)
+if (!file.copy(file.path("vendor", "expat", "COPYING"),
+               file.path(licenses, "expat-COPYING"), overwrite = TRUE)) {
+  stop("zuxml: failed to install Expat's COPYING from src/vendor/expat/")
+}
