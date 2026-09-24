@@ -223,7 +223,10 @@ xml_parent(x)
 xml_children(x)                        # all children, every node kind, in document order
 xml_elements(x, name = NULL, ns = NULL) # element children, optionally filtered
 xml_find(x, name, ns = NULL)            # element descendants, filtered, document order
+xml_find_first(x, name = NULL, ns = NULL) # first such descendant per input, or a missing node
 ```
+
+**Missing nodes (#59).** `xml_find()` is flat, so it cannot keep results aligned with its input: one `<book>` without a `<title>` shifts every later title into the wrong row. `xml_find_first()` returns exactly one node per input, and a *missing node* (`NA_integer_` in the handle) where there is no match. The contract, fixed before 0.1.0 because it is cheap now and a break later: every accessor returns `NA` for a missing node, `xml_attrs()` an empty named vector, `xml_serialize()` `NA`; traversals skip it (no parent, children or descendants), so a chained `xml_find_first()` keeps the slot; `xml_attr()`'s `default` applies to it. What has no answer for one refuses it with `zuxml_invalid_argument`: `xml_write()`, `xml_table()`, `xml_list()`. In C the rule sits in front of `check_id()`, which still rejects `NA` from any path that did not ask for it.
 
 Filtering rule, uniform everywhere: `name` matches the **local** name. `ns = NULL` matches any namespace, `ns = NA` matches only nodes in no namespace, `ns = "uri"` matches that URI.
 

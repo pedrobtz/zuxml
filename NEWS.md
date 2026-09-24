@@ -19,6 +19,10 @@ First release.
 * `xml_root()`, `xml_parent()`, `xml_children()`, `xml_elements()` and
   `xml_find()` walk the tree. `xml_elements()` and `xml_find()` take an
   optional name and namespace filter.
+* `xml_find_first()` returns one node per input: the first matching
+  descendant, or a missing node where there is none. Every accessor gives
+  `NA` for a missing node, so per-record lookups stay aligned when a field
+  is absent, which a flat `xml_find()` cannot do.
 * `xml_name()`, `xml_local()`, `xml_ns()`, `xml_prefix()`, `xml_attr()`,
   `xml_attrs()`, `xml_text()` and `xml_type()` read node properties. All are
   vectorized over a nodeset, so *n* nodes give a result of length *n*.

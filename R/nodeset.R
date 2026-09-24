@@ -27,6 +27,10 @@ as.integer.zuxml_nodeset <- function(x, ...) as.vector(unclass(x), "integer")
 print.zuxml_nodeset <- function(x, n = 10L, ...) {
   len <- length(x)
   if (len == 1L) {
+    if (is.na(unclass(x))) {
+      cat("<zuxml_node missing>\n")
+      return(invisible(x))
+    }
     kind <- xml_type(x)
     cat(sprintf("<zuxml_node %s>\n", kind))
     if (kind %in% c("element", "pi")) {
@@ -46,6 +50,7 @@ print.zuxml_nodeset <- function(x, n = 10L, ...) {
     show <- seq_len(min(len, n))
     nm <- xml_name(x[show])
     ty <- xml_type(x[show])
+    ty[is.na(ty)] <- "missing"
     cat(paste0("[", show, "] ",
                ifelse(is.na(nm), paste0("<", ty, ">"), paste0("<", nm, ">")),
                collapse = " "), "\n")
@@ -75,5 +80,7 @@ print.zuxml_document <- function(x, ...) {
 #' @export
 format.zuxml_nodeset <- function(x, ...) {
   nm <- xml_name(x)
-  ifelse(is.na(nm), paste0("<", xml_type(x), ">"), paste0("<", nm, ">"))
+  ty <- xml_type(x)
+  ty[is.na(ty)] <- "missing"
+  ifelse(is.na(nm), paste0("<", ty, ">"), paste0("<", nm, ">"))
 }

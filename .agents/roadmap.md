@@ -402,7 +402,7 @@ A read-through of the whole repository against this roadmap, the design and the 
 
 **Recommended 0.1.0 scope**
 
-- **Keep the R API as it is**: the 21 exports (23 since `xml_table()` and `xml_list()` were added for 0.1.0 on 2026-09-24, #57), the `xml_*` names, node and nodeset as one integer-vector type. Fix the usability traps in #40 before CRAN, since afterwards each fix is a breaking change: a multi-element `x` collapsed with `""`, invalid limits silently replaced by defaults, unclassed argument errors, and conditions mapped by matching the English status string rather than the status enumerator, which C already returns as `code`.
+- **Keep the R API as it is**: the 21 exports (24 since `xml_table()` and `xml_list()` (#57) and `xml_find_first()` (#59) were added for 0.1.0 on 2026-09-24), the `xml_*` names, node and nodeset as one integer-vector type. Fix the usability traps in #40 before CRAN, since afterwards each fix is a breaking change: a multi-element `x` collapsed with `""`, invalid limits silently replaced by defaults, unclassed argument errors, and conditions mapped by matching the English status string rather than the status enumerator, which C already returns as `code`.
 - **Keep the archive.** It has the family's only real consumer, `zuxlsx`. Say plainly what an archive consumer does not inherit from the seam (#41, zuxlsx#47).
 - **Decide the table (#36):** either a fixture that calls every `zuxml_api` member through `Imports:` + `LinkingTo:` + `importFrom()`, or stop registering it for 0.1.0. Shipping it untested is the one option not to take.
 - Everything under *Explicitly not in v1* stays out.

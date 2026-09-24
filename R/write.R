@@ -60,6 +60,10 @@ zux_serialize_abort <- function(res) {
 #' @rdname xml_serialize
 #' @export
 xml_write <- function(x, path, declaration = TRUE) {
+  # A missing node serializes to NA, which paste() would write as the two
+  # characters "NA": refuse rather than write a file that is not XML.
+  if (!inherits(x, "zuxml_document") && anyNA(unclass(x)))
+    zux_invalid_argument("x", "cannot write a missing node")
   txt <- xml_serialize(x, declaration = declaration)
   con <- file(path, open = "wb")
   on.exit(close(con), add = TRUE)

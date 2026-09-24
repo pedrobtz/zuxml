@@ -412,6 +412,12 @@ idbuf_add(idbuf *b, zux_id id) {
   b->v[b->n++] = (int)id;
 }
 
+static void
+idbuf_add_missing(idbuf *b) {
+  idbuf_add(b, 0);
+  b->v[b->n - 1] = NA_INTEGER;
+}
+
 /* Reverse the run [from, n) in place. Children are pushed in document order
  * and then flipped, so popping yields document order -- the same result the
  * old per-node "kids" temporary produced, without allocating one buffer for
@@ -436,6 +442,12 @@ idbuf_sexp(idbuf *b) {
     memcpy(INTEGER(out), b->v, b->n * sizeof(int));
   return out;
 }
+
+/* NA_INTEGER is the missing node: what xml_find_first() returns for an
+ * input with no match (#59). Accessors give NA for it, traversals skip it,
+ * and only check_id() itself -- reached by code that has no answer for a
+ * missing node -- still refuses it. */
+#define ZUX_IS_MISSING(v) ((v) == NA_INTEGER)
 
 static zux_id
 check_id(const zux_document *d, int v) {
@@ -463,8 +475,14 @@ C_zux_node_info(SEXP xp, SEXP ids, SEXP what) {
   if (strcmp(w, "kind") == 0) {
     out = PROTECT(Rf_allocVector(STRSXP, n));
     for (i = 0; i < n; i++) {
-      zux_id id = check_id(d, INTEGER(ids)[i]);
-      int k = zux_node_kind(d, id);
+      zux_id id;
+      int k;
+      if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+        SET_STRING_ELT(out, i, NA_STRING);
+        continue;
+      }
+      id = check_id(d, INTEGER(ids)[i]);
+      k = zux_node_kind(d, id);
       const char *s = k == ZUX_DOCUMENT  ? "document"
                       : k == ZUX_ELEMENT ? "element"
                       : k == ZUX_TEXT    ? "text"
@@ -478,10 +496,17 @@ C_zux_node_info(SEXP xp, SEXP ids, SEXP what) {
 
   out = PROTECT(Rf_allocVector(STRSXP, n));
   for (i = 0; i < n; i++) {
-    zux_id id = check_id(d, INTEGER(ids)[i]);
-    zux_name nm = zux_node_name(d, id);
-    int is_named = zux_node_kind(d, id) == ZUX_ELEMENT
-                   || zux_node_kind(d, id) == ZUX_PI;
+    zux_id id;
+    zux_name nm;
+    int is_named;
+    if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+      SET_STRING_ELT(out, i, NA_STRING);
+      continue;
+    }
+    id = check_id(d, INTEGER(ids)[i]);
+    nm = zux_node_name(d, id);
+    is_named = zux_node_kind(d, id) == ZUX_ELEMENT
+               || zux_node_kind(d, id) == ZUX_PI;
     if (! is_named) {
       SET_STRING_ELT(out, i, NA_STRING);
       continue;
@@ -508,7 +533,12 @@ C_zux_parent(SEXP xp, SEXP ids) {
   R_xlen_t n = Rf_xlength(ids), i;
   SEXP out = PROTECT(Rf_allocVector(INTSXP, n));
   for (i = 0; i < n; i++) {
-    zux_id p = zux_parent(d, check_id(d, INTEGER(ids)[i]));
+    zux_id p;
+    if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+      INTEGER(out)[i] = NA_INTEGER;
+      continue;
+    }
+    p = zux_parent(d, check_id(d, INTEGER(ids)[i]));
     INTEGER(out)[i] = p == ZUX_NONE ? NA_INTEGER : (int)p;
   }
   UNPROTECT(1);
@@ -516,7 +546,10 @@ C_zux_parent(SEXP xp, SEXP ids) {
 }
 
 /* mode 0 = all children, 1 = element children (filtered),
- * mode 2 = element descendants (filtered), all in document order. */
+ * mode 2 = element descendants (filtered), all in document order, each a
+ * flat result; a missing input contributes nothing.
+ * mode 3 = the first element descendant (filtered) of each input, exactly
+ * one per input, NA_INTEGER when there is none or the input is missing. */
 SEXP
 C_zux_select(SEXP xp, SEXP ids, SEXP mode_, SEXP local, SEXP uri) {
   zux_document *d = doc_ptr(xp);
@@ -526,8 +559,14 @@ C_zux_select(SEXP xp, SEXP ids, SEXP mode_, SEXP local, SEXP uri) {
   memset(&b, 0, sizeof(b));
 
   for (i = 0; i < n; i++) {
-    zux_id root = check_id(d, INTEGER(ids)[i]);
+    zux_id root;
     zux_id c;
+    if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+      if (mode == 3)
+        idbuf_add_missing(&b);
+      continue;
+    }
+    root = check_id(d, INTEGER(ids)[i]);
     if (mode == 0) {
       for (c = zux_first_child(d, root); c != ZUX_NONE;
            c = zux_next_sibling(d, c))
@@ -542,6 +581,7 @@ C_zux_select(SEXP xp, SEXP ids, SEXP mode_, SEXP local, SEXP uri) {
       /* Iterative pre-order descent with an explicit stack: deep documents
        * must not be able to recurse the C stack here either. */
       idbuf stack;
+      int found = 0;
       memset(&stack, 0, sizeof(stack));
       /* Seed reversed, like every later push, so popping yields document
        * order rather than reverse document order. */
@@ -554,14 +594,21 @@ C_zux_select(SEXP xp, SEXP ids, SEXP mode_, SEXP local, SEXP uri) {
         zux_id k;
         size_t base;
         if (zux_node_kind(d, id) == ZUX_ELEMENT
-            && name_matches(zux_node_name(d, id), local, uri))
+            && name_matches(zux_node_name(d, id), local, uri)) {
           idbuf_add(&b, id);
+          if (mode == 3) {
+            found = 1;
+            break;
+          }
+        }
         base = stack.n;
         for (k = zux_first_child(d, id); k != ZUX_NONE;
              k = zux_next_sibling(d, k))
           idbuf_add(&stack, k);
         idbuf_reverse_from(&stack, base);
       }
+      if (mode == 3 && ! found)
+        idbuf_add_missing(&b);
     }
   }
   return idbuf_sexp(&b);
@@ -581,10 +628,17 @@ C_zux_text(SEXP xp, SEXP ids, SEXP recursive_) {
    * max_nodes, so it has to be bounded here instead. */
   for (i = 0; i < n; i++) {
     void *vmax = vmaxget();
-    zux_id id = check_id(d, INTEGER(ids)[i]);
-    int kind = zux_node_kind(d, id);
+    zux_id id;
+    int kind;
     size_t total = 0;
     char *buf;
+
+    if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+      SET_STRING_ELT(out, i, NA_STRING);
+      continue;
+    }
+    id = check_id(d, INTEGER(ids)[i]);
+    kind = zux_node_kind(d, id);
 
     if (kind == ZUX_TEXT || kind == ZUX_COMMENT) {
       SET_STRING_ELT(out, i, mk_utf8(zux_node_text(d, id)));
@@ -655,8 +709,11 @@ C_zux_attrs(SEXP xp, SEXP ids) {
   R_xlen_t n = Rf_xlength(ids), i;
   SEXP out = PROTECT(Rf_allocVector(VECSXP, n));
   for (i = 0; i < n; i++) {
-    zux_id id = check_id(d, INTEGER(ids)[i]);
-    uint32_t k, na = zux_attr_count(d, id);
+    /* A missing node has no attributes: an empty named vector, the same
+     * shape as an element that has none. */
+    int missing = ZUX_IS_MISSING(INTEGER(ids)[i]);
+    zux_id id = missing ? 0 : check_id(d, INTEGER(ids)[i]);
+    uint32_t k, na = missing ? 0 : zux_attr_count(d, id);
     SEXP v = PROTECT(Rf_allocVector(STRSXP, na));
     SEXP nms = PROTECT(Rf_allocVector(STRSXP, na));
     for (k = 0; k < na; k++) {
@@ -678,9 +735,13 @@ C_zux_attr(SEXP xp, SEXP ids, SEXP local, SEXP uri) {
   R_xlen_t n = Rf_xlength(ids), i;
   SEXP out = PROTECT(Rf_allocVector(STRSXP, n));
   for (i = 0; i < n; i++) {
-    zux_id id = check_id(d, INTEGER(ids)[i]);
-    uint32_t k, na = zux_attr_count(d, id);
+    zux_id id;
+    uint32_t k, na;
     SET_STRING_ELT(out, i, NA_STRING);
+    if (ZUX_IS_MISSING(INTEGER(ids)[i]))
+      continue;
+    id = check_id(d, INTEGER(ids)[i]);
+    na = zux_attr_count(d, id);
     for (k = 0; k < na; k++) {
       zux_attr a = zux_attr_at(d, id, k);
       if (name_matches(a.name, local, uri)) {
@@ -753,10 +814,16 @@ C_zux_serialize(SEXP xp, SEXP ids) {
   SEXP hold = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(hold, buf_finalizer, TRUE);
   for (i = 0; i < n; i++) {
-    zux_id id = check_id(d, INTEGER(ids)[i]);
+    zux_id id;
     char *s = NULL;
     size_t len = 0;
-    zux_status st = zux_serialize(d, id, &s, &len);
+    zux_status st;
+    if (ZUX_IS_MISSING(INTEGER(ids)[i])) {
+      SET_STRING_ELT(out, i, NA_STRING);
+      continue;
+    }
+    id = check_id(d, INTEGER(ids)[i]);
+    st = zux_serialize(d, id, &s, &len);
     R_SetExternalPtrAddr(hold, s);
     if (st != ZUX_OK || len > (size_t)INT_MAX) {
       buf_finalizer(hold);
