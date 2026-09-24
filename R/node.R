@@ -43,16 +43,34 @@ zux_as_doc <- function(x) {
 #' `xml_children()` to reach text, comment and processing-instruction nodes,
 #' which it returns along with elements.
 #'
+#' `xml_find()` returns one flat nodeset, so it cannot keep results aligned
+#' with its input: if one `<book>` has no `<title>`, the titles no longer
+#' line up with the books. `xml_find_first()` returns exactly one node per
+#' input node, its first matching descendant in document order, or a
+#' **missing node** when there is none.
+#'
+#' A missing node gives `NA` from every accessor ([xml_name()], [xml_text()],
+#' [xml_attr()], [xml_type()] and the rest) and from [xml_serialize()], and an
+#' empty named vector from [xml_attrs()]. Traversals skip it: it has no
+#' parent, children or descendants. [xml_attr()]'s `default` applies to it,
+#' as to any node lacking the attribute.
+#'
 #' @param x A `zuxml_document`, node, or nodeset.
 #' @param name Local name to match, or `NULL` for any.
 #' @param ns Namespace URI, `NA` for none, `NULL` for any.
-#' @return `xml_root()`, `xml_parent()`, `xml_children()`, `xml_elements()`
-#'   and `xml_find()` return a nodeset.
+#' @return `xml_root()`, `xml_parent()`, `xml_children()`, `xml_elements()`,
+#'   `xml_find()` and `xml_find_first()` return a nodeset.
+#'   `xml_find_first()`'s has the length of `x`.
 #' @name xml_navigate
 #' @examples
 #' doc <- xml_parse("<r><a><b>1</b></a><b>2</b></r>")
 #' xml_name(xml_children(xml_root(doc)))
 #' xml_text(xml_find(doc, "b"))
+#'
+#' # One result per book, NA where a book has no title.
+#' books <- xml_elements(xml_root(xml_parse(
+#'   "<r><book><title>A</title></book><book/><book><title>C</title></book></r>")))
+#' xml_text(xml_find_first(books, "title"))
 NULL
 
 #' @rdname xml_navigate
@@ -90,6 +108,14 @@ xml_elements <- function(x, name = NULL, ns = NULL) {
 xml_find <- function(x, name = NULL, ns = NULL) {
   d <- zux_as_doc(x)
   new_nodeset(.Call(C_zux_select, d$ptr, zux_ids(x), 2L,
+                    zux_chr(name), zux_chr(ns)), d)
+}
+
+#' @rdname xml_navigate
+#' @export
+xml_find_first <- function(x, name = NULL, ns = NULL) {
+  d <- zux_as_doc(x)
+  new_nodeset(.Call(C_zux_select, d$ptr, zux_ids(x), 3L,
                     zux_chr(name), zux_chr(ns)), d)
 }
 

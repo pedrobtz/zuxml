@@ -7,6 +7,7 @@
 \alias{xml_children}
 \alias{xml_elements}
 \alias{xml_find}
+\alias{xml_find_first}
 \title{Navigate an XML document}
 \usage{
 xml_root(x)
@@ -18,6 +19,8 @@ xml_children(x)
 xml_elements(x, name = NULL, ns = NULL)
 
 xml_find(x, name = NULL, ns = NULL)
+
+xml_find_first(x, name = NULL, ns = NULL)
 }
 \arguments{
 \item{x}{A \code{zuxml_document}, node, or nodeset.}
@@ -27,8 +30,9 @@ xml_find(x, name = NULL, ns = NULL)
 \item{ns}{Namespace URI, \code{NA} for none, \code{NULL} for any.}
 }
 \value{
-\code{xml_root()}, \code{xml_parent()}, \code{xml_children()}, \code{xml_elements()}
-and \code{xml_find()} return a nodeset.
+\code{xml_root()}, \code{xml_parent()}, \code{xml_children()}, \code{xml_elements()},
+\code{xml_find()} and \code{xml_find_first()} return a nodeset.
+\code{xml_find_first()}'s has the length of \code{x}.
 }
 \description{
 Every accessor is vectorized: given a nodeset of length \code{n} it returns a
@@ -45,9 +49,26 @@ prefixes bound to one URI are the same name.
 \code{name} is \code{NULL}: they search by name, and only elements have one. Use
 \code{xml_children()} to reach text, comment and processing-instruction nodes,
 which it returns along with elements.
+
+\code{xml_find()} returns one flat nodeset, so it cannot keep results aligned
+with its input: if one \verb{<book>} has no \verb{<title>}, the titles no longer
+line up with the books. \code{xml_find_first()} returns exactly one node per
+input node, its first matching descendant in document order, or a
+\strong{missing node} when there is none.
+
+A missing node gives \code{NA} from every accessor (\code{\link[=xml_name]{xml_name()}}, \code{\link[=xml_text]{xml_text()}},
+\code{\link[=xml_attr]{xml_attr()}}, \code{\link[=xml_type]{xml_type()}} and the rest) and from \code{\link[=xml_serialize]{xml_serialize()}}, and an
+empty named vector from \code{\link[=xml_attrs]{xml_attrs()}}. Traversals skip it: it has no
+parent, children or descendants. \code{\link[=xml_attr]{xml_attr()}}'s \code{default} applies to it,
+as to any node lacking the attribute.
 }
 \examples{
 doc <- xml_parse("<r><a><b>1</b></a><b>2</b></r>")
 xml_name(xml_children(xml_root(doc)))
 xml_text(xml_find(doc, "b"))
+
+# One result per book, NA where a book has no title.
+books <- xml_elements(xml_root(xml_parse(
+  "<r><book><title>A</title></book><book/><book><title>C</title></book></r>")))
+xml_text(xml_find_first(books, "title"))
 }

@@ -85,6 +85,7 @@ zux_extract_nodes <- function(x, names, ns, call = sys.call(-1L)) {
   nodes <- if (inherits(x, "zuxml_document")) xml_root(x) else x
   zux_doc_of(nodes)
   ok <- xml_type(nodes) == "element" & xml_local(nodes) %in% names
+  ok[is.na(ok)] <- FALSE  # a missing node is not a table or a list
   if (!is.null(ns)) {
     uri <- xml_ns(nodes)
     ok <- ok & (if (is.na(ns)) is.na(uri) else !is.na(uri) & uri == ns)
