@@ -90,7 +90,7 @@ The highest-risk stage. Do not proceed until it is genuinely green on Windows.
 
 ## Stage 2 — Event seam and security policy · L
 
-**Status:** complete. One criterion is met more weakly than written: the XXE fixture is asserted by a canary file never reaching the event stream (`tests/testthat/test-security.R`), not at the syscall level. `cran-comments.md` still claims the stronger form ("assert no file is opened") and needs the same correction.
+**Status:** complete. One criterion is met more weakly than written: the XXE fixture is asserted by a canary file never reaching the event stream (`tests/testthat/test-security.R`), not at the syscall level. `cran-comments.md` states it in that weaker form too (criterion 5: "Nothing observes system calls").
 
 The core of the package. Everything downstream is a consumer of what this stage defines.
 
@@ -306,7 +306,7 @@ Gate verified non-vacuous the same way the mutation check is: removing the `hst-
 
 ## Stage 8 — Documentation, benchmarks, CRAN prep · M
 
-**Status:** complete. The valgrind criterion is met by the valgrind job in `native-checks.yaml` on every push, and win-builder and R-hub are covered by CI rows, as `cran-comments.md` explains. #33 now says the same; its one open box is an optional win-builder R-devel run, since that is the machine CRAN's incoming pre-test uses.
+**Status:** complete. The valgrind criterion is met by the valgrind job in `native-checks.yaml` on every push, and win-builder and R-hub are covered by CI rows, as `cran-comments.md` explains. #33 was closed on 2026-09-24 without the optional win-builder R-devel run: the `windows-latest`/R-devel row runs the same flavor on every push, which a one-off manual run would only repeat.
 
 **Do**
 - roxygen2 docs for the full export surface; every function has a runnable example.
@@ -346,7 +346,7 @@ The memory gap is the one real finding, and it is smaller than it first looked. 
   promising API stability before `zuhttp` has actually used it would be
   premature, and CRAN version numbers only go up.
 - ~~Verify all twelve acceptance criteria (design §23) explicitly, one by one, in `cran-comments.md`~~ **done** — a table naming, for each criterion, the test file, tool or CI job that verifies it. Writing it out was worth the effort: every criterion had something behind it, but three were verified only by a gate that nothing in `cran-comments.md` had previously mentioned.
-- **Tag, submit, respond to CRAN — outstanding, and deliberately a human step, but not reachable yet.** This bullet used to say everything mechanical was done. The 2026-09-22 review found mechanical work left: #35, #36, #38, #40 and #44 (see *Review 2026-09-22* below). What was done stands: the pkgdown site is live, so the DESCRIPTION URL resolves; the README offers `install.packages("zuxml")` as well as the development install; and `R CMD check --as-cran --run-donttest` is clean. The win-builder, R-hub and Linux valgrind runs are no longer outstanding (Stage 8). The submission itself remains.
+- **Tag, submit, respond to CRAN — outstanding, and deliberately a human step.** The mechanical work the 2026-09-22 review found (#35, #36, #38, #40 and #44, see *Review 2026-09-22* below) is all closed. What was done before it stands: the pkgdown site is live, so the DESCRIPTION URL resolves; the README offers `install.packages("zuxml")` as well as the development install; and `R CMD check --as-cran --run-donttest` is clean. The win-builder, R-hub and Linux valgrind runs are no longer outstanding (Stage 8). The submission itself remains.
 - **Fixed after the 2026-09-22 review (#40, #43).** `xml_parse()` refuses a character `x` of any length but one, rather than pasting it with `""`, and an `encoding` other than UTF-8 for character input. Limits are positive whole numbers or `Inf`, never replaced by the default. Every argument error is `zuxml_invalid_argument`; C statuses map to classes by enumerator name; conditions carry `expat_code`, and limit errors the limit's name and value; `?"zuxml-conditions"` documents them. Found on the way: `encoding = "latin1"`, `"UTF8"` and `"ASCII"` reached Expat untranslated and failed as unknown. For #43, the document's external pointer now exists before the parse, and the serializer's buffer is held by one while R allocates, with its length bounded by `INT_MAX`.
 - **Fixed after the 2026-09-22 review (#44, and #41's documentation half).** The streaming vignette requires `importFrom()`, resolves the table at first use rather than in `R_init`, and names the fixture that checks for Expat symbols. The README and `vignette("linking")` quote `PKG_LIBS`, call `-DXML_STATIC` recommended rather than required (`dllimport` applies only under `_MSC_VER`), no longer promise that every zuxml update reaches a table consumer without a rebuild, and gain *What you do not inherit*: an archive consumer gets no DOCTYPE rejection and no limits, so an entity declared in an internal subset arrives as literal text. That claim, and the example handler, were checked against the installed archive. `cran-comments.md` names the archive's real path, counts the CI matrix as 5 runners and 3 containers, and says what the XXE tests assert. #41's code half, a policy helper in the archive, remains open.
 - The next consumer work was to be `zuhttp`'s `resp_xml()`, but `zuhttp` plans
