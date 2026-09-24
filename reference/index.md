@@ -11,6 +11,7 @@
   [`xml_children()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
   [`xml_elements()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
   [`xml_find()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+  [`xml_find_first()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
   : Navigate an XML document
 - [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
   [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)

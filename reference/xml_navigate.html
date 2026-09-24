@@ -61,7 +61,9 @@ nodeset.</p>
 <span></span>
 <span><span class="fu">xml_elements</span><span class="op">(</span><span class="va">x</span>, name <span class="op">=</span> <span class="cn">NULL</span>, ns <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">xml_find</span><span class="op">(</span><span class="va">x</span>, name <span class="op">=</span> <span class="cn">NULL</span>, ns <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">xml_find</span><span class="op">(</span><span class="va">x</span>, name <span class="op">=</span> <span class="cn">NULL</span>, ns <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">xml_find_first</span><span class="op">(</span><span class="va">x</span>, name <span class="op">=</span> <span class="cn">NULL</span>, ns <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -82,8 +84,9 @@ nodeset.</p>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p><code>xml_root()</code>, <code>xml_parent()</code>, <code>xml_children()</code>, <code>xml_elements()</code>
-and <code>xml_find()</code> return a nodeset.</p>
+    <p><code>xml_root()</code>, <code>xml_parent()</code>, <code>xml_children()</code>, <code>xml_elements()</code>,
+<code>xml_find()</code> and <code>xml_find_first()</code> return a nodeset.
+<code>xml_find_first()</code>'s has the length of <code>x</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -95,6 +98,16 @@ prefixes bound to one URI are the same name.</p>
 <code>name</code> is <code>NULL</code>: they search by name, and only elements have one. Use
 <code>xml_children()</code> to reach text, comment and processing-instruction nodes,
 which it returns along with elements.</p>
+<p><code>xml_find()</code> returns one flat nodeset, so it cannot keep results aligned
+with its input: if one <code>&lt;book&gt;</code> has no <code>&lt;title&gt;</code>, the titles no longer
+line up with the books. <code>xml_find_first()</code> returns exactly one node per
+input node, its first matching descendant in document order, or a
+<strong>missing node</strong> when there is none.</p>
+<p>A missing node gives <code>NA</code> from every accessor (<code><a href="xml_properties.html">xml_name()</a></code>, <code><a href="xml_properties.html">xml_text()</a></code>,
+<code><a href="xml_properties.html">xml_attr()</a></code>, <code><a href="xml_properties.html">xml_type()</a></code> and the rest) and from <code><a href="xml_serialize.html">xml_serialize()</a></code>, and an
+empty named vector from <code><a href="xml_properties.html">xml_attrs()</a></code>. Traversals skip it: it has no
+parent, children or descendants. <code><a href="xml_properties.html">xml_attr()</a></code>'s <code>default</code> applies to it,
+as to any node lacking the attribute.</p>
     </div>
 
     <div class="section level2">
@@ -104,6 +117,12 @@ which it returns along with elements.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "a" "b"</span>
 <span class="r-in"><span><span class="fu"><a href="xml_properties.html">xml_text</a></span><span class="op">(</span><span class="fu">xml_find</span><span class="op">(</span><span class="va">doc</span>, <span class="st">"b"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "1" "2"</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># One result per book, NA where a book has no title.</span></span></span>
+<span class="r-in"><span><span class="va">books</span> <span class="op">&lt;-</span> <span class="fu">xml_elements</span><span class="op">(</span><span class="fu">xml_root</span><span class="op">(</span><span class="fu"><a href="xml_parse.html">xml_parse</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="st">"&lt;r&gt;&lt;book&gt;&lt;title&gt;A&lt;/title&gt;&lt;/book&gt;&lt;book/&gt;&lt;book&gt;&lt;title&gt;C&lt;/title&gt;&lt;/book&gt;&lt;/r&gt;"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="xml_properties.html">xml_text</a></span><span class="op">(</span><span class="fu">xml_find_first</span><span class="op">(</span><span class="va">books</span>, <span class="st">"title"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "A" NA  "C"</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

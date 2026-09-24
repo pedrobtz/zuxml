@@ -34,6 +34,13 @@ First release.
   and
   [`xml_find()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
   take an optional name and namespace filter.
+- [`xml_find_first()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+  returns one node per input: the first matching descendant, or a
+  missing node where there is none. Every accessor gives `NA` for a
+  missing node, so per-record lookups stay aligned when a field is
+  absent, which a flat
+  [`xml_find()`](https://pedrobtz.github.io/zuxml/reference/xml_navigate.md)
+  cannot do.
 - [`xml_name()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md),
   [`xml_local()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md),
   [`xml_ns()`](https://pedrobtz.github.io/zuxml/reference/xml_properties.md),
