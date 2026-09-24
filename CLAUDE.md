@@ -127,7 +127,7 @@ R CMD INSTALL .                     # an installed layout, for test-linking.R
 ```
 
 `tests/testthat/test-linking.R` audits the *installed* package
-(`lib/libzuxml.a`, `include/expat.h`), so it skips under `load_all()`. It has
+(`lib${R_ARCH}/libzuxml.a`, `include/expat.h`), so it skips under `load_all()`. It has
 teeth only under `R CMD check` or against a real install, and there a missing
 artifact fails rather than skips: whether the layout is installed is read from
 `Meta/package.rds`, never from the artifact under test.

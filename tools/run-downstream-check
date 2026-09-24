@@ -4,7 +4,7 @@
 #
 #   tools/zuxmltest   the static archive, exactly as zuxlsx does: LinkingTo
 #                     alone, Expat's headers off the LinkingTo include path,
-#                     and <pkg>/lib/libzuxml.a linked statically by the
+#                     and <pkg>/lib${R_ARCH}/libzuxml.a linked statically by the
 #                     fixture's own ./configure. No Imports: entry and no
 #                     run-time dependency on zuxml.
 #   tools/zuxmltable  the registered table: Imports + LinkingTo, an
@@ -32,7 +32,9 @@ echo "==> installing zuxml"
 R CMD INSTALL --preclean --no-multiarch --library="$LIB" . >/dev/null
 
 echo "==> the LinkingTo archive and Expat headers are installed"
-for f in lib/libzuxml.a include/expat.h include/expat_external.h include/zuxml.h; do
+# lib${R_ARCH}: plain lib/ where R sets no architecture (#42).
+ARCH=$(Rscript --vanilla -e 'a <- .Platform$r_arch; if (nzchar(a)) cat("/", a, sep = "")')
+for f in "lib${ARCH}/libzuxml.a" include/expat.h include/expat_external.h include/zuxml.h; do
   [ -f "$LIB/zuxml/$f" ] || { echo "FAIL: $f is missing from the installation" >&2; exit 1; }
 done
 

@@ -26,11 +26,13 @@ if (file.exists("symbols.rds")) {
   install_or_stop("symbols.rds", libs, "symbols.rds")
 }
 
-## The archive is arch-specific but installs to a single arch-neutral path,
-## which is what the design asks for and what every current platform needs.
-## It would have to move under R_ARCH before zuxml could support a multi-arch
-## installation again.
-lib <- file.path(R_PACKAGE_DIR, "lib")
+## The archive is arch-specific object code, so it installs under R_ARCH the
+## way the shared object does, and as zukomp's does (#42). Where R_ARCH is
+## empty this is plain <pkg>/lib. Where R sets one, it keeps a second
+## architecture's archive from overwriting the first's. Consumers resolve it
+## by asking for lib/<r_arch> first and falling back to lib/, which is right
+## under either layout -- see vignette("linking") and zuxlsx's configure.
+lib <- file.path(R_PACKAGE_DIR, paste0("lib", R_ARCH))
 install_or_stop("libzuxml.a", lib,
                 "libzuxml.a (src/Makevars should have built it)")
 
