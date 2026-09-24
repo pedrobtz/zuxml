@@ -62,6 +62,14 @@
 <code><a href="../reference/xml_metadata.html">xml_version()</a></code>, <code><a href="../reference/xml_metadata.html">xml_encoding()</a></code> and <code><a href="../reference/xml_metadata.html">xml_standalone()</a></code> read the XML declaration.</li>
 </ul></div>
 <div class="section level3">
+<h3 id="extracting-tables-and-lists-0-1-0">Extracting tables and lists<a class="anchor" aria-label="anchor" href="#extracting-tables-and-lists-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/xml_table.html">xml_table()</a></code> turns <code>table</code> elements into data frames: rows from the table and its <code>thead</code>, <code>tbody</code> and <code>tfoot</code>, <code>colspan</code> and <code>rowspan</code> expanded, header detected from a row of <code>th</code> cells, every column character. The expanded size is bounded by <code>max_cells</code>, so a hostile span cannot become a huge allocation.</li>
+<li>
+<code><a href="../reference/xml_table.html">xml_list()</a></code> turns <code>ul</code> and <code>ol</code> elements into lists, with nested lists as nested items.</li>
+<li>Both read XML, XHTML included, and apply no HTML parsing rules.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="writing-0-1-0">Writing<a class="anchor" aria-label="anchor" href="#writing-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/xml_serialize.html">xml_serialize()</a></code> returns XML text and <code><a href="../reference/xml_serialize.html">xml_write()</a></code> sends it to a file. Order, attributes, text and namespace semantics round-trip; original formatting (quote style, inter-attribute whitespace, CDATA boundaries) does not.</li>

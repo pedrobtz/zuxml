@@ -62,6 +62,19 @@ First release.
   [`xml_standalone()`](https://pedrobtz.github.io/zuxml/reference/xml_metadata.md)
   read the XML declaration.
 
+### Extracting tables and lists
+
+- [`xml_table()`](https://pedrobtz.github.io/zuxml/reference/xml_table.md)
+  turns `table` elements into data frames: rows from the table and its
+  `thead`, `tbody` and `tfoot`, `colspan` and `rowspan` expanded, header
+  detected from a row of `th` cells, every column character. The
+  expanded size is bounded by `max_cells`, so a hostile span cannot
+  become a huge allocation.
+- [`xml_list()`](https://pedrobtz.github.io/zuxml/reference/xml_table.md)
+  turns `ul` and `ol` elements into lists, with nested lists as nested
+  items.
+- Both read XML, XHTML included, and apply no HTML parsing rules.
+
 ### Writing
 
 - [`xml_serialize()`](https://pedrobtz.github.io/zuxml/reference/xml_serialize.md)

@@ -29,6 +29,9 @@
   [`as.character(`*`<zuxml_nodeset>`*`)`](https://pedrobtz.github.io/zuxml/reference/xml_serialize.md)
   [`as.character(`*`<zuxml_document>`*`)`](https://pedrobtz.github.io/zuxml/reference/xml_serialize.md)
   : Serialize XML
+- [`xml_table()`](https://pedrobtz.github.io/zuxml/reference/xml_table.md)
+  [`xml_list()`](https://pedrobtz.github.io/zuxml/reference/xml_table.md)
+  : Extract tables and lists
 - [`zuxml-conditions`](https://pedrobtz.github.io/zuxml/reference/zuxml-conditions.md)
   : Conditions raised by zuxml
 - [`zuxml_info()`](https://pedrobtz.github.io/zuxml/reference/zuxml_info.md)
