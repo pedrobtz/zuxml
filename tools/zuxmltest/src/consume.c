@@ -1,5 +1,5 @@
 /* Consumes zuxml exactly as zuxlsx does: Expat's own API, off the LinkingTo
- * include path, linked statically out of the installed lib/libzuxml.a. Nothing here
+ * include path, linked statically out of the installed lib${R_ARCH}/libzuxml.a. Nothing here
  * includes zuxml.h or touches zuxml's namespace.
  *
  * The two entry points fail in different ways, on purpose:

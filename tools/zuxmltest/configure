@@ -15,10 +15,18 @@ set -eu
 : "${R_HOME:?configure must be run by R CMD INSTALL, which sets R_HOME}"
 RSCRIPT="${R_HOME}/bin/Rscript"
 
-ZUXML_LIB=$("${RSCRIPT}" --vanilla -e "cat(system.file('lib', package = 'zuxml'))")
+# The archive installs under lib${R_ARCH}: lib/<arch> where R sets an
+# architecture, plain lib/ where it does not. Ask for the arch-specific path
+# first and fall back, which is right under either layout, and is how zuxlsx
+# resolves both zuxml and zukomp.
+lib_dir() {
+  "${RSCRIPT}" --vanilla -e "arch <- .Platform\$r_arch; d <- if (nzchar(arch)) system.file('lib', arch, package = '$1') else ''; if (!nzchar(d)) d <- system.file('lib', package = '$1'); cat(d)"
+}
+
+ZUXML_LIB=$(lib_dir zuxml)
 
 if [ -z "${ZUXML_LIB}" ] || [ ! -f "${ZUXML_LIB}/libzuxml.a" ]; then
-  echo "configure: zuxml/lib/libzuxml.a was not found." >&2
+  echo "configure: libzuxml.a was found in neither zuxml/lib/<arch> nor zuxml/lib." >&2
   echo "" >&2
   echo "  zuxmltest links it statically. src/Makevars builds the archive and" >&2
   echo "  src/install.libs.R installs it, so reinstall zuxml from this source" >&2

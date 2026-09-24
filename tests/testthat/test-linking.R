@@ -1,5 +1,5 @@
 # The LinkingTo surface for consumers written against Expat itself, rather
-# than against the registered function table: <pkg>/lib/libzuxml.a and Expat's
+# than against the registered function table: <pkg>/lib${R_ARCH}/libzuxml.a and Expat's
 # public headers. See src/Makevars and src/install.libs.R.
 #
 # These read the *installed* package, which is what a consumer sees. Under
@@ -22,6 +22,14 @@ skip_if_not_installed_layout <- function() {
 installed_path <- function(...) {
   skip_if_not_installed_layout()
   file.path(system.file(package = "zuxml"), ...)
+}
+
+# The archive installs under lib${R_ARCH}, which is plain lib/ where R sets no
+# architecture (#42).
+archive_path <- function() {
+  arch <- .Platform$r_arch
+  if (nzchar(arch)) installed_path("lib", arch, "libzuxml.a")
+  else installed_path("lib", "libzuxml.a")
 }
 
 # nm over an archive interleaves a "member.o:" line before each member's
@@ -58,7 +66,7 @@ test_that("Expat's licence is installed with the Expat it ships", {
 })
 
 test_that("the static archive is installed", {
-  archive <- installed_path("lib", "libzuxml.a")
+  archive <- archive_path()
   expect_true(file.exists(archive))
   expect_gt(file.size(archive), 0)
 })
@@ -105,14 +113,14 @@ test_that("the header's optional APIs match what the archive actually defines", 
     fixed = FALSE
   )
 
-  symbols <- archive_symbols(installed_path("lib", "libzuxml.a"))
+  symbols <- archive_symbols(archive_path())
   expect_length(
     grep("XML_SetBillionLaughsAttackProtection", symbols, value = TRUE), 0L
   )
 })
 
 test_that("the archive carries Expat and nothing of R", {
-  symbols <- archive_symbols(installed_path("lib", "libzuxml.a"))
+  symbols <- archive_symbols(archive_path())
   defined <- grep("\\sU\\s", symbols, value = TRUE, invert = TRUE)
 
   # The Expat entry points a consumer cannot do without. The suspend/resume

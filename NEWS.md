@@ -73,7 +73,8 @@ First release.
 * Tree construction, traversal, text concatenation, serialization and freeing
   are all iterative, so arbitrarily deep documents cannot overflow the C
   stack.
-* An installed zuxml also ships `lib/libzuxml.a` together with Expat's
+* An installed zuxml also ships `lib${R_ARCH}/libzuxml.a` (plain `lib/` where
+  R sets no architecture) together with Expat's
   `expat.h` and `expat_external.h`, so a package whose C code is written
   against Expat itself can link the parser statically through `LinkingTo`
   rather than being rewritten around the function table. The table remains
