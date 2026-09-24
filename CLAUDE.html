@@ -49,12 +49,13 @@
 <p>Two things make this package unusual, and most mistakes come from missing one of them: the parser’s <strong>feature policy is deliberately stricter than a distro Expat</strong>, and zuxml is a <strong>provider for other packages’ C code</strong>, with two distinct consumption modes that are easy to confuse.</p>
 </div>
 <div class="section level2">
-<h2 id="current-state-2026-09-22">Current state (2026-09-22)<a class="anchor" aria-label="anchor" href="#current-state-2026-09-22"></a></h2>
+<h2 id="current-state-2026-09-24">Current state (2026-09-24)<a class="anchor" aria-label="anchor" href="#current-state-2026-09-24"></a></h2>
 <p>Version 0.1.0, not yet on CRAN. The <strong>Status:</strong> line under each stage in the roadmap is authoritative; this is the summary.</p>
 <ul><li>Stages 0–6 are complete. Stage 6’s table criteria went unverified from f3392b2, which retargeted the only fixture at the archive, until #36 added <code>tools/zuxmltable</code> beside it.</li>
 <li>Stage 7 (#32) is closed; its remaining items (cumulative fuzzing hours, MSan, clang-tidy, three fuzz targets) are #54, which does not gate 0.1.0. The grown fuzz corpus is cached between CI runs, so fuzzing time accumulates.</li>
-<li>Stage 8 (#33) is complete. Its one open box is an optional win-builder R-devel run.</li>
+<li>Stage 8 (#33) is complete. No win-builder run is needed: the <code>windows-latest</code>/R-devel row in <code>R-CMD-check.yaml</code> covers that flavor on every push.</li>
 <li>Stage 9 (#34) has no mechanical blocker left: tag <code>v0.1.0</code> and submit.</li>
+<li>The R API has 24 exports: <code><a href="reference/xml_table.html">xml_table()</a></code>, <code><a href="reference/xml_table.html">xml_list()</a></code> (#57) and <code><a href="reference/xml_navigate.html">xml_find_first()</a></code> (#59) were added for 0.1.0 after the 2026-09-22 review. <code><a href="reference/xml_navigate.html">xml_find_first()</a></code> introduced the <em>missing node</em>, whose contract (every accessor gives <code>NA</code>) is in the design and is breaking to change later.</li>
 <li>
 <strong>Consumers:</strong> <code>zuxlsx</code> is the only one, and it uses the archive. The registered table has no consumer yet — <code>zuhttp</code> plans no XML support — so <code>tools/zuxmltable</code> stands in for one and calls all 26 members.</li>
 <li>An archive consumer does not inherit the seam’s DOCTYPE rejection or its limits (#41).</li>
