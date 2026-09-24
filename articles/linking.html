@@ -166,8 +166,12 @@ is no equivalent in <code>zuxml.h</code>.</p>
 <span></span>
 <span><span class="fu">installed</span><span class="op">(</span><span class="st">"include"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "expat_external.h" "expat.h"          "zuxml.h"</span></span>
-<span><span class="fu">installed</span><span class="op">(</span><span class="st">"lib"</span><span class="op">)</span></span>
+<span><span class="va">arch</span> <span class="op">&lt;-</span> <span class="va">.Platform</span><span class="op">$</span><span class="va">r_arch</span></span>
+<span><span class="fu">installed</span><span class="op">(</span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nzchar</a></span><span class="op">(</span><span class="va">arch</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="st">"lib"</span>, <span class="va">arch</span><span class="op">)</span> <span class="kw">else</span> <span class="st">"lib"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "libzuxml.a"</span></span></code></pre></div>
+<p>The archive installs under <code>lib${R_ARCH}</code>, as the shared
+object does under <code>libs${R_ARCH}</code>. <code>R_ARCH</code> is
+empty on most platforms, which makes that plain <code>lib</code>.</p>
 <p><code>LinkingTo: zuxml</code> puts that <code>include</code>
 directory on your compiler’s path (R appends it to
 <code>CLINK_CPPFLAGS</code>), so <code>#include &lt;expat.h&gt;</code>
@@ -181,10 +185,9 @@ construction the one the objects in the archive were compiled from.</p>
 <h2 id="there-is-no-linkingto-for-a-library">There is no <code>LinkingTo</code> for a library<a class="anchor" aria-label="anchor" href="#there-is-no-linkingto-for-a-library"></a>
 </h2>
 <p><code>LinkingTo</code> handles headers and nothing else. For the
-archive you have to find
-<code>system.file("lib", package = "zuxml")</code> yourself, and the
-only portable place to do that is a <code>configure</code> script that
-writes <code>src/Makevars</code>.</p>
+archive you have to find its directory yourself, and the only portable
+place to do that is a <code>configure</code> script that writes
+<code>src/Makevars</code>.</p>
 <p>The two shortcuts are both worse. <code>$(shell ...)</code> in
 <code>Makevars</code> forces <code>SystemRequirements: GNU make</code>.
 An <code>Imports: zuxml</code> entry gets you nothing:
@@ -200,14 +203,20 @@ statically linked consumer never does.</p>
 <span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="bu">:</span> <span class="st">"</span><span class="va">${R_HOME</span><span class="op">:?</span>configure must be run by R CMD INSTALL, which sets R_HOME<span class="va">}</span><span class="st">"</span></span>
 <span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="va">RSCRIPT</span><span class="op">=</span><span class="st">"</span><span class="va">${R_HOME}</span><span class="st">/bin/Rscript"</span></span>
 <span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="va">ZUXML_LIB</span><span class="op">=</span><span class="va">$(</span><span class="st">"</span><span class="va">${RSCRIPT}</span><span class="st">"</span> <span class="at">--vanilla</span> <span class="at">-e</span> <span class="st">"cat(system.file('lib', package = 'zuxml'))"</span><span class="va">)</span></span>
-<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a></span>
-<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="ot">-z</span> <span class="st">"</span><span class="va">${ZUXML_LIB}</span><span class="st">"</span> <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">"</span><span class="va">${ZUXML_LIB}</span><span class="st">/libzuxml.a"</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
-<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="bu">echo</span> <span class="st">"configure: zuxml/lib/libzuxml.a was not found."</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
-<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>  <span class="bu">exit</span> 1</span>
-<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a><span class="cf">fi</span></span>
-<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a></span>
-<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="fu">sed</span> <span class="at">-e</span> <span class="st">"s|@ZUXML_LIB@|</span><span class="va">${ZUXML_LIB}</span><span class="st">|g"</span> src/Makevars.in <span class="op">&gt;</span> src/Makevars</span></code></pre></div>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co"># lib/&lt;arch&gt; first, then lib: right whether R sets an architecture or not,</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co"># and whichever layout the installed zuxml uses.</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="fu">lib_dir()</span> <span class="kw">{</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  <span class="st">"</span><span class="va">${RSCRIPT}</span><span class="st">"</span> <span class="at">--vanilla</span> <span class="at">-e</span> <span class="st">"arch &lt;- .Platform</span><span class="dt">\$</span><span class="st">r_arch; d &lt;- if (nzchar(arch)) system.file('lib', arch, package = '</span><span class="va">$1</span><span class="st">') else ''; if (!nzchar(d)) d &lt;- system.file('lib', package = '</span><span class="va">$1</span><span class="st">'); cat(d)"</span></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="kw">}</span></span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="va">ZUXML_LIB</span><span class="op">=</span><span class="va">$(</span><span class="ex">lib_dir</span> zuxml<span class="va">)</span></span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="cf">if</span> <span class="bu">[</span> <span class="ot">-z</span> <span class="st">"</span><span class="va">${ZUXML_LIB}</span><span class="st">"</span> <span class="bu">]</span> <span class="kw">||</span> <span class="bu">[</span> <span class="ot">!</span> <span class="ot">-f</span> <span class="st">"</span><span class="va">${ZUXML_LIB}</span><span class="st">/libzuxml.a"</span> <span class="bu">]</span><span class="kw">;</span> <span class="cf">then</span></span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a>  <span class="bu">echo</span> <span class="st">"configure: libzuxml.a was found in neither zuxml/lib/&lt;arch&gt; nor zuxml/lib."</span> <span class="op">&gt;&amp;</span><span class="dv">2</span></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>  <span class="bu">exit</span> 1</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a><span class="cf">fi</span></span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a><span class="fu">sed</span> <span class="at">-e</span> <span class="st">"s|@ZUXML_LIB@|</span><span class="va">${ZUXML_LIB}</span><span class="st">|g"</span> src/Makevars.in <span class="op">&gt;</span> src/Makevars</span></code></pre></div>
 <p>Check for the <strong>file</strong>, not for a version. An installed
 zuxml from before the archive existed reports the same version as one
 that carries it, so its presence on disk is the only honest test.</p>

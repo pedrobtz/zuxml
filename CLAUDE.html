@@ -119,7 +119,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::test()'</span></span>
 <span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::check()'</span>      <span class="co"># full R CMD check</span></span>
 <span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL .                     <span class="co"># an installed layout, for test-linking.R</span></span></code></pre></div>
-<p><code>tests/testthat/test-linking.R</code> audits the <em>installed</em> package (<code>lib/libzuxml.a</code>, <code>include/expat.h</code>), so it skips under <code>load_all()</code>. It has teeth only under <code>R CMD check</code> or against a real install, and there a missing artifact fails rather than skips: whether the layout is installed is read from <code>Meta/package.rds</code>, never from the artifact under test.</p>
+<p><code>tests/testthat/test-linking.R</code> audits the <em>installed</em> package (<code>lib${R_ARCH}/libzuxml.a</code>, <code>include/expat.h</code>), so it skips under <code>load_all()</code>. It has teeth only under <code>R CMD check</code> or against a real install, and there a missing artifact fails rather than skips: whether the layout is installed is read from <code>Meta/package.rds</code>, never from the artifact under test.</p>
 </div>
 <div class="section level2">
 <h2 id="gates">Gates<a class="anchor" aria-label="anchor" href="#gates"></a></h2>

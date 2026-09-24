@@ -46,9 +46,14 @@ installed <- function(what) {
 
 installed("include")
 #> [1] "expat_external.h" "expat.h"          "zuxml.h"
-installed("lib")
+arch <- .Platform$r_arch
+installed(if (nzchar(arch)) file.path("lib", arch) else "lib")
 #> [1] "libzuxml.a"
 ```
+
+The archive installs under `lib${R_ARCH}`, as the shared object does
+under `libs${R_ARCH}`. `R_ARCH` is empty on most platforms, which makes
+that plain `lib`.
 
 `LinkingTo: zuxml` puts that `include` directory on your compiler’s path
 (R appends it to `CLINK_CPPFLAGS`), so `#include <expat.h>` resolves
@@ -62,9 +67,8 @@ construction the one the objects in the archive were compiled from.
 ## There is no `LinkingTo` for a library
 
 `LinkingTo` handles headers and nothing else. For the archive you have
-to find `system.file("lib", package = "zuxml")` yourself, and the only
-portable place to do that is a `configure` script that writes
-`src/Makevars`.
+to find its directory yourself, and the only portable place to do that
+is a `configure` script that writes `src/Makevars`.
 
 The two shortcuts are both worse. `$(shell ...)` in `Makevars` forces
 `SystemRequirements: GNU make`. An `Imports: zuxml` entry gets you
@@ -80,10 +84,16 @@ set -eu
 : "${R_HOME:?configure must be run by R CMD INSTALL, which sets R_HOME}"
 RSCRIPT="${R_HOME}/bin/Rscript"
 
-ZUXML_LIB=$("${RSCRIPT}" --vanilla -e "cat(system.file('lib', package = 'zuxml'))")
+# lib/<arch> first, then lib: right whether R sets an architecture or not,
+# and whichever layout the installed zuxml uses.
+lib_dir() {
+  "${RSCRIPT}" --vanilla -e "arch <- .Platform\$r_arch; d <- if (nzchar(arch)) system.file('lib', arch, package = '$1') else ''; if (!nzchar(d)) d <- system.file('lib', package = '$1'); cat(d)"
+}
+
+ZUXML_LIB=$(lib_dir zuxml)
 
 if [ -z "${ZUXML_LIB}" ] || [ ! -f "${ZUXML_LIB}/libzuxml.a" ]; then
-  echo "configure: zuxml/lib/libzuxml.a was not found." >&2
+  echo "configure: libzuxml.a was found in neither zuxml/lib/<arch> nor zuxml/lib." >&2
   exit 1
 fi
 

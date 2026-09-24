@@ -106,16 +106,17 @@ be rewritten to use anything else. An installed zuxml carries
 
     zuxml/include/expat.h
     zuxml/include/expat_external.h
-    zuxml/lib/libzuxml.a
+    zuxml/lib${R_ARCH}/libzuxml.a
 
-where the archive holds the Expat implementation and no R code.
-`LinkingTo: zuxml` puts the headers on the include path; the archive’s
-location comes from `system.file("lib", package = "zuxml")`, which a
-`configure` script can resolve into `src/Makevars` without adding an
+where the archive holds the Expat implementation and no R code. `R_ARCH`
+is empty on most platforms, so the archive is usually in `zuxml/lib`.
+`LinkingTo: zuxml` puts the headers on the include path. A `configure`
+script finds the archive, asking for `lib/<arch>` first and falling back
+to `lib`, and writes its path into `src/Makevars` without adding an
 `Imports:` dependency:
 
 ``` sh
-ZUXML_LIB=$("${R_HOME}/bin/Rscript" -e 'cat(system.file("lib", package = "zuxml"))')
+ZUXML_LIB=$("${R_HOME}/bin/Rscript" --vanilla -e "arch <- .Platform\$r_arch; d <- if (nzchar(arch)) system.file('lib', arch, package = 'zuxml') else ''; if (!nzchar(d)) d <- system.file('lib', package = 'zuxml'); cat(d)")
 sed "s|@ZUXML_LIB@|${ZUXML_LIB}|" src/Makevars.in > src/Makevars
 ```
 
