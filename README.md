@@ -67,6 +67,34 @@ as.numeric(xml_text(xml_find(doc, "price")))
 #> [1] 29.99 17.50
 ```
 
+Tables and lists come out as data frames and nested lists:
+
+``` r
+page <- xml_parse("<body>
+  <table>
+    <tr><th>fruit</th><th>price</th></tr>
+    <tr><td>apple</td><td>1.20</td></tr>
+    <tr><td>pear</td><td>0.90</td></tr>
+  </table>
+  <ul><li>fruit<ul><li>apple</li><li>pear</li></ul></li><li>bread</li></ul>
+</body>")
+
+xml_table(xml_find(page, "table"))[[1]]
+#>   fruit price
+#> 1 apple  1.20
+#> 2  pear  0.90
+
+# xml_elements(), not xml_find(): the nested <ul> is a descendant too.
+str(xml_list(xml_elements(xml_root(page), "ul"))[[1]])
+#> List of 2
+#>  $ :List of 2
+#>   ..$ text : chr "fruit"
+#>   ..$ items:List of 2
+#>   .. ..$ : chr "apple"
+#>   .. ..$ : chr "pear"
+#>  $ : chr "bread"
+```
+
 Note that this is XML, not HTML: Expat is strict and non-recovering, so `<br>` and
 friends are an error, not something to recover from. The [getting started
 article](https://pedrobtz.github.io/zuxml/articles/zuxml.html) covers namespaces,

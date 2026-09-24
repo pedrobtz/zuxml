@@ -33,6 +33,17 @@ First release.
 * `xml_version()`, `xml_encoding()` and `xml_standalone()` read the XML
   declaration.
 
+## Extracting tables and lists
+
+* `xml_table()` turns `table` elements into data frames: rows from the table
+  and its `thead`, `tbody` and `tfoot`, `colspan` and `rowspan` expanded,
+  header detected from a row of `th` cells, every column character. The
+  expanded size is bounded by `max_cells`, so a hostile span cannot become a
+  huge allocation.
+* `xml_list()` turns `ul` and `ol` elements into lists, with nested lists
+  as nested items.
+* Both read XML, XHTML included, and apply no HTML parsing rules.
+
 ## Writing
 
 * `xml_serialize()` returns XML text and `xml_write()` sends it to a file.

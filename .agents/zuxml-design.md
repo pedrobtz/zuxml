@@ -248,6 +248,15 @@ xml_text(x, recursive = TRUE, trim = FALSE)
 
 Over a nodeset every accessor returns a vector of the same length; `xml_attrs()` returns a list of named character vectors.
 
+### Extract (#57)
+
+```r
+xml_table(x, header = NA, trim = TRUE, ns = NULL, max_cells = 1e7)  # list of data frames
+xml_list(x, trim = TRUE, ns = NULL)                                 # list of item lists
+```
+
+XML only: they read the tree a document has and apply no HTML parsing rules, so a `table` without `tbody` has exactly its rows. Elements match by local name, `ns` as everywhere else. Table cells are character; `colspan`/`rowspan` repeat the value, capped at HTML's 1000 and 65534, and the expanded table is bounded by `max_cells` (`zuxml_limit_error`) — without that bound one cell with both spans and a few thousand empty rows is a billion-cell allocation. Placement is one vector assignment per cell, so the work per row follows the expanded width, never the span values. A list item is a string, or `list(text, items)` when the `li` has `ul`/`ol` children; its text excludes theirs. Both are R over the accessors above; move to C only if profiling asks.
+
 ### Write
 
 ```r
