@@ -23,6 +23,7 @@ SEXP C_zux_tree_info(SEXP x, SEXP opts);
 SEXP C_zux_parse(SEXP x, SEXP opts);
 SEXP C_zux_status_names(void);
 SEXP C_zux_live_arenas(void);
+SEXP C_zux_parse_connection(SEXP scon, SEXP opts);
 SEXP C_zux_root(SEXP xp);
 SEXP C_zux_node_info(SEXP xp, SEXP ids, SEXP what);
 SEXP C_zux_parent(SEXP xp, SEXP ids);

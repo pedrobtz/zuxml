@@ -18,6 +18,8 @@
 
 #include "zux.h"
 #include "zux_r.h"
+#define ZU_SOURCE_PREFIX "zuxml: "
+#include "zu_source.h"
 
 static SEXP zux_doc_tag = NULL;
 
@@ -70,8 +72,7 @@ doc_ptr(SEXP xptr) {
 #define ZUX_FEED_CHUNK 65536
 
 typedef struct {
-  const unsigned char *data;
-  size_t n;
+  zu_source src; /* a raw vector or a connection, ZUX_FEED_CHUNK at a time */
   zux_options opt;
   zux_document *doc; /* owned until handed to an external pointer */
   zux_tree_builder *builder;
@@ -117,10 +118,18 @@ parse_cleanup(void *data, Rboolean jump) {
   }
 }
 
+/* The sink zu_source_pump() feeds. Nothing here may call into R: the
+ * source's read is where R runs, between feeds. */
+static int
+parse_sink(void *data, const void *chunk, size_t n) {
+  parse_ctx *c = (parse_ctx *)data;
+  c->st = zux_tree_feed(c->builder, chunk, n);
+  return c->st != ZUX_OK;
+}
+
 static SEXP
 parse_body(void *data) {
   parse_ctx *c = (parse_ctx *)data;
-  size_t pos;
 
   c->st = zux_tree_begin(&c->builder, &c->opt);
   if (c->st != ZUX_OK) {
@@ -132,18 +141,12 @@ parse_body(void *data) {
   }
   zux_live_arenas++;
 
-  /* Feed in bounded chunks so that R_CheckUserInterrupt() has a safe call
-   * site BETWEEN feeds. It must never be called from inside an Expat
-   * handler: a longjmp out of one bypasses XML_ParserFree, and Expat has no
-   * cleanup hook. If the interrupt fires here, parse_cleanup() runs and
-   * releases the partially built document. */
-  for (pos = 0; pos < c->n; pos += ZUX_FEED_CHUNK) {
-    size_t k = c->n - pos < ZUX_FEED_CHUNK ? c->n - pos : ZUX_FEED_CHUNK;
-    R_CheckUserInterrupt();
-    c->st = zux_tree_feed(c->builder, c->data + pos, k);
-    if (c->st != ZUX_OK)
-      break;
-  }
+  /* Bounded chunks so that the source's R_CheckUserInterrupt() -- and, for
+   * a connection, its R_ReadConnection() -- run BETWEEN feeds. Neither may
+   * run inside an Expat handler: a longjmp out of one bypasses
+   * XML_ParserFree, and Expat has no cleanup hook. If either longjmps here,
+   * parse_cleanup() runs and releases the partially built document. */
+  zu_source_pump(&c->src, parse_sink, c);
   if (c->st == ZUX_OK) {
     c->st = zux_tree_end(c->builder, &c->doc, &c->err);
     c->builder = NULL;
@@ -261,35 +264,33 @@ C_zux_status_names(void) {
   return out;
 }
 
-SEXP
-C_zux_parse(SEXP x, SEXP opts) {
-  parse_ctx c;
-  SEXP cont, docx, out, nms;
-  zux_status st;
-
-  if (TYPEOF(x) != RAWSXP)
-    Rf_error("zuxml: expected a raw vector");
-
-  memset(&c, 0, sizeof(c));
-  zux_options_init(&c.opt);
-  c.opt.max_depth = opt_u32(opts, "max_depth", UINT32_MAX, c.opt.max_depth);
+static void
+parse_ctx_init(parse_ctx *c, SEXP opts) {
+  memset(c, 0, sizeof(*c));
+  zux_options_init(&c->opt);
+  c->opt.max_depth = opt_u32(opts, "max_depth", UINT32_MAX, c->opt.max_depth);
   /* Node ids become R integers (design section 5). */
-  c.opt.max_nodes = opt_u32(opts, "max_nodes", (uint32_t)INT_MAX,
-                            c.opt.max_nodes);
-  c.opt.max_attrs = opt_u32(opts, "max_attrs", UINT32_MAX, c.opt.max_attrs);
-  c.opt.max_text = opt_size(opts, "max_text", c.opt.max_text);
-  c.opt.max_memory = opt_size(opts, "max_memory", c.opt.max_memory);
-  c.opt.allow_doctype = opt_flag(opts, "allow_doctype", c.opt.allow_doctype);
-  c.opt.keep_comments = opt_flag(opts, "comments", c.opt.keep_comments);
-  c.opt.keep_pis = opt_flag(opts, "pis", c.opt.keep_pis);
+  c->opt.max_nodes = opt_u32(opts, "max_nodes", (uint32_t)INT_MAX,
+                            c->opt.max_nodes);
+  c->opt.max_attrs = opt_u32(opts, "max_attrs", UINT32_MAX, c->opt.max_attrs);
+  c->opt.max_text = opt_size(opts, "max_text", c->opt.max_text);
+  c->opt.max_memory = opt_size(opts, "max_memory", c->opt.max_memory);
+  c->opt.allow_doctype = opt_flag(opts, "allow_doctype", c->opt.allow_doctype);
+  c->opt.keep_comments = opt_flag(opts, "comments", c->opt.keep_comments);
+  c->opt.keep_pis = opt_flag(opts, "pis", c->opt.keep_pis);
   {
     SEXP enc = opt_get(opts, "encoding");
     if (enc != R_NilValue && TYPEOF(enc) == STRSXP && Rf_xlength(enc) == 1
         && STRING_ELT(enc, 0) != NA_STRING)
-      c.opt.encoding = CHAR(STRING_ELT(enc, 0));
+      c->opt.encoding = CHAR(STRING_ELT(enc, 0));
   }
-  c.data = RAW(x);
-  c.n = (size_t)Rf_xlength(x);
+}
+
+/* Runs the parse under R_UnwindProtect and packs the outcome for R. */
+static SEXP
+parse_run(parse_ctx *c) {
+  SEXP cont, docx, out, nms;
+  zux_status st;
 
   /* The document's external pointer exists, finalizer and all, before the
    * parse. Once the parse returns, the document goes into it without an
@@ -297,26 +298,26 @@ C_zux_parse(SEXP x, SEXP opts) {
    * a bare pointer and leak it. */
   docx = PROTECT(doc_wrap(NULL));
   cont = PROTECT(R_MakeUnwindCont());
-  R_UnwindProtect(parse_body, &c, parse_cleanup, &c, cont);
-  if (c.doc != NULL) {
-    R_SetExternalPtrAddr(docx, c.doc);
-    c.doc = NULL;
+  R_UnwindProtect(parse_body, c, parse_cleanup, c, cont);
+  if (c->doc != NULL) {
+    R_SetExternalPtrAddr(docx, c->doc);
+    c->doc = NULL;
   }
-  st = c.st != ZUX_OK ? c.st : c.err.status;
+  st = c->st != ZUX_OK ? c->st : c->err.status;
 
   out = PROTECT(Rf_allocVector(VECSXP, 9));
   SET_VECTOR_ELT(out, 0, Rf_mkString(zux_status_string(st)));
   SET_VECTOR_ELT(out, 1,
                  R_ExternalPtrAddr(docx) == NULL ? R_NilValue : docx);
-  SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)c.err.line));
-  SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)c.err.column));
-  SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)c.err.byte_offset));
-  SET_VECTOR_ELT(out, 5, Rf_mkString(c.err.message));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarReal((double)c->err.line));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarReal((double)c->err.column));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarReal((double)c->err.byte_offset));
+  SET_VECTOR_ELT(out, 5, Rf_mkString(c->err.message));
   SET_VECTOR_ELT(out, 6, Rf_ScalarInteger((int)st));
   SET_VECTOR_ELT(out, 7, Rf_mkString(zux_status_name(st)));
   /* 0 is XML_ERROR_NONE: the failure was a limit or a handler, not Expat. */
-  SET_VECTOR_ELT(out, 8, Rf_ScalarInteger(c.err.expat_code != 0
-                                              ? c.err.expat_code
+  SET_VECTOR_ELT(out, 8, Rf_ScalarInteger(c->err.expat_code != 0
+                                              ? c->err.expat_code
                                               : NA_INTEGER));
   nms = PROTECT(Rf_allocVector(STRSXP, 9));
   SET_STRING_ELT(nms, 0, Rf_mkChar("status"));
@@ -331,6 +332,27 @@ C_zux_parse(SEXP x, SEXP opts) {
   Rf_setAttrib(out, R_NamesSymbol, nms);
   UNPROTECT(4);
   return out;
+}
+
+SEXP
+C_zux_parse(SEXP x, SEXP opts) {
+  parse_ctx c;
+  parse_ctx_init(&c, opts);
+  c.src = zu_source_raw(x, ZUX_FEED_CHUNK);
+  return parse_run(&c);
+}
+
+/* Straight from an R connection: a file, a url(), a gzfile(), a socket.
+ * zu_source_connection() validates the handle and errors before anything
+ * is held; the R wrapper has already opened an unopened connection in
+ * "rb". The body is never held whole, only the tree, and the limits bound
+ * that. */
+SEXP
+C_zux_parse_connection(SEXP scon, SEXP opts) {
+  parse_ctx c;
+  parse_ctx_init(&c, opts);
+  c.src = zu_source_connection(scon, ZUX_FEED_CHUNK);
+  return parse_run(&c);
 }
 
 /* ---- helpers ----------------------------------------------------------- */

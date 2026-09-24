@@ -46,7 +46,7 @@ value the parser can represent. \code{max_nodes} is capped at
 \code{.Machine$integer.max}, because node ids are R integers. Each limit has
 its own error condition.}
 
-\item{path}{Path to a file.}
+\item{path}{Path to a file, a URL, or a \link{connection}.}
 
 \item{...}{Passed on to \code{xml_parse()}.}
 }
@@ -54,17 +54,37 @@ its own error condition.}
 A \code{zuxml_document}.
 }
 \description{
-\code{xml_parse()} parses XML held in memory; \code{xml_read()} parses a file.
+\code{xml_parse()} parses XML held in memory; \code{xml_read()} parses a file, a
+URL or a connection.
 }
 \details{
 Parsing is strict and secure by default: document type declarations are
 rejected, general entities are not compiled in at all, and the limits below
 bound what a hostile document can cost. See \code{vignette("security")} for the
 threat model, or \code{zuxml_info()} for the compiled-in policy.
+
+\code{xml_read()} streams its input: bytes are fed to the parser as they are
+read, so the document is never held whole in memory, only the tree is.
+A string is taken as a URL if it starts with \verb{http://}, \verb{https://},
+\verb{ftp://}, \verb{ftps://} or \verb{file://}, and is otherwise a path. A
+\link{connection} that is not open is opened in binary mode for the call and
+closed afterwards; one that is already open must be in binary mode
+(\code{"rb"}) and blocking, is read from its current position, and is left
+open. An \code{encoding} that Expat cannot handle natively needs the whole
+input before it can be transcoded, so that case is read fully first.
 }
 \examples{
 doc <- xml_parse("<catalog><book id='1'><title>XML</title></book></catalog>")
 xml_text(xml_find(doc, "title"))
+
+f <- tempfile(fileext = ".xml")
+xml_write(doc, f)
+xml_read(f)
+xml_read(gzfile(f))          # any connection, compressed or not
+xml_read(paste0("file://", f))
+\dontrun{
+xml_read("https://www.w3.org/TR/2008/REC-xml-20081126/REC-xml-20081126.xml")
+}
 }
 \seealso{
 \link{zuxml-conditions} for the errors these raise.
