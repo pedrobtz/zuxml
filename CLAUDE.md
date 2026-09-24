@@ -18,7 +18,7 @@ them: the parser's **feature policy is deliberately stricter than a distro
 Expat**, and zuxml is a **provider for other packages' C code**, with two
 distinct consumption modes that are easy to confuse.
 
-## Current state (2026-09-22)
+## Current state (2026-09-24)
 
 Version 0.1.0, not yet on CRAN. The **Status:** line under each stage in the
 roadmap is authoritative; this is the summary.
@@ -29,9 +29,14 @@ roadmap is authoritative; this is the summary.
 * Stage 7 (#32) is closed; its remaining items (cumulative fuzzing hours,
   MSan, clang-tidy, three fuzz targets) are #54, which does not gate 0.1.0.
   The grown fuzz corpus is cached between CI runs, so fuzzing time accumulates.
-* Stage 8 (#33) is complete. Its one open box is an optional win-builder
-  R-devel run.
+* Stage 8 (#33) is complete. No win-builder run is needed: the
+  `windows-latest`/R-devel row in `R-CMD-check.yaml` covers that flavor on
+  every push.
 * Stage 9 (#34) has no mechanical blocker left: tag `v0.1.0` and submit.
+* The R API has 24 exports: `xml_table()`, `xml_list()` (#57) and
+  `xml_find_first()` (#59) were added for 0.1.0 after the 2026-09-22 review.
+  `xml_find_first()` introduced the *missing node*, whose contract (every
+  accessor gives `NA`) is in the design and is breaking to change later.
 * **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
   registered table has no consumer yet — `zuhttp` plans no XML support — so
   `tools/zuxmltable` stands in for one and calls all 26 members.
