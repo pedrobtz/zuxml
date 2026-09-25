@@ -84,7 +84,17 @@ what makes routine security updates safe to apply; carrying a local patch
 would weaken that guarantee to remove a diagnostic that cannot fire. We are of
 course happy to patch it if CRAN would prefer.
 
-A third NOTE appears on the maintainer's machine only — "Skipping checking
+### NOTE on R 4.5 only: Found non-API calls to R: 'R_GetConnection', 'R_ReadConnection'
+
+`xml_read()` streams a connection (a `url()`, a `gzfile()`, a socket) through
+`R_ext/Connections.h`, the way iotools does. R 4.5's `R CMD check` lists
+`R_GetConnection()` and `R_ReadConnection()` as non-API entry points; R 4.6
+removed them from that list and 'Writing R Extensions' now lists them in its
+"Experimental API index". So this NOTE appears on the r-oldrel flavours only,
+and not on r-release or r-devel. The source checks `R_CONNECTIONS_VERSION`
+and refuses to compile against any other version of the connections API.
+
+A further NOTE appears on the maintainer's machine only — "Skipping checking
 HTML validation: 'tidy' doesn't look like recent enough HTML Tidy" — which is
 a property of that macOS install, not of the package. It does not appear on
 any CI platform.

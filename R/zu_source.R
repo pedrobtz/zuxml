@@ -1,14 +1,9 @@
-# zu_source.R -- reading what a user passes: a path, a URL or a connection.
+# zu_source.R -- turning what a user passes into a readable connection.
 #
 # Origin: zuxml 0.1.0, R/zu_source.R. This file is meant to be copied
-# verbatim into sibling packages (zuhtml, zujson, zuyaml); keep this line
-# current so drift between copies is visible. It knows nothing about the
-# format being read: the package supplies a `feed` that takes each raw
-# chunk, typically a .Call into an incremental parser.
-#
-# The reading is done here, in R, with readBin(), and not in C: the C
-# entry points for connections (R_GetConnection, R_ReadConnection) are not
-# part of R's API and R CMD check reports them as such.
+# verbatim into sibling packages (zuhtml, zujson, zuyaml), together with
+# src/zu_source.h; keep this line current so drift between copies is
+# visible. It knows nothing about the format being read.
 
 # The kinds of input a reader accepts, resolved to a connection:
 #
@@ -52,38 +47,14 @@ zu_open_input <- function(x, what = "path", prefix = "zuxml",
   list(con = x, close = FALSE)
 }
 
-# Reads an open binary connection in `chunk`-byte pieces and hands each to
-# `feed(bytes)`, until the input ends or `feed` returns FALSE (the parser
-# has failed and the rest is not worth reading). R checks for a user
-# interrupt between iterations, so a feed that calls into C need not.
-#
-# readBin() returns nothing both at end of input and, on a non-blocking
-# connection, when no data has arrived yet. isIncomplete() tells the two
-# apart; the second is refused rather than parsed as a truncated document.
-zu_read_chunks <- function(con, feed, chunk = 65536L, what = "path",
-                           prefix = "zuxml",
-                           abort = function(arg, message)
-                             stop(paste0(prefix, ": ", message), call. = FALSE)) {
-  repeat {
-    b <- readBin(con, "raw", n = chunk)
-    if (length(b) == 0L) {
-      if (isIncomplete(con))
-        abort(what, paste0("the connection has no data available yet; ",
-                           "a non-blocking connection cannot be read to the end"))
-      break
-    }
-    if (!isTRUE(feed(b))) break
-  }
-  invisible(NULL)
-}
-
 # The rest of a connection as one raw vector, for the cases that cannot be
 # streamed -- an encoding that must be transcoded whole, for instance.
-zu_read_all <- function(con, chunk = 65536L, ...) {
+zu_read_all <- function(con, chunk = 65536L) {
   chunks <- list()
-  zu_read_chunks(con, function(b) {
-    chunks[[length(chunks) + 1L]] <<- b
-    TRUE
-  }, chunk = chunk, ...)
+  repeat {
+    b <- readBin(con, "raw", n = chunk)
+    if (length(b) == 0L) break
+    chunks[[length(chunks) + 1L]] <- b
+  }
   if (length(chunks) == 0L) raw() else unlist(chunks, use.names = FALSE)
 }

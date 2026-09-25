@@ -109,8 +109,9 @@ table, and `tools/run-downstream-check` is the gate for both.
 
 ```
 R/                 parse.R, node.R, nodeset.R, events.R, write.R, conditions.R, info.R
-                   zu_source.R   input dispatch and chunked reading, copied verbatim to sibling packages
+                   zu_source.R   input dispatch, copied verbatim to sibling packages
 src/               init.c, r_api.c, r_document.c   R-facing glue
+                   zu_source.h   header-only byte source, copied verbatim to sibling packages
                    zux_parser.c, zux_tree.c, zux_write.c   core, no R in it
                    zux_register.c   R_RegisterCCallable, the zuxml_api table
                    expat_config.h, install.libs.R, Makevars, vendor/expat/
