@@ -13,17 +13,28 @@ zux_native_encodings <- c(
 
 #' Parse an XML document
 #'
-#' `xml_parse()` parses XML held in memory; `xml_read()` parses a file.
+#' `xml_parse()` parses XML held in memory; `xml_read()` parses a file, a
+#' URL or a connection.
 #'
 #' Parsing is strict and secure by default: document type declarations are
 #' rejected, general entities are not compiled in at all, and the limits below
 #' bound what a hostile document can cost. See `vignette("security")` for the
 #' threat model, or `zuxml_info()` for the compiled-in policy.
 #'
+#' `xml_read()` streams its input: bytes are fed to the parser as they are
+#' read, so the document is never held whole in memory, only the tree is.
+#' A string is taken as a URL if it starts with `http://`, `https://`,
+#' `ftp://`, `ftps://` or `file://`, and is otherwise a path. A
+#' [connection] that is not open is opened in binary mode for the call and
+#' closed afterwards; one that is already open must be in binary mode
+#' (`"rb"`) and blocking, is read from its current position, and is left
+#' open. An `encoding` that Expat cannot handle natively needs the whole
+#' input before it can be transcoded, so that case is read fully first.
+#'
 #' @param x A single string, or a raw vector, containing XML. A character
 #'   vector of any other length is an error: to parse lines read with
 #'   [readLines()], join them first with `paste(x, collapse = "\n")`.
-#' @param path Path to a file.
+#' @param path Path to a file, a URL, or a [connection].
 #' @param encoding Encoding of the input. `NULL` (default) lets the parser
 #'   detect it from a byte-order mark or the XML declaration. An explicit
 #'   value overrides the declaration, which is what an HTTP `charset` should
@@ -48,13 +59,20 @@ zux_native_encodings <- c(
 #' @examples
 #' doc <- xml_parse("<catalog><book id='1'><title>XML</title></book></catalog>")
 #' xml_text(xml_find(doc, "title"))
+#'
+#' f <- tempfile(fileext = ".xml")
+#' xml_write(doc, f)
+#' xml_read(f)
+#' xml_read(gzfile(f))          # any connection, compressed or not
+#' xml_read(paste0("file://", f))
+#' \dontrun{
+#' xml_read("https://www.w3.org/TR/2008/REC-xml-20081126/REC-xml-20081126.xml")
+#' }
 xml_parse <- function(x, encoding = NULL, comments = TRUE, pis = TRUE,
                       allow_doctype = FALSE, max_depth = 256L,
                       max_nodes = 1e7, max_attrs = 4096L,
                       max_text = 64 * 1024^2, max_memory = 1024 * 1024^2) {
-  if (!is.null(encoding) &&
-      (!is.character(encoding) || length(encoding) != 1L || is.na(encoding)))
-    zux_invalid_argument("encoding", "`encoding` must be a single string or NULL")
+  zux_check_encoding(encoding)
   if (is.character(x)) {
     # Collapsing silently is what used to happen, with "": it joined the
     # lines of readLines() into one, changing text nodes and reporting every
@@ -76,52 +94,85 @@ xml_parse <- function(x, encoding = NULL, comments = TRUE, pis = TRUE,
   }
   if (!is.raw(x))
     zux_invalid_argument("x", "`x` must be a single string or a raw vector")
-  comments <- zux_flag(comments, "comments")
-  pis <- zux_flag(pis, "pis")
-  allow_doctype <- zux_flag(allow_doctype, "allow_doctype")
-  limits <- list(
-    max_depth  = zux_check_limit(max_depth,  "max_depth",  zux_u32_max),
-    max_nodes  = zux_check_limit(max_nodes,  "max_nodes",  .Machine$integer.max),
-    max_attrs  = zux_check_limit(max_attrs,  "max_attrs",  zux_u32_max),
-    max_text   = zux_check_limit(max_text,   "max_text",   zux_size_max),
-    max_memory = zux_check_limit(max_memory, "max_memory", zux_size_max))
-
-  if (!is.null(encoding) && toupper(encoding) %in% names(zux_native_encodings)) {
-    encoding <- unname(zux_native_encodings[toupper(encoding)])
-  } else if (!is.null(encoding)) {
-    conv <- tryCatch(
-      iconv(list(x), from = encoding, to = "UTF-8", toRaw = TRUE)[[1L]],
-      error = function(e) NULL)
-    if (is.null(conv)) {
-      zuxml_abort("zuxml_encoding_error",
-        sprintf("zuxml: could not convert input from '%s' to UTF-8", encoding),
-        call = NULL)
-    }
-    x <- conv
-    encoding <- "UTF-8"
+  opts <- zux_options(encoding, comments, pis, allow_doctype, max_depth,
+                      max_nodes, max_attrs, max_text, max_memory)
+  if (!zux_native_encoding(encoding)) {
+    x <- zux_transcode(x, encoding)
+    opts$encoding <- "UTF-8"
   }
-
-  res <- .Call(C_zux_parse, x, c(list(
-    encoding = encoding, comments = comments, pis = pis,
-    allow_doctype = allow_doctype), limits))
-
-  if (!identical(res$name, "ZUX_OK") || is.null(res$doc)) zux_abort(res, limits)
-  structure(list(ptr = res$doc), class = "zuxml_document")
+  zux_document(.Call(C_zux_parse, x, opts), opts)
 }
 
 #' @rdname xml_parse
 #' @export
 xml_read <- function(path, encoding = NULL, ...) {
-  if (!is.character(path) || length(path) != 1L || is.na(path))
-    zux_invalid_argument("path", "`path` must be a single file path")
-  # file.exists() is TRUE for a directory, which would otherwise reach
-  # readBin() and surface as a base R warning about a non-regular file.
-  if (dir.exists(path))
-    zux_invalid_argument("path", sprintf("not a file: %s", path))
-  if (!file.exists(path))
-    zux_invalid_argument("path", sprintf("no such file: %s", path))
-  n <- file.info(path)$size
-  xml_parse(readBin(path, "raw", n = n), encoding = encoding, ...)
+  # zu_source.R resolves a path, URL or connection to an open binary
+  # connection; zu_source.h feeds it to the parser in 64 KiB pieces with an
+  # interrupt check between them, the same loop xml_parse() runs over a raw
+  # vector. The one exception is an encoding that must go through iconv(),
+  # which cannot be transcoded blind mid-stream (design section 10): that
+  # input is read whole and handed to xml_parse().
+  zux_check_encoding(encoding)
+  opts <- zux_options(encoding = encoding, ...)
+  input <- zu_open_input(path, what = "path", abort = zux_invalid_argument)
+  if (input$close) on.exit(close(input$con), add = TRUE)
+  if (!zux_native_encoding(encoding))
+    return(xml_parse(zu_read_all(input$con), encoding = encoding, ...))
+  zux_document(.Call(C_zux_parse_connection, input$con, opts), opts)
+}
+
+zux_check_encoding <- function(encoding, call = sys.call(-1L)) {
+  if (!is.null(encoding) &&
+      (!is.character(encoding) || length(encoding) != 1L || is.na(encoding)))
+    zux_invalid_argument("encoding", "`encoding` must be a single string or NULL",
+                         call = call)
+}
+
+zux_native_encoding <- function(encoding) {
+  is.null(encoding) || toupper(encoding) %in% names(zux_native_encodings)
+}
+
+zux_transcode <- function(x, encoding) {
+  conv <- tryCatch(
+    iconv(list(x), from = encoding, to = "UTF-8", toRaw = TRUE)[[1L]],
+    error = function(e) NULL)
+  if (is.null(conv)) {
+    zuxml_abort("zuxml_encoding_error",
+      sprintf("zuxml: could not convert input from '%s' to UTF-8", encoding),
+      call = NULL)
+  }
+  conv
+}
+
+# The option list the C entry points read, every flag and limit validated
+# and a native encoding translated to Expat's own spelling. Holding the
+# defaults here, once, is what lets xml_read() forward `...` without
+# repeating xml_parse()'s signature; an unknown name fails here as an
+# unused argument.
+zux_options <- function(encoding = NULL, comments = TRUE, pis = TRUE,
+                        allow_doctype = FALSE, max_depth = 256L,
+                        max_nodes = 1e7, max_attrs = 4096L,
+                        max_text = 64 * 1024^2, max_memory = 1024 * 1024^2) {
+  call <- sys.call(-1L)
+  if (!is.null(encoding) && toupper(encoding) %in% names(zux_native_encodings))
+    encoding <- unname(zux_native_encodings[toupper(encoding)])
+  list(
+    encoding = encoding,
+    comments = zux_flag(comments, "comments"),
+    pis = zux_flag(pis, "pis"),
+    allow_doctype = zux_flag(allow_doctype, "allow_doctype"),
+    max_depth  = zux_check_limit(max_depth,  "max_depth",  zux_u32_max, call),
+    max_nodes  = zux_check_limit(max_nodes,  "max_nodes",  .Machine$integer.max, call),
+    max_attrs  = zux_check_limit(max_attrs,  "max_attrs",  zux_u32_max, call),
+    max_text   = zux_check_limit(max_text,   "max_text",   zux_size_max, call),
+    max_memory = zux_check_limit(max_memory, "max_memory", zux_size_max, call))
+}
+
+# Turns a C parse result into a document, or raises its condition. `opts`
+# carries the limits as the caller gave them, for the limit error's metadata.
+zux_document <- function(res, opts) {
+  if (!identical(res$name, "ZUX_OK") || is.null(res$doc)) zux_abort(res, opts)
+  structure(list(ptr = res$doc), class = "zuxml_document")
 }
 
 # The largest value each limit's C type holds. Inf asks for it; a finite value

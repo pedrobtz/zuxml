@@ -32,7 +32,9 @@ package that reuses this one's tree and navigation API.
 
 ## Parsing
 
-`xml_parse()` takes a string or a raw vector; `xml_read()` takes a file path.
+`xml_parse()` takes a string or a raw vector; `xml_read()` takes a file path,
+a URL (`"https://..."`) or any readable connection, such as `gzfile()`, and
+feeds it to the parser as it is read.
 
 ```{r}
 doc <- xml_parse("

@@ -86,6 +86,7 @@ static const R_CallMethodDef call_methods[] = {
     {"C_zux_parse", (DL_FUNC)&C_zux_parse, 2},
     {"C_zux_status_names", (DL_FUNC)&C_zux_status_names, 0},
     {"C_zux_live_arenas", (DL_FUNC)&C_zux_live_arenas, 0},
+    {"C_zux_parse_connection", (DL_FUNC)&C_zux_parse_connection, 2},
     {"C_zux_root", (DL_FUNC)&C_zux_root, 1},
     {"C_zux_node_info", (DL_FUNC)&C_zux_node_info, 3},
     {"C_zux_parent", (DL_FUNC)&C_zux_parent, 2},
