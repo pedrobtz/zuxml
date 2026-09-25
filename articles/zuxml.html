@@ -94,7 +94,9 @@ a sibling package that reuses this one’s tree and navigation API.</p>
 <h2 id="parsing">Parsing<a class="anchor" aria-label="anchor" href="#parsing"></a>
 </h2>
 <p><code><a href="../reference/xml_parse.html">xml_parse()</a></code> takes a string or a raw vector;
-<code><a href="../reference/xml_parse.html">xml_read()</a></code> takes a file path.</p>
+<code><a href="../reference/xml_parse.html">xml_read()</a></code> takes a file path, a URL
+(<code>"https://..."</code>) or any readable connection, such as
+<code><a href="https://rdrr.io/r/base/connections.html" class="external-link">gzfile()</a></code>, and feeds it to the parser as it is read.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">doc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/xml_parse.html">xml_parse</a></span><span class="op">(</span><span class="st">"</span></span>
 <span><span class="st">&lt;catalog&gt;</span></span>

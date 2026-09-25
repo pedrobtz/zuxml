@@ -15,11 +15,17 @@ you would rather not hold the whole body in memory before parsing it.
 [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
 for a string or raw vector and
 [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-for a file, and both take the complete document. An R-level pull or
-callback API is planned but is deliberately not in this release; the C
-seam it would sit on is what exists today, and it is what a downstream
-package uses. If you are working purely in R, this vignette will not
-give you anything to call — the [getting started
+for a file, URL or connection.
+[`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
+does stream – it feeds the connection to the parser as it reads it, so a
+[`url()`](https://rdrr.io/r/base/connections.html) or
+[`gzfile()`](https://rdrr.io/r/base/connections.html) body is never
+materialized – but what comes back is still the complete tree. An
+R-level pull or callback API, which would hand you events instead of a
+tree, is planned but is deliberately not in this release; the C seam it
+would sit on is what exists today, and it is what a downstream package
+uses. If you are working purely in R, this vignette will not give you
+anything to call — the [getting started
 article](https://pedrobtz.github.io/zuxml/articles/zuxml.html) covers
 the surface you want.
 

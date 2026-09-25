@@ -33,7 +33,9 @@ sibling package that reuses this one’s tree and navigation API.
 [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
 takes a string or a raw vector;
 [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-takes a file path.
+takes a file path, a URL (`"https://..."`) or any readable connection,
+such as [`gzfile()`](https://rdrr.io/r/base/connections.html), and feeds
+it to the parser as it is read.
 
 ``` r
 

@@ -9,10 +9,24 @@ First release.
 - [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
   parses XML from a single string or a raw vector, and
   [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-  from a file. Both build an immutable document tree. A character vector
-  of another length is an error rather than being joined silently: join
-  the lines of [`readLines()`](https://rdrr.io/r/base/readLines.html)
-  with `"\n"` first.
+  from a file, a URL or a connection. Both build an immutable document
+  tree. A character vector of another length is an error rather than
+  being joined silently: join the lines of
+  [`readLines()`](https://rdrr.io/r/base/readLines.html) with `"\n"`
+  first.
+- [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
+  streams: a string starting with `http://`, `https://`, `ftp://`,
+  `ftps://` or `file://` is opened with
+  [`url()`](https://rdrr.io/r/base/connections.html), anything else with
+  [`file()`](https://rdrr.io/r/base/connections.html), and a connection
+  ([`gzfile()`](https://rdrr.io/r/base/connections.html),
+  [`rawConnection()`](https://rdrr.io/r/base/rawConnection.html), a
+  socket) is accepted as is. Bytes are fed to the parser as they are
+  read through R’s connection API, so the body is never held whole; only
+  an encoding that must go through
+  [`iconv()`](https://rdrr.io/r/base/iconv.html) is read in full first.
+  An unopened connection is opened in binary mode and closed afterwards;
+  an open one must be binary and blocking, and is left open.
 - Encodings Expat handles natively are passed through, under any of
   their common spellings (`"latin1"`, `"UTF8"`, `"ASCII"`); anything
   else is transcoded with

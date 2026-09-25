@@ -28,7 +28,7 @@ pak::pak("pedrobtz/zuxml")
 [`xml_parse()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
 takes a string or a raw vector and returns a document;
 [`xml_read()`](https://pedrobtz.github.io/zuxml/reference/xml_parse.md)
-takes a file path.
+takes a file path, a URL or a connection, and streams it.
 
 ``` r
 
@@ -72,7 +72,6 @@ as.numeric(xml_text(xml_find(doc, "price")))
 Tables and lists come out as data frames and nested lists:
 
 ``` r
-
 page <- xml_parse("<body>
   <table>
     <tr><th>fruit</th><th>price</th></tr>
@@ -96,6 +95,15 @@ str(xml_list(xml_elements(xml_root(page), "ul"))[[1]])
 #>   .. ..$ : chr "apple"
 #>   .. ..$ : chr "pear"
 #>  $ : chr "bread"
+`xml_read()` reads from a file, a URL or any connection, and feeds the bytes to
+the parser as they arrive rather than reading the whole document first:
+
+``` r
+feed <- xml_read("https://www.r-project.org/feed.xml")   # a URL string
+feed <- xml_read(gzfile("archive/feed.xml.gz"))            # any connection
+feed <- xml_read("feed.xml")                               # a path
+
+xml_text(xml_find(feed, "title"))
 ```
 
 Note that this is XML, not HTML: Expat is strict and non-recovering, so
