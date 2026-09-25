@@ -35,7 +35,12 @@ test_that("a URL string is recognised by scheme, case-insensitively", {
   on.exit(unlink(f), add = TRUE)
   writeLines("<r><a>x</a></r>", f)
   expect_identical(xml_text(xml_find(read_input(paste0("FILE://", f)), "a")), "x")
-  # Not a scheme: an ordinary relative path that merely contains "://".
+})
+
+test_that("a path that merely contains a scheme is not a URL", {
+  # A colon is not a legal filename character on Windows, so this path
+  # cannot exist there and the case cannot be exercised.
+  skip_on_os("windows")
   d <- tempfile()
   dir.create(file.path(d, "http:"), recursive = TRUE)
   on.exit(unlink(d, recursive = TRUE), add = TRUE)
