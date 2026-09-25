@@ -18,8 +18,8 @@
 
 #include "zux.h"
 #include "zux_r.h"
-#define ZU_SOURCE_PREFIX "zuxml: "
-#include "zu_source.h"
+
+#include <stdlib.h>
 
 static SEXP zux_doc_tag = NULL;
 
@@ -72,7 +72,8 @@ doc_ptr(SEXP xptr) {
 #define ZUX_FEED_CHUNK 65536
 
 typedef struct {
-  zu_source src; /* a raw vector or a connection, ZUX_FEED_CHUNK at a time */
+  const unsigned char *data; /* whole-buffer parse only */
+  size_t n;
   zux_options opt;
   zux_document *doc; /* owned until handed to an external pointer */
   zux_tree_builder *builder;
@@ -118,18 +119,10 @@ parse_cleanup(void *data, Rboolean jump) {
   }
 }
 
-/* The sink zu_source_pump() feeds. Nothing here may call into R: the
- * source's read is where R runs, between feeds. */
-static int
-parse_sink(void *data, const void *chunk, size_t n) {
-  parse_ctx *c = (parse_ctx *)data;
-  c->st = zux_tree_feed(c->builder, chunk, n);
-  return c->st != ZUX_OK;
-}
-
 static SEXP
 parse_body(void *data) {
   parse_ctx *c = (parse_ctx *)data;
+  size_t pos;
 
   c->st = zux_tree_begin(&c->builder, &c->opt);
   if (c->st != ZUX_OK) {
@@ -141,12 +134,18 @@ parse_body(void *data) {
   }
   zux_live_arenas++;
 
-  /* Bounded chunks so that the source's R_CheckUserInterrupt() -- and, for
-   * a connection, its R_ReadConnection() -- run BETWEEN feeds. Neither may
-   * run inside an Expat handler: a longjmp out of one bypasses
-   * XML_ParserFree, and Expat has no cleanup hook. If either longjmps here,
-   * parse_cleanup() runs and releases the partially built document. */
-  zu_source_pump(&c->src, parse_sink, c);
+  /* Feed in bounded chunks so that R_CheckUserInterrupt() has a safe call
+   * site BETWEEN feeds. It must never be called from inside an Expat
+   * handler: a longjmp out of one bypasses XML_ParserFree, and Expat has no
+   * cleanup hook. If the interrupt fires here, parse_cleanup() runs and
+   * releases the partially built document. */
+  for (pos = 0; pos < c->n; pos += ZUX_FEED_CHUNK) {
+    size_t k = c->n - pos < ZUX_FEED_CHUNK ? c->n - pos : ZUX_FEED_CHUNK;
+    R_CheckUserInterrupt();
+    c->st = zux_tree_feed(c->builder, c->data + pos, k);
+    if (c->st != ZUX_OK)
+      break;
+  }
   if (c->st == ZUX_OK) {
     c->st = zux_tree_end(c->builder, &c->doc, &c->err);
     c->builder = NULL;
@@ -286,19 +285,15 @@ parse_ctx_init(parse_ctx *c, SEXP opts) {
   }
 }
 
-/* Runs the parse under R_UnwindProtect and packs the outcome for R. */
+/* Packs a finished parse for R. `docx` is the document's external pointer,
+ * allocated -- finalizer and all -- BEFORE the parse ran, so the document
+ * goes into it without an allocation and no R allocation here can fail
+ * while the arena sits in a bare pointer and leak it. */
 static SEXP
-parse_run(parse_ctx *c) {
-  SEXP cont, docx, out, nms;
+parse_pack(parse_ctx *c, SEXP docx) {
+  SEXP out, nms;
   zux_status st;
 
-  /* The document's external pointer exists, finalizer and all, before the
-   * parse. Once the parse returns, the document goes into it without an
-   * allocation, so no R allocation below can fail while the arena sits in
-   * a bare pointer and leak it. */
-  docx = PROTECT(doc_wrap(NULL));
-  cont = PROTECT(R_MakeUnwindCont());
-  R_UnwindProtect(parse_body, c, parse_cleanup, c, cont);
   if (c->doc != NULL) {
     R_SetExternalPtrAddr(docx, c->doc);
     c->doc = NULL;
@@ -330,29 +325,153 @@ parse_run(parse_ctx *c) {
   SET_STRING_ELT(nms, 7, Rf_mkChar("name"));
   SET_STRING_ELT(nms, 8, Rf_mkChar("expat_code"));
   Rf_setAttrib(out, R_NamesSymbol, nms);
-  UNPROTECT(4);
+  UNPROTECT(2);
   return out;
 }
 
 SEXP
 C_zux_parse(SEXP x, SEXP opts) {
   parse_ctx c;
+  SEXP cont, docx, out;
+
+  if (TYPEOF(x) != RAWSXP)
+    Rf_error("zuxml: expected a raw vector");
   parse_ctx_init(&c, opts);
-  c.src = zu_source_raw(x, ZUX_FEED_CHUNK);
-  return parse_run(&c);
+  c.data = RAW(x);
+  c.n = (size_t)Rf_xlength(x);
+
+  docx = PROTECT(doc_wrap(NULL));
+  cont = PROTECT(R_MakeUnwindCont());
+  R_UnwindProtect(parse_body, &c, parse_cleanup, &c, cont);
+  out = parse_pack(&c, docx);
+  UNPROTECT(2);
+  return out;
 }
 
-/* Straight from an R connection: a file, a url(), a gzfile(), a socket.
- * zu_source_connection() validates the handle and errors before anything
- * is held; the R wrapper has already opened an unopened connection in
- * "rb". The body is never held whole, only the tree, and the limits bound
- * that. */
+/* ---- incremental parsing driven from R ---------------------------------
+ *
+ * xml_read() streams a connection: R reads it with readBin() in pieces and
+ * hands each piece to C_zux_stream_feed(). The reading stays in R on
+ * purpose -- R_GetConnection() and R_ReadConnection() are not part of R's
+ * C API and R CMD check reports them (design section 16). The builder lives
+ * in an external pointer between calls; its finalizer, and
+ * C_zux_stream_abort() from the R wrapper's on.exit(), release the arena
+ * if the read is interrupted or errors part-way. No R API runs inside a
+ * feed, so nothing can longjmp out of an Expat handler. */
+
+static SEXP zux_stream_tag = NULL;
+
+static void
+stream_release(parse_ctx *c) {
+  if (c->builder != NULL) {
+    zux_tree_abort(c->builder);
+    zux_live_arenas--;
+    c->builder = NULL;
+  }
+  if (c->doc != NULL) {
+    zux_document_free(c->doc);
+    zux_live_arenas--;
+    c->doc = NULL;
+  }
+}
+
+static void
+stream_finalizer(SEXP xptr) {
+  parse_ctx *c = (parse_ctx *)R_ExternalPtrAddr(xptr);
+  if (c != NULL) {
+    stream_release(c);
+    free(c);
+    R_ClearExternalPtr(xptr);
+  }
+}
+
+static parse_ctx *
+stream_ptr(SEXP xptr) {
+  parse_ctx *c;
+  if (TYPEOF(xptr) != EXTPTRSXP || R_ExternalPtrTag(xptr) != zux_stream_tag)
+    Rf_error("zuxml: not a stream handle");
+  c = (parse_ctx *)R_ExternalPtrAddr(xptr);
+  if (c == NULL)
+    Rf_error("zuxml: this stream has been released");
+  return c;
+}
+
+/* `opts` rides in the pointer's protected slot: the encoding string the
+ * options borrow must outlive this call. A failure to start -- e.g.
+ * max_memory too small for the document node -- is not raised here but
+ * carried to C_zux_stream_end(), so every stream reports through one path. */
 SEXP
-C_zux_parse_connection(SEXP scon, SEXP opts) {
-  parse_ctx c;
-  parse_ctx_init(&c, opts);
-  c.src = zu_source_connection(scon, ZUX_FEED_CHUNK);
-  return parse_run(&c);
+C_zux_stream_begin(SEXP opts) {
+  parse_ctx *c;
+  SEXP xptr;
+
+  if (zux_stream_tag == NULL) {
+    zux_stream_tag = Rf_install("zuxml_stream_ptr");
+    R_PreserveObject(zux_stream_tag);
+  }
+  c = (parse_ctx *)malloc(sizeof(*c));
+  if (c == NULL)
+    Rf_error("zuxml: out of memory");
+  parse_ctx_init(c, opts);
+  xptr = PROTECT(R_MakeExternalPtr(c, zux_stream_tag, opts));
+  R_RegisterCFinalizerEx(xptr, stream_finalizer, TRUE);
+
+  c->st = zux_tree_begin(&c->builder, &c->opt);
+  if (c->st != ZUX_OK) {
+    c->err.status = c->st;
+    zux_set_message(&c->err, zux_status_string(c->st));
+  } else {
+    zux_live_arenas++;
+  }
+  UNPROTECT(1);
+  return xptr;
+}
+
+/* TRUE while the parser is still accepting input. FALSE once it has failed:
+ * the position was captured and the builder torn down, and the caller
+ * should stop reading and call C_zux_stream_end() for the error. */
+SEXP
+C_zux_stream_feed(SEXP xptr, SEXP x) {
+  parse_ctx *c = stream_ptr(xptr);
+  if (TYPEOF(x) != RAWSXP)
+    Rf_error("zuxml: expected a raw vector");
+  if (c->builder == NULL)
+    return Rf_ScalarLogical(FALSE);
+  c->st = zux_tree_feed(c->builder, RAW(x), (size_t)Rf_xlength(x));
+  if (c->st != ZUX_OK)
+    zux_error_of_builder(c);
+  return Rf_ScalarLogical(c->st == ZUX_OK);
+}
+
+SEXP
+C_zux_stream_end(SEXP xptr) {
+  parse_ctx *c = stream_ptr(xptr);
+  SEXP docx, out;
+
+  docx = PROTECT(doc_wrap(NULL));
+  if (c->builder != NULL) {
+    c->st = zux_tree_end(c->builder, &c->doc, &c->err);
+    c->builder = NULL;
+    if (c->doc == NULL)
+      zux_live_arenas--;
+  }
+  out = parse_pack(c, docx);
+  UNPROTECT(1);
+  return out;
+}
+
+/* Deterministic release, for on.exit(): the finalizer would do the same at
+ * the next collection, but an interrupted read should give its arena back
+ * now, not eventually. Safe to call after a successful end. */
+SEXP
+C_zux_stream_abort(SEXP xptr) {
+  parse_ctx *c;
+  if (TYPEOF(xptr) != EXTPTRSXP)
+    return R_NilValue;
+  c = (parse_ctx *)R_ExternalPtrAddr(xptr);
+  if (c != NULL)
+    stream_release(c);
+  return R_NilValue;
 }
 
 /* ---- helpers ----------------------------------------------------------- */

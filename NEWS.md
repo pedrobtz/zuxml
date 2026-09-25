@@ -12,11 +12,11 @@ First release.
 * `xml_read()` streams: a string starting with `http://`, `https://`,
   `ftp://`, `ftps://` or `file://` is opened with `url()`, anything else
   with `file()`, and a connection (`gzfile()`, `rawConnection()`, a socket)
-  is accepted as is. Bytes are fed to the parser as they are read through
-  R's connection API, so the body is never held whole; only an encoding
-  that must go through `iconv()` is read in full first. An unopened
-  connection is opened in binary mode and closed afterwards; an open one
-  must be binary and blocking, and is left open.
+  is accepted as is. Bytes are fed to the parser as they are read, so the
+  body is never held whole; only an encoding that must go through
+  `iconv()` is read in full first. An unopened connection is opened in
+  binary mode and closed afterwards; an open one must be binary, and is
+  left open.
 * Encodings Expat handles natively are passed through, under any of their
   common spellings (`"latin1"`, `"UTF8"`, `"ASCII"`); anything else is
   transcoded with `iconv()`, after which the (now stale) encoding declaration

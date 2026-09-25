@@ -27,8 +27,9 @@ zux_native_encodings <- c(
 #' `ftp://`, `ftps://` or `file://`, and is otherwise a path. A
 #' [connection] that is not open is opened in binary mode for the call and
 #' closed afterwards; one that is already open must be in binary mode
-#' (`"rb"`) and blocking, is read from its current position, and is left
-#' open. An `encoding` that Expat cannot handle natively needs the whole
+#' (`"rb"`), is read from its current position, and is left open. A
+#' non-blocking connection with no data available yet is an error rather
+#' than a truncated document. An `encoding` that Expat cannot handle natively needs the whole
 #' input before it can be transcoded, so that case is read fully first.
 #'
 #' @param x A single string, or a raw vector, containing XML. A character
@@ -107,18 +108,25 @@ xml_parse <- function(x, encoding = NULL, comments = TRUE, pis = TRUE,
 #' @export
 xml_read <- function(path, encoding = NULL, ...) {
   # zu_source.R resolves a path, URL or connection to an open binary
-  # connection; zu_source.h feeds it to the parser in 64 KiB pieces with an
-  # interrupt check between them, the same loop xml_parse() runs over a raw
-  # vector. The one exception is an encoding that must go through iconv(),
-  # which cannot be transcoded blind mid-stream (design section 10): that
-  # input is read whole and handed to xml_parse().
+  # connection and reads it in 64 KiB pieces; each piece goes to the
+  # incremental builder, so the body is never held whole. The one exception
+  # is an encoding that must go through iconv(), which cannot be transcoded
+  # blind mid-stream (design section 10): that input is read whole and
+  # handed to xml_parse().
   zux_check_encoding(encoding)
   opts <- zux_options(encoding = encoding, ...)
   input <- zu_open_input(path, what = "path", abort = zux_invalid_argument)
   if (input$close) on.exit(close(input$con), add = TRUE)
   if (!zux_native_encoding(encoding))
-    return(xml_parse(zu_read_all(input$con), encoding = encoding, ...))
-  zux_document(.Call(C_zux_parse_connection, input$con, opts), opts)
+    return(xml_parse(zu_read_all(input$con, abort = zux_invalid_argument),
+                     encoding = encoding, ...))
+  stream <- .Call(C_zux_stream_begin, opts)
+  # The finalizer would release an interrupted parse eventually; this does
+  # it now, and is a no-op after a successful end.
+  on.exit(.Call(C_zux_stream_abort, stream), add = TRUE)
+  zu_read_chunks(input$con, function(b) .Call(C_zux_stream_feed, stream, b),
+                 abort = zux_invalid_argument)
+  zux_document(.Call(C_zux_stream_end, stream), opts)
 }
 
 zux_check_encoding <- function(encoding, call = sys.call(-1L)) {

@@ -69,8 +69,9 @@ A string is taken as a URL if it starts with \verb{http://}, \verb{https://},
 \verb{ftp://}, \verb{ftps://} or \verb{file://}, and is otherwise a path. A
 \link{connection} that is not open is opened in binary mode for the call and
 closed afterwards; one that is already open must be in binary mode
-(\code{"rb"}) and blocking, is read from its current position, and is left
-open. An \code{encoding} that Expat cannot handle natively needs the whole
+(\code{"rb"}), is read from its current position, and is left open. A
+non-blocking connection with no data available yet is an error rather
+than a truncated document. An \code{encoding} that Expat cannot handle natively needs the whole
 input before it can be transcoded, so that case is read fully first.
 }
 \examples{

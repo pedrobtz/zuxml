@@ -1,5 +1,5 @@
-# Tests for src/zu_source.h and R/zu_source.R, the byte source shared with
-# sibling packages. They exercise it through this package's reader, so the
+# Tests for R/zu_source.R, the input handling shared with sibling
+# packages. They exercise it through this package's reader, so the
 # one line below is all a copy has to change. Everything here is about how
 # input reaches the parser -- paths, URLs, connections, chunking -- not
 # about the format, which tests/testthat/test-read.R covers.
@@ -92,13 +92,25 @@ test_that("an open text-mode connection is rejected", {
   expect_error(read_input(con), msg("an open connection must be in binary mode"))
 })
 
-test_that("a non-blocking connection is rejected", {
+test_that("a non-blocking file connection still reads to the end", {
+  # A file always has its data available, so readBin() never comes back
+  # empty before the end; only a socket or fifo can, and that is refused.
   f <- tempfile(fileext = ".xml")
   on.exit(unlink(f), add = TRUE)
-  writeLines("<r/>", f)
+  writeLines(big_doc(), f)
   con <- file(f, "rb", blocking = FALSE)
   on.exit(close(con), add = TRUE)
-  expect_error(read_input(con), msg("the connection must be blocking"))
+  expect_length(xml_elements(xml_root(read_input(con)), "i"), 20000L)
+})
+
+test_that("a parse failure stops the read early", {
+  # The feed reports failure and the loop must stop, not drain the rest
+  # of a possibly endless stream.
+  bad <- charToRaw(paste0("<r><", strrep("<x>", 40000L)))
+  con <- rawConnection(bad)
+  on.exit(close(con), add = TRUE)
+  expect_error(read_input(con), class = "zuxml_error")
+  expect_gt(length(readBin(con, "raw", n = 1e6)), 0L)
 })
 
 test_that("a closed connection handle is an error, not a crash", {
