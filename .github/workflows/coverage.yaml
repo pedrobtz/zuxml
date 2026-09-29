@@ -23,6 +23,6 @@ jobs:
     # repository write token, and a tag is mutable: whoever can move v1 can
     # change what runs here. The deploy action in pkgdown.yaml is pinned for
     # the same reason. Update deliberately, with the tag it corresponds to.
-    uses: pedrobtz/r-actions/.github/workflows/coverage.yml@52ac4a70580e9261bfedc41314101615ade407f8 # v1.6.2
+    uses: pedrobtz/r-actions/.github/workflows/coverage.yml@59c917ddee2cd0191f8f015016c4c76c4f2a8c87 # v1.18.0
     permissions:
       contents: write
