@@ -1,0 +1,60 @@
+From: Pedro Baltazar <pedrobtz@gmail.com>
+Subject: [PATCH 1/1] Drop the stderr write from ENTROPY_DEBUG()
+
+ENTROPY_DEBUG() fprintf()s the hash salt to stderr when the environment
+sets EXPAT_ENTROPY_DEBUG. With XML_GE 0 it is the library's only stdio
+reference left, since every other debug report sits inside
+#if XML_GE == 1. Embedding hosts that may not write to the process's
+standard streams (R packages among them: CRAN's check flags the linked
+`stderr` symbol whatever the environment says) then link a library with
+no stdio reference. The function keeps its signature and return value.
+
+getDebugLevel() loses its last XML_GE 0 caller, so its declaration and
+definition move under #if XML_GE == 1 to avoid -Wunused-function.
+
+Local to zuxml; could be offered upstream at
+https://github.com/libexpat/libexpat as an opt-out macro.
+---
+--- a/xmlparse.c
++++ b/xmlparse.c
+@@ -669,8 +669,10 @@
+ static XML_Parser getRootParserOf(XML_Parser parser,
+                                   unsigned int *outLevelDiff);
+ 
++#if XML_GE == 1
+ static unsigned long getDebugLevel(const char *variableName,
+                                    unsigned long defaultDebugLevel);
++#endif
+ 
+ static bool poolAppendChar(STRING_POOL *pool, XML_Char c);
+ 
+@@ -1121,13 +1123,7 @@
+ 
+ static struct sipkey
+ ENTROPY_DEBUG(const char *label, struct sipkey entropy_128) {
+-  if (getDebugLevel("EXPAT_ENTROPY_DEBUG", 0) >= 1u) {
+-    fprintf(stderr,
+-            "expat: Entropy: %s --> [0x" EXPAT_FMT_LLX(
+-                "016") ", 0x" EXPAT_FMT_LLX("016") "] (16 bytes)\n",
+-            label, (unsigned long long)entropy_128.k[0],
+-            (unsigned long long)entropy_128.k[1]);
+-  }
++  (void)label;
+   return entropy_128;
+ }
+ 
+@@ -9445,8 +9441,6 @@
+   assert(0); /* never gets here */
+   // LCOV_EXCL_STOP
+ }
+-
+-#endif /* XML_GE == 1 */
+ 
+ static unsigned long
+ getDebugLevel(const char *variableName, unsigned long defaultDebugLevel) {
+@@ -9466,3 +9460,5 @@
+ 
+   return debugLevel;
+ }
++
++#endif /* XML_GE == 1 */

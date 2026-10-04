@@ -51,8 +51,9 @@ name: native-checks
 permissions: read-all
 
 jobs:
-  # tools/verify-vendor re-downloads the pinned Expat tarball and compares it
-  # byte for byte, so it catches a hand edit even when the pin was bumped to
+  # tools/verify-vendor re-downloads the pinned Expat tarball, applies
+  # tools/patches/ and compares the result with the committed tree byte for
+  # byte, so it catches a hand edit even when the pin was bumped to
   # match. What it cannot catch is the same edit committed with the pin left
   # alone -- reproducibility is a property of the commit, not of the working
   # tree -- which is what the pull-request half of this job adds.

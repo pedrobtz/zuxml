@@ -1,10 +1,24 @@
+## Resubmission
+
+This is a resubmission. The previous upload (2026-09-25) was archived by the
+incoming pretest because of
+
+    Found 'stderr', possibly from 'stderr' (C)
+      Object: 'vendor/expat/xmlparse.o'
+
+The only reachable reference was a debug-only `fprintf(stderr, ...)` in
+Expat's `ENTROPY_DEBUG()`. It is now removed by a local patch to the bundled
+Expat, recorded in `src/vendor/PROVENANCE`. No compiled object in the package
+references `stderr`, `stdout` or `printf` any more.
+
 ## Submission
 
 This is a new submission.
 
 zuxml bundles the Expat XML parser, version 2.8.4
-(<https://libexpat.github.io/>), unmodified, in `src/vendor/expat/`. Its
-copyright holders are listed in `Authors@R` and `inst/COPYRIGHTS`.
+(<https://libexpat.github.io/>), in `src/vendor/expat/`, with that one patch
+and no other change. Its copyright holders are listed in `Authors@R` and
+`inst/COPYRIGHTS`.
 
 ## Test environments
 
@@ -15,21 +29,11 @@ copyright holders are listed in `Authors@R` and `inst/COPYRIGHTS`.
 
 ## R CMD check results
 
-0 errors | 0 warnings | 2 notes
+0 errors | 0 warnings | 1 note
 
 * New submission.
 
-* `Found '___stderrp', possibly from 'stderr' (C)` in
-  `vendor/expat/xmlparse.o`.
-
-  The only reference is an `fprintf(stderr, ...)` in Expat's `ENTROPY_DEBUG()`,
-  which runs only when the user sets the environment variable
-  `EXPAT_ENTROPY_DEBUG`. zuxml never sets it. We keep the bundled Expat
-  byte-identical to upstream so that security updates can be applied cleanly,
-  and would rather not patch it for a line that cannot run by default. We are
-  happy to patch it if CRAN prefers.
-
-On R 4.5 (r-oldrel) only, a third NOTE lists `R_GetConnection` and
+On R 4.5 (r-oldrel) only, a second NOTE lists `R_GetConnection` and
 `R_ReadConnection` as non-API calls. They are used by `xml_read()` to read
 connections. R 4.6 lists them in the "Experimental API index" of Writing R
 Extensions, so the NOTE does not appear on r-release or r-devel.

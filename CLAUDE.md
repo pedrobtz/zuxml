@@ -49,8 +49,12 @@ roadmap is authoritative; this is the summary.
 ## Feature policy — non-negotiable
 
 `src/expat_config.h` is project-owned and is the only place local configuration
-lives. Everything under `src/vendor/expat/` is byte-identical to the pinned
-upstream release; `tools/verify-vendor` enforces that and CI runs it.
+lives. Everything under `src/vendor/expat/` is the pinned upstream release
+plus exactly the patches in `tools/patches/`; `tools/verify-vendor` enforces
+that and CI runs it. The one patch removes Expat's only surviving `stderr`
+write, which CRAN's pretest rejected (#72); `tools/check-no-stdio` keeps it
+out. Patch only for a reason like that: every patch is carried through every
+Expat update.
 
 * `XML_GE 0`, and `XML_DTD` is **never** defined. General entities, parameter
   entities, external subsets and the external-entity machinery are compiled
@@ -150,7 +154,8 @@ deliberately not, since shared-runner timings are too noisy to gate on, and
 | script                     | what it proves                                        |
 |----------------------------|-------------------------------------------------------|
 | `tools/run-lint`           | project-owned code compiles warning-free (`-Werror`)  |
-| `tools/verify-vendor`      | `src/vendor/expat` matches the pinned release exactly |
+| `tools/verify-vendor`      | `src/vendor/expat` is the pinned release plus `tools/patches/`, exactly |
+| `tools/check-no-stdio`     | no compiled object references `stderr`/`stdout`/`printf` |
 | `tools/run-sanitizers`     | the event seam under ASan + UBSan, no R in the way    |
 | `tools/run-fuzz`           | libFuzzer over the parser seam, after a canary that must crash |
 | `tools/run-mutation-check` | each security guard is load-bearing                   |
