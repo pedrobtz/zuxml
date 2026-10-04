@@ -1,0 +1,62 @@
+#!/bin/sh
+# Compiled code must not reference the process's standard streams: CRAN's
+# incoming check flags a linked `stderr`/`stdout`/`printf` symbol whatever
+# the code path, and archived the first 0.1.0 submission for one (#72).
+# This compiles the vendored Expat and the R-free core exactly as
+# src/Makevars does and fails if any object leaves such a symbol undefined.
+# Run from the package root.
+#
+#   tools/check-no-stdio            the gate
+#   tools/check-no-stdio --canary   compile one object that writes to
+#                                   stderr and require the gate to flag it,
+#                                   so the symbol pattern is known to match
+#                                   this platform's spelling
+set -eu
+CC=${CC:-cc}
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT
+
+# `stderr` is `stderr` on glibc, `__stderrp` on macOS (`___stderrp` once
+# Mach-O prefixes it) and `__acrt_iob_func` on UCRT, which R's own check
+# does not report; the stream functions cover the cases where the stream
+# arrives some other way.
+PATTERN='^_*(stdout|stderr|stdoutp|stderrp|printf|fprintf|vprintf|vfprintf|puts|fputs|putchar|fputc|putc|fwrite|perror)$'
+
+# The C files behind EXPAT_OBJECTS and the core in src/Makevars. Not a glob
+# over the vendor tree: xmltok_impl.c and friends are #included rather than
+# compiled, and only one random_*.c is selected, by zux_expat_random.c.
+SOURCES="src/zux_expat_random.c src/vendor/expat/xmlparse.c
+  src/vendor/expat/xmltok.c src/vendor/expat/xmlrole.c
+  src/zux_parser.c src/zux_tree.c src/zux_write.c"
+if [ "${1:-}" = "--canary" ]; then
+  cat > "$OUT/canary.c" <<'EOF'
+#include <stdio.h>
+void zux_canary(void);
+void zux_canary(void) { fprintf(stderr, "canary\n"); }
+EOF
+  SOURCES="$OUT/canary.c"
+fi
+
+fail=0
+for f in $SOURCES; do
+  o="$OUT/$(basename "$f" .c).o"
+  "$CC" -c -O2 -I src -I inst/include -I src/vendor/expat \
+    -D__USE_MINGW_ANSI_STDIO=1 -o "$o" "$f"
+  hits=$(nm -u "$o" | awk '{print $NF}' | grep -E "$PATTERN" || true)
+  if [ -n "$hits" ]; then
+    echo "FAIL: $f references $(echo "$hits" | tr '\n' ' ')" >&2
+    fail=1
+  fi
+done
+
+if [ "${1:-}" = "--canary" ]; then
+  if [ "$fail" -eq 1 ]; then
+    echo "==> canary OK: a stderr write was flagged"
+    exit 0
+  fi
+  echo "CANARY FAILED: a stderr write went unflagged" >&2
+  exit 1
+fi
+
+[ "$fail" -eq 0 ] && echo "==> no stdio symbols in vendored Expat or the core"
+exit "$fail"

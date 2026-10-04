@@ -1,7 +1,16 @@
 #!/bin/sh
-# Verify src/vendor/expat matches the pinned upstream release exactly.
-# Exits non-zero on any difference. Run from the package root.
+# Verify that src/vendor/expat is the pinned upstream release plus exactly
+# the patch series in tools/patches/, byte for byte. Exits non-zero on any
+# difference. Run from the package root.
+#
+#   tools/verify-vendor                 the gate
+#   tools/verify-vendor --canary        the gate's canary: re-derive the tree
+#                                       with the first patch left out and
+#                                       require verification to FAIL
 set -eu
+
+CANARY=0
+[ "${1:-}" = "--canary" ] && CANARY=1
 
 PROV="src/vendor/PROVENANCE"
 [ -f "$PROV" ] || { echo "missing $PROV" >&2; exit 1; }
@@ -33,40 +42,71 @@ echo "==> sha256 matches"
 
 tar xzf "$WORK/expat.tar.gz" -C "$WORK"
 SRC="$WORK/expat-${VERSION}"
+TREE="$WORK/tree"
+mkdir "$TREE"
 
-# Expected basenames, one per line, from the shared manifest.
-MANIFEST="$WORK/manifest"
+# 1. Re-derive the expected tree: the manifest files under their basenames.
 grep -v '^#' tools/expat-files.txt | grep -v '^[[:space:]]*$' > "$WORK/paths"
-while read -r f; do basename "$f"; done < "$WORK/paths" | sort > "$MANIFEST"
-
-# 1. Every manifest file must be present and byte-identical.
-count=0
 while read -r f; do
+  cp "$SRC/$f" "$TREE/$(basename "$f")"
+done < "$WORK/paths"
+
+# 2. The patch series must be exactly what PROVENANCE lists, in order.
+awk '/^  Local patches:/ {on = 1; next} on && /^ +[^ ]+\.patch$/ {print $1; next} on {exit}' \
+  "$PROV" > "$WORK/listed"
+ls tools/patches/*.patch 2>/dev/null | xargs -n1 basename > "$WORK/present" || true
+if ! cmp -s "$WORK/listed" "$WORK/present"; then
+  echo "FAIL: tools/patches/ does not match the patch list in $PROV" >> "$FAILURES"
+fi
+
+first=1
+while read -r p; do
+  if [ "$CANARY" -eq 1 ] && [ "$first" -eq 1 ]; then
+    echo "==> canary: leaving out $p"
+    first=0
+    continue
+  fi
+  first=0
+  patch -s -p1 -d "$TREE" < "tools/patches/$p" ||
+    echo "FAIL: tools/patches/$p does not apply cleanly" >> "$FAILURES"
+done < "$WORK/present"
+find "$TREE" \( -name '*.orig' -o -name '*.rej' \) -delete
+
+# 3. Every file must match, and nothing may be present that the derivation
+#    did not produce. Build artifacts (*.o, *.so, *.dll, *.dylib) are
+#    ignored: R builds in place, so they appear here routinely and are
+#    already git-ignored.
+count=0
+for f in "$TREE"/*; do
   b=$(basename "$f")
   if [ ! -f "src/vendor/expat/$b" ]; then
     echo "FAIL: src/vendor/expat/$b is missing" >> "$FAILURES"
-  elif ! cmp -s "$SRC/$f" "src/vendor/expat/$b"; then
-    echo "FAIL: src/vendor/expat/$b differs from upstream $f" >> "$FAILURES"
+  elif ! cmp -s "$f" "src/vendor/expat/$b"; then
+    echo "FAIL: src/vendor/expat/$b differs from upstream plus patches" >> "$FAILURES"
   fi
   count=$((count + 1))
-done < "$WORK/paths"
-
-# 2. Nothing may be present that upstream did not provide. Build artifacts
-#    (*.o, *.so, *.dll, *.dylib) are ignored: R builds in place, so they
-#    appear here routinely and are already git-ignored.
+done
 for local in src/vendor/expat/*; do
   b=$(basename "$local")
   case "$b" in
     *.o | *.so | *.dll | *.dylib | *.a) continue ;;
   esac
-  if ! grep -qx "$b" "$MANIFEST"; then
+  [ -f "$TREE/$b" ] ||
     echo "FAIL: src/vendor/expat/$b is not in tools/expat-files.txt" >> "$FAILURES"
-  fi
 done
 
-# 3. Configuration must never be vendored -- it belongs in src/expat_config.h.
+# 4. Configuration must never be vendored -- it belongs in src/expat_config.h.
 if [ -f "src/vendor/expat/expat_config.h" ]; then
   echo "FAIL: an upstream expat_config.h leaked into the vendor tree" >> "$FAILURES"
+fi
+
+if [ "$CANARY" -eq 1 ]; then
+  if [ -s "$FAILURES" ]; then
+    echo "==> canary OK: verification failed with a patch left out"
+    exit 0
+  fi
+  echo "CANARY FAILED: verification passed with a patch left out" >&2
+  exit 1
 fi
 
 if [ -s "$FAILURES" ]; then
@@ -75,4 +115,4 @@ if [ -s "$FAILURES" ]; then
   exit 1
 fi
 
-echo "==> vendor tree verified clean ($count files, Expat $VERSION)"
+echo "==> vendor tree verified ($count files, Expat $VERSION plus $(wc -l < "$WORK/present" | tr -d ' ') patches)"

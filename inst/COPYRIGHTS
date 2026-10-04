@@ -27,12 +27,15 @@ lib${R_ARCH}/libzuxml.a (lib/libzuxml.a on most platforms), and carries Expat's 
 and the pinned release, its checksum and the import date are recorded in
 src/vendor/PROVENANCE.
 
-The bundled files are unmodified. zuxml adds no code to that directory: the
-build configuration Expat would normally generate with autotools or CMake is
-kept outside it, in the project-owned src/expat_config.h, so that the
-tree can be proven byte-identical to upstream. The script that checks this,
-tools/verify-vendor, is not part of the distributed package; it lives in the
-source repository at <https://github.com/pedrobtz/zuxml>.
+The bundled files are the upstream release with one local patch, which
+removes a debug-only write to stderr from xmlparse.c; the patch is listed in
+src/vendor/PROVENANCE and kept in the source repository as
+tools/patches/0001-no-stdio-entropy-debug.patch. zuxml adds no other code to
+that directory: the build configuration Expat would normally generate with
+autotools or CMake is kept outside it, in the project-owned
+src/expat_config.h. The script that proves the tree is exactly upstream plus
+that patch, tools/verify-vendor, is not part of the distributed package; it
+lives in the source repository at <https://github.com/pedrobtz/zuxml>.
 
 Only the parser library is bundled. Expat's xmlwf utility, examples, test
 suite, fuzzers and build systems are not included.

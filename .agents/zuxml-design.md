@@ -714,7 +714,9 @@ Pinned at **Expat 2.8.4** (2026-08-31), which is also the floor. It is a securit
 
 **Expat is not treated as a trusted component.** Upstream publicly tracks unfixed non-public vulnerabilities at libexpat issue #1160 — seven open at import time, three with reserved CVEs. That is normal for a heavily fuzzed XML parser and is not a reason to prefer a different one; it is the reason the security model does not rest on the parser being correct. `XML_GE 0` with no `XML_DTD` deletes whole vulnerability classes from the binary, and the project-owned limits at the event seam bound what a parser bug can cost. Re-vendor promptly on each upstream release.
 
-Record in `src/vendor/PROVENANCE` — one level above the vendored tree, so the tree stays byte-identical to upstream: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
+Record in `src/vendor/PROVENANCE` — one level above the vendored tree, so the tree holds nothing but upstream's files and the reviewed patches: upstream repo, release tag, commit SHA, tarball SHA-256, import date, license, local patches, compile configuration.
+
+**Local patches** live in `tools/patches/`, as mail-style diffs whose header gives the reason. There is one: `0001-no-stdio-entropy-debug.patch` removes the `fprintf(stderr, …)` from `ENTROPY_DEBUG()`, the only stdio reference `XML_GE 0` leaves, and moves `getDebugLevel()` under `#if XML_GE == 1` so it is not left unused. CRAN's incoming check flags the linked `stderr` symbol regardless of whether it can run, and its pretest archived the first 0.1.0 submission for it (#72); a justification in `cran-comments.md` was never read, because the pretest is automatic. `tools/check-no-stdio` compiles the vendored and core objects and fails on any stdio symbol, so an Expat update cannot quietly bring it back. The bar for a new patch is that high: each one is carried through every update.
 
 ### Configuration
 
@@ -741,7 +743,7 @@ These are the specific things that break Expat vendoring, named so CI does not h
 
 ### Updating
 
-`tools/update-expat <version>` fetches the release tarball and records its SHA-256 (trust on first use, as `PROVENANCE` says). It replaces `src/vendor/expat/` with the files listed in `tools/expat-files.txt`, `COPYING` and `AUTHORS` among them, rewrites `src/vendor/PROVENANCE`, and names the next steps: `tools/verify-vendor`, then `R CMD check`, then fuzzing. It does not run them itself. There is no `tools/patches/`, since no local patch is carried. Rewriting `PROVENANCE` drops its hand-written *Why this version is the floor* and *Known unfixed issues* sections, so restore them by hand. `tools/verify-vendor` re-derives the tree and fails if it differs from what is committed. XML parsers get security releases; this has to be a 10-minute job.
+`tools/update-expat <version>` fetches the release tarball and records its SHA-256 (trust on first use, as `PROVENANCE` says). It replaces `src/vendor/expat/` with the files listed in `tools/expat-files.txt`, `COPYING` and `AUTHORS` among them, rewrites `src/vendor/PROVENANCE`, and names the next steps: `tools/verify-vendor`, then `R CMD check`, then fuzzing. It does not run them itself. It applies `tools/patches/*.patch` in order and lists them in `PROVENANCE`; a patch that no longer applies fails the update and must be rebased by hand. Rewriting `PROVENANCE` drops its hand-written *Why this version is the floor* and *Known unfixed issues* sections, so restore them by hand. `tools/verify-vendor` re-derives the tree and fails if it differs from what is committed. XML parsers get security releases; this has to be a 10-minute job.
 
 ---
 

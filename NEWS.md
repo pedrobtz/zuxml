@@ -109,4 +109,6 @@ First release.
 ## Bundled software
 
 * Expat 2.8.4 is bundled under `src/vendor/expat/`, so no system XML library
-  is required. See `LICENSE.note` and `inst/COPYRIGHTS`.
+  is required. One local patch removes a debug-only write to `stderr` that
+  upstream compiles in; nothing else differs from the release. See
+  `LICENSE.note` and `inst/COPYRIGHTS`.

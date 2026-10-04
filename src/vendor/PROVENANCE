@@ -8,12 +8,19 @@ Vendored dependency: Expat (libexpat)
   SHA-256:       b8ece2437692dad44d851c4532723390a5a330990007706be9c8d2b90d294f36
   Imported:      2026-09-08
   License:       MIT (see src/vendor/expat/COPYING)
-  Local patches: none
+  Local patches: applied in this order, from tools/patches/
+                 0001-no-stdio-entropy-debug.patch
 
-Everything in src/vendor/expat/ is a byte-identical copy of the files listed
-in tools/expat-files.txt. Build configuration is NOT vendored: it lives in
-the project-owned src/expat_config.h, so this tree stays verifiable with
-tools/verify-vendor.
+src/vendor/expat/ is the files listed in tools/expat-files.txt, copied from
+the release tarball under their basenames, with exactly the patches above
+applied. tools/verify-vendor re-derives the tree from the pinned tarball and
+the patch series and fails on any other difference. Build configuration is
+NOT vendored: it lives in the project-owned src/expat_config.h.
+
+0001 removes the only stdio reference XML_GE 0 leaves in the library, a
+debug-only fprintf(stderr, ...) in ENTROPY_DEBUG(). CRAN's incoming check
+flags the linked `stderr` symbol, and archived the first 0.1.0 submission
+for it (2026-09-25, #72).
 
 Only the parser library is imported. xmlwf, the examples, the test suite,
 the fuzzers, CMake and autotools are all deliberately excluded.

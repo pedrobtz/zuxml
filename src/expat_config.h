@@ -1,8 +1,9 @@
 /* zuxml: project-owned build configuration for the vendored Expat.
  *
- * This file is NOT from upstream. Everything under src/vendor/expat/ is a
- * byte-identical copy of the pinned release (see src/vendor/PROVENANCE and
- * tools/verify-vendor); all local configuration lives here instead. Expat's
+ * This file is NOT from upstream. Everything under src/vendor/expat/ is the
+ * pinned release plus the patch series in tools/patches/ (see
+ * src/vendor/PROVENANCE and tools/verify-vendor); all local configuration
+ * lives here instead. Expat's
  * sources include "expat_config.h" unconditionally, and because there is no
  * such file inside the vendor directory the quoted include falls through to
  * this one via -I in src/Makevars.

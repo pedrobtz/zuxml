@@ -669,8 +669,10 @@ static void entityTrackingOnClose(XML_Parser parser, ENTITY *entity,
 static XML_Parser getRootParserOf(XML_Parser parser,
                                   unsigned int *outLevelDiff);
 
+#if XML_GE == 1
 static unsigned long getDebugLevel(const char *variableName,
                                    unsigned long defaultDebugLevel);
+#endif
 
 static bool poolAppendChar(STRING_POOL *pool, XML_Char c);
 
@@ -1121,13 +1123,7 @@ gather_time_entropy(void) {
 
 static struct sipkey
 ENTROPY_DEBUG(const char *label, struct sipkey entropy_128) {
-  if (getDebugLevel("EXPAT_ENTROPY_DEBUG", 0) >= 1u) {
-    fprintf(stderr,
-            "expat: Entropy: %s --> [0x" EXPAT_FMT_LLX(
-                "016") ", 0x" EXPAT_FMT_LLX("016") "] (16 bytes)\n",
-            label, (unsigned long long)entropy_128.k[0],
-            (unsigned long long)entropy_128.k[1]);
-  }
+  (void)label;
   return entropy_128;
 }
 
@@ -9446,8 +9442,6 @@ unsignedCharToPrintable(unsigned char c) {
   // LCOV_EXCL_STOP
 }
 
-#endif /* XML_GE == 1 */
-
 static unsigned long
 getDebugLevel(const char *variableName, unsigned long defaultDebugLevel) {
   const char *const valueOrNull = getenv(variableName);
@@ -9466,3 +9460,5 @@ getDebugLevel(const char *variableName, unsigned long defaultDebugLevel) {
 
   return debugLevel;
 }
+
+#endif /* XML_GE == 1 */

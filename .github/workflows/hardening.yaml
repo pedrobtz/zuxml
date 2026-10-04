@@ -44,6 +44,28 @@ jobs:
       - name: project-owned code must be warning-free
         run: CC=clang ./tools/run-lint
 
+  # The vendored tree is upstream plus tools/patches/, and the one patch so far
+  # exists to keep stdio symbols out of the compiled code (#72). Both checks
+  # run beside a canary. The tree check itself runs in native-checks' vendor
+  # job; only its canary is here. Linux and macOS, because the stdio symbol is
+  # spelled differently on each; not Windows, whose UCRT stream accessor R's
+  # check does not report.
+  no-stdio:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: no stdio (${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v7
+      - name: canary - leaving a patch out must fail verification
+        run: ./tools/verify-vendor --canary
+      - name: compiled code references no stdio symbol
+        run: ./tools/check-no-stdio
+      - name: canary - a stderr write must be flagged
+        run: ./tools/check-no-stdio --canary
+
   sanitizers:
     runs-on: ubuntu-latest
     name: ASan + UBSan + LSan

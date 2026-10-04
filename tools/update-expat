@@ -4,6 +4,11 @@
 # XML parsers get frequent security releases -- upstream tracks unfixed
 # non-public issues at https://github.com/libexpat/libexpat/issues/1160 --
 # so re-vendoring must stay a ten-minute job. Run from the package root.
+#
+# Copies the files listed in tools/expat-files.txt into src/vendor/expat/,
+# applies tools/patches/*.patch in order and rewrites src/vendor/PROVENANCE.
+# The rewrite drops PROVENANCE's hand-written sections (why this version is
+# the floor, known unfixed issues): restore and update them by hand.
 set -eu
 
 VERSION="${1:?usage: tools/update-expat <version>}"
@@ -31,6 +36,16 @@ grep -v '^#' "$ROOT/tools/expat-files.txt" | grep -v '^[[:space:]]*$' | while re
   cp "$SRC/$f" "$ROOT/src/vendor/expat/$(basename "$f")"
 done
 
+PATCHES=""
+for p in "$ROOT"/tools/patches/*.patch; do
+  [ -f "$p" ] || continue
+  echo "==> applying $(basename "$p")"
+  patch -s -p1 -d "$ROOT/src/vendor/expat" < "$p"
+  PATCHES="${PATCHES}                 $(basename "$p")
+"
+done
+find "$ROOT/src/vendor/expat" \( -name '*.orig' -o -name '*.rej' \) -delete
+
 echo "==> writing src/vendor/PROVENANCE"
 cat > "$ROOT/src/vendor/PROVENANCE" <<PEOF
 Vendored dependency: Expat (libexpat)
@@ -43,12 +58,13 @@ Vendored dependency: Expat (libexpat)
   SHA-256:       ${SHA}
   Imported:      $(date -u +%Y-%m-%d)
   License:       MIT (see src/vendor/expat/COPYING)
-  Local patches: none
-
-Everything in src/vendor/expat/ is a byte-identical copy of the files listed
-in tools/expat-files.txt. Build configuration is NOT vendored: it lives in
-the project-owned src/expat_config.h, so this tree stays verifiable with
-tools/verify-vendor.
+  Local patches: applied in this order, from tools/patches/
+${PATCHES}
+src/vendor/expat/ is the files listed in tools/expat-files.txt, copied from
+the release tarball under their basenames, with exactly the patches above
+applied. tools/verify-vendor re-derives the tree from the pinned tarball and
+the patch series and fails on any other difference. Build configuration is
+NOT vendored: it lives in the project-owned src/expat_config.h.
 
 Only the parser library is imported. xmlwf, the examples, the test suite,
 the fuzzers, CMake and autotools are all deliberately excluded.
