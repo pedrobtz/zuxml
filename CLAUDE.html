@@ -63,7 +63,7 @@
 </ul></div>
 <div class="section level2">
 <h2 id="feature-policy--non-negotiable">Feature policy — non-negotiable<a class="anchor" aria-label="anchor" href="#feature-policy--non-negotiable"></a></h2>
-<p><code>src/expat_config.h</code> is project-owned and is the only place local configuration lives. Everything under <code>src/vendor/expat/</code> is byte-identical to the pinned upstream release; <code>tools/verify-vendor</code> enforces that and CI runs it.</p>
+<p><code>src/expat_config.h</code> is project-owned and is the only place local configuration lives. Everything under <code>src/vendor/expat/</code> is the pinned upstream release plus exactly the patches in <code>tools/patches/</code>; <code>tools/verify-vendor</code> enforces that and CI runs it. The one patch removes Expat’s only surviving <code>stderr</code> write, which CRAN’s pretest rejected (#72); <code>tools/check-no-stdio</code> keeps it out. Patch only for a reason like that: every patch is carried through every Expat update.</p>
 <ul><li>
 <code>XML_GE 0</code>, and <code>XML_DTD</code> is <strong>never</strong> defined. General entities, parameter entities, external subsets and the external-entity machinery are compiled <em>out</em>, so XXE and entity amplification are impossible rather than switched off. The accepted cost: any entity reference beyond the five built-ins and numeric character references is a hard parse error.</li>
 <li>
@@ -133,7 +133,10 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <td>project-owned code compiles warning-free (<code>-Werror</code>)</td>
 </tr><tr><td><code>tools/verify-vendor</code></td>
 <td>
-<code>src/vendor/expat</code> matches the pinned release exactly</td>
+<code>src/vendor/expat</code> is the pinned release plus <code>tools/patches/</code>, exactly</td>
+</tr><tr><td><code>tools/check-no-stdio</code></td>
+<td>no compiled object references <code>stderr</code>/<code>stdout</code>/<code>printf</code>
+</td>
 </tr><tr><td><code>tools/run-sanitizers</code></td>
 <td>the event seam under ASan + UBSan, no R in the way</td>
 </tr><tr><td><code>tools/run-fuzz</code></td>
