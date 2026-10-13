@@ -26,7 +26,9 @@ First release.
   an encoding that must go through
   [`iconv()`](https://rdrr.io/r/base/iconv.html) is read in full first.
   An unopened connection is opened in binary mode and closed afterwards;
-  an open one must be binary and blocking, and is left open.
+  an open one must be binary and blocking, and is left open. A URL or
+  file that cannot be opened is a `zuxml:` error naming the cause
+  (`HTTP status was '404 Not Found'`), with no stray warning.
 - Encodings Expat handles natively are passed through, under any of
   their common spellings (`"latin1"`, `"UTF8"`, `"ASCII"`); anything
   else is transcoded with
