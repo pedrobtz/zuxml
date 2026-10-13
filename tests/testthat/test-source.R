@@ -117,7 +117,7 @@ test_that("a bad input is a classed, prefixed error", {
 })
 
 test_that("a URL that cannot be opened is a prefixed error, without a warning", {
-  # A file:// URL goes through url() and fails in open(), as an HTTP 404
+  # A file:// URL is opened as a URL connection and fails, as an HTTP 404
   # does, without needing the network.
   missing <- paste0("file://", file.path(tempdir(), "no-such-file.xml"))
   before <- nrow(showConnections(all = TRUE))
