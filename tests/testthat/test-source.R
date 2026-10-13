@@ -115,3 +115,14 @@ test_that("a bad input is a classed, prefixed error", {
   expect_error(read_input(c("a.xml", "b.xml")), msg("`path` must be"))
   expect_error(read_input(NA_character_), msg("`path` must be"))
 })
+
+test_that("a URL that cannot be opened is a prefixed error, without a warning", {
+  # A file:// URL is opened as a URL connection and fails, as an HTTP 404
+  # does, without needing the network.
+  missing <- paste0("file://", file.path(tempdir(), "no-such-file.xml"))
+  before <- nrow(showConnections(all = TRUE))
+  expect_no_warning(
+    expect_error(read_input(missing), msg("cannot open file .*no-such-file"))
+  )
+  expect_identical(nrow(showConnections(all = TRUE)), before)
+})
