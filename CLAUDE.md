@@ -177,6 +177,7 @@ noisy to gate on, and `update-expat` is a maintenance script.
 | `tools/run-lint` | project-owned code compiles warning-free (`-Werror`) |
 | `tools/verify-vendor` | `src/vendor/expat` is the pinned release plus `tools/patches/`, exactly |
 | `tools/check-no-stdio` | no compiled object references `stderr`/`stdout`/`printf` |
+| `tools/check-authors` | every person Expat’s copyright lines and AUTHORS name is in `Authors@R` and `inst/COPYRIGHTS` |
 | `tools/run-sanitizers` | the event seam under ASan + UBSan, no R in the way |
 | `tools/run-fuzz` | libFuzzer over the parser seam, after a canary that must crash |
 | `tools/run-mutation-check` | each security guard is load-bearing |
@@ -225,6 +226,10 @@ One trap when running them by hand:
 - `vignettes/articles/` is pkgdown-only and `.Rbuildignore`d;
   `vignettes/*.Rmd` is built *and executed* by `R CMD check`, including
   under the sanitizers.
+- **Every individually named Expat author is in `Authors@R`** (`ctb`,
+  `cph`) and in `inst/COPYRIGHTS`. CRAN’s review of 0.1.0 asked for them
+  by name; `tools/check-authors` fails a re-vendor that brings in a new
+  copyright line until both are updated.
 - Expat and its notices are redistributed here: `inst/COPYRIGHTS`,
   `src/vendor/PROVENANCE`, `LICENSE.note`, and Expat’s `COPYING`, which
   `install.libs.R` installs as `licenses/expat-COPYING`. That copy is a
