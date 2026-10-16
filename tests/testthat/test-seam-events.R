@@ -1,7 +1,3 @@
-ev  <- function(...) zuxml:::zux_event_log(...)
-evs <- function(...) zuxml:::zux_event_log(...)$events
-st  <- function(...) zuxml:::zux_event_log(...)$status
-
 test_that("a minimal document produces the expected event sequence", {
   r <- ev("<a/>")
   expect_identical(r$status, "ok")

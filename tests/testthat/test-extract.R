@@ -1,6 +1,3 @@
-tbl <- function(xml, ...) xml_table(xml_parse(xml), ...)[[1]]
-lst <- function(xml, ...) xml_list(xml_parse(xml), ...)[[1]]
-
 test_that("a table with a th header row becomes a named data frame", {
   d <- tbl("<table>
     <tr><th>fruit</th><th>price</th></tr>

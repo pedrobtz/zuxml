@@ -1,5 +1,3 @@
-structure_of <- function(doc) zuxml:::zux_tree_info(xml_serialize(doc))$dump
-
 test_that("parse -> serialize -> parse is structurally identical", {
   for (nm in names(corpus)) {
     d1 <- xml_parse(corpus[[nm]])

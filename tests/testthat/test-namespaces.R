@@ -1,6 +1,3 @@
-evs <- function(...) zuxml:::zux_event_log(...)$events
-st  <- function(...) zuxml:::zux_event_log(...)$status
-
 test_that("a default namespace applies to elements", {
   expect_identical(evs('<a xmlns="urn:d"/>'),
                    c("start|{urn:d}a^|n=0", "end|{urn:d}a^"))

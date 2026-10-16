@@ -2,19 +2,6 @@
 # test-source.R): that the parser's position, limits, options and encoding
 # handling survive the trip through a connection.
 
-# rawConnection() is born open, so xml_read() leaves it open; close it here
-# rather than let the GC warn about an unused connection.
-read_raw <- function(bytes, ...) {
-  con <- rawConnection(bytes)
-  on.exit(close(con), add = TRUE)
-  xml_read(con, ...)
-}
-
-big_doc <- function(n = 20000L) {
-  # Well over three feed chunks, so the connection loop reads more than once.
-  paste0("<r>", strrep("<i a='1'>text</i>", n), "</r>")
-}
-
 test_that("a stream error carries the same position as the buffered parse", {
   # The error sits past the first feed chunk, so the offset is only right if
   # the parser's position survives across connection reads.

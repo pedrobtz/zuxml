@@ -12,19 +12,13 @@
 # The limit is set inside the same expression as the parse: a transient limit
 # set as a separate top-level expression is reset before the next one runs.
 
-big_doc <- function(mib) {
-  item <- "<item id='1'><name>widget</name><price>9.99</price></item>"
-  n <- ceiling(mib * 1024^2 / nchar(item))
-  paste0("<items>", strrep(item, n), "</items>")
-}
-
 test_that("an interrupted parse frees its arena and leaves zuxml usable", {
   # Not skipped on CRAN: the sanitizer and valgrind jobs run R CMD check
   # --as-cran, and a skip there would leave the unwind path unexercised under
   # exactly the tools that can see a leak. 32 MiB in 20 ms would be over
   # 1.6 GB/s, several times what Expat manages, so a parse that finishes means
   # the interrupt was not honoured -- a failure, never a skip.
-  x <- big_doc(32)
+  x <- items_doc(32)
   gc()
   before <- zuxml:::zux_live_arenas()
 

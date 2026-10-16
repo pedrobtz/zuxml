@@ -1,17 +1,9 @@
 # Tests for src/zu_source.h and R/zu_source.R, the byte source shared with
-# sibling packages. They exercise it through this package's reader, so the
-# one line below is all a copy has to change. Everything here is about how
+# sibling packages. They exercise it through this package's reader, named in
+# helper-source.R, so a copy takes that file too and changes only its first
+# lines. Everything here is about how
 # input reaches the parser -- paths, URLs, connections, chunking -- not
 # about the format, which tests/testthat/test-read.R covers.
-
-read_input <- xml_read
-prefix <- "zuxml"
-msg <- function(x) paste0("^", prefix, ": ", x)
-
-big_doc <- function(n = 20000L) {
-  # Well over three feed chunks, so the connection loop reads more than once.
-  paste0("<r>", strrep("<i a='1'>text</i>", n), "</r>")
-}
 
 test_that("read_input() parses a path, a file:// URL and a connection alike", {
   f <- tempfile(fileext = ".xml")
