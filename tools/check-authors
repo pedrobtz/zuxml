@@ -1,0 +1,63 @@
+#!/bin/sh
+# Every individual the vendored Expat names as a copyright holder or author
+# must be credited in Authors@R and in inst/COPYRIGHTS. CRAN's review of
+# 0.1.0 asked for all of them by name; a re-vendor that brings in a new
+# copyright line must not pass. Run from the package root.
+#
+#   tools/check-authors            the gate
+#   tools/check-authors --canary   add a made-up copyright line and require
+#                                  the gate to flag it
+set -eu
+
+VENDOR=src/vendor/expat
+if [ "${1:-}" = "--canary" ]; then
+  WORK=$(mktemp -d)
+  trap 'rm -rf "$WORK"' EXIT
+  cp -R "$VENDOR" "$WORK/expat"
+  printf '   Copyright (c) 2026      Canary Contributor <canary@example.org>\n' \
+    >> "$WORK/expat/xmlparse.c"
+  if VENDOR_DIR="$WORK/expat" "$0" >/dev/null 2>&1; then
+    echo "CANARY FAILED: an uncredited copyright holder passed the gate" >&2
+    exit 1
+  fi
+  echo "==> canary OK: an uncredited copyright holder is flagged"
+  exit 0
+fi
+VENDOR=${VENDOR_DIR:-$VENDOR}
+
+# "Copyright (c) <years> <Name> <email>" lines, plus the AUTHORS file. An
+# entry "Org / Person" names both; the organisation is credited as cph.
+names=$(
+  { grep -rhoE 'Copyright \(c\) [0-9-]+ +[^<]+<[^>]+>' "$VENDOR" \
+      | sed -E 's/Copyright \(c\) [0-9-]+ +//; s/ *<.*//; s/ +$//'
+    grep -rhoE 'Copyright \(c\) [0-9-]+ +[A-Z][^<]*$' "$VENDOR" \
+      | sed -E 's/Copyright \(c\) [0-9-]+ +//; s/ +$//' \
+      | grep -vE '^(Thai Open Source Software Center Ltd|Expat maintainers)'
+    sed -n '3,$p' "$VENDOR/AUTHORS"
+  } | awk '{ n = split($0, part, " / "); for (i = 1; i <= n; i++) print part[i] }' | grep -v '^[[:space:]]*$' | LC_ALL=C sort -u
+)
+[ -n "$names" ] || { echo "FAIL: found no names in $VENDOR; the extraction is broken" >&2; exit 1; }
+
+status=0
+n=0
+for who in $(printf '%s\n' "$names" | tr ' ' '_'); do
+  who=$(printf '%s' "$who" | tr '_' ' ')
+  n=$((n + 1))
+  family=${who##* }
+  case "$who" in
+    "Fred L. Drake, Jr.") family="Drake, Jr." ;;
+    "José Gutiérrez de la Concha") family="Gutiérrez de la Concha" ;;
+    *" "*) ;;
+    *) family=$who ;;
+  esac
+  if ! grep -qF "\"$family\"" DESCRIPTION && ! grep -qF "\"$who\"" DESCRIPTION; then
+    printf 'FAIL: %s is named in %s but not in Authors@R\n' "$who" "$VENDOR" >&2
+    status=1
+  fi
+  if ! grep -qF "$who" inst/COPYRIGHTS; then
+    printf 'FAIL: %s is named in %s but not in inst/COPYRIGHTS\n' "$who" "$VENDOR" >&2
+    status=1
+  fi
+done
+[ "$status" -eq 0 ] && echo "==> all $n named Expat authors are credited"
+exit "$status"

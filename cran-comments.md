@@ -1,7 +1,12 @@
 ## Resubmission
 
-This is a resubmission. The previous upload (2026-09-25) was archived by the
-incoming pretest because of
+This is a resubmission. In response to the review of 0.1.0, `Authors@R` now
+names every author, contributor and copyright holder of the bundled Expat
+sources: the 60 individuals named in Expat's copyright lines and AUTHORS
+file (`ctb`, `cph`), Sony Corporation (`cph`), and the authors of the
+bundled SipHash header (`ctb`). `inst/COPYRIGHTS` lists the same people.
+
+Earlier, the 2026-09-25 upload was archived by the incoming pretest because of
 
     Found 'stderr', possibly from 'stderr' (C)
       Object: 'vendor/expat/xmlparse.o'

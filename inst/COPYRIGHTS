@@ -37,5 +37,75 @@ src/expat_config.h. The script that proves the tree is exactly upstream plus
 that patch, tools/verify-vendor, is not part of the distributed package; it
 lives in the source repository at <https://github.com/pedrobtz/zuxml>.
 
+Individually named authors and copyright holders. Besides the holders
+above, the bundled source files carry copyright lines, or an AUTHORS entry,
+naming the following people, and Sony Corporation (with Snild Dolkow). All
+are listed in Authors@R:
+
+  Rolf Eike Beer
+  Nick Begg
+  Francesco Bertolaccini
+  Thomas Beutlich
+  Alexander Bluhm
+  Atrem Borovik
+  Hanno Böck
+  Darren Carreras
+  James Clark
+  Clark Cooper
+  Pascal Cuoq
+  Owain Davies
+  Snild Dolkow
+  Fred L. Drake, Jr.
+  Martin Ettl
+  Matthew Fernandez
+  Gaurav
+  Alfonso Gregory
+  Yury Gribov
+  Gustavo Grieco
+  José Gutiérrez de la Concha
+  Taichi Haradaguchi
+  Jann Horn
+  Haris Hussain
+  Rhodri James
+  Kartik Kenchi
+  Boris Kolpackov
+  Evgeny Kotkov
+  Don Lewis
+  Zeyou Liu
+  David Loffredo
+  Marco Maggi
+  Anton Maklakov
+  Alberto Maschietto
+  Sean McBride
+  Donghee Na
+  Benbuck Nason
+  Samanta Navarro
+  Christian Ng
+  Chanho Park
+  Rosen Penev
+  Benjamin Peterson
+  Sebastian Pipping
+  Eric Rahm
+  Cristian Rodríguez
+  Ed Schouten
+  Thijs Schreijer
+  Orgad Shaneh
+  Václav Slavík
+  Steven Solie
+  Greg Stein
+  Viktor Szakats
+  Karl Waclawek
+  Ben Wagner
+  Jeffrey Walton
+  Hans Wennborg
+  Matthew Wozniczka
+  Mariusz Zaborski
+  Vadim Zeitlin
+  Berkay Eren Ürün
+
+siphash.h is derived by William Ahern from the SipHash reference
+implementation by Jean-Philippe Aumasson and Daniel J. Bernstein, with
+changes by Sebastian Pipping and Victor Stinner, under CC0-1.0.
+
 Only the parser library is bundled. Expat's xmlwf utility, examples, test
 suite, fuzzers and build systems are not included.

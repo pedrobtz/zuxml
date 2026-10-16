@@ -65,6 +65,10 @@ jobs:
         run: ./tools/check-no-stdio
       - name: canary - a stderr write must be flagged
         run: ./tools/check-no-stdio --canary
+      - name: every named Expat author is credited
+        run: ./tools/check-authors
+      - name: canary - an uncredited copyright holder must be flagged
+        run: ./tools/check-authors --canary
 
   sanitizers:
     runs-on: ubuntu-latest
