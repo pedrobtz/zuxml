@@ -1,10 +1,3 @@
-books_doc <- function() xml_parse(
-  "<r>
-     <book id='a'><title>A</title><price>1</price></book>
-     <book id='b'><price>2</price></book>
-     <book id='c'><section><title>C</title></section><title>late</title></book>
-   </r>")
-
 test_that("xml_find_first() keeps one result per input, in order", {
   books <- xml_elements(xml_root(books_doc()), "book")
   titles <- xml_find_first(books, "title")

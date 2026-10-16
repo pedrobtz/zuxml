@@ -1,5 +1,3 @@
-ti <- function(...) zuxml:::zux_tree_info(...)
-
 test_that("the document node always exists and holds the root", {
   r <- ti("<a/>")
   expect_identical(r$status, "ok")

@@ -1,7 +1,3 @@
-ev  <- function(...) zuxml:::zux_event_log(...)
-evs <- function(...) zuxml:::zux_event_log(...)$events
-st  <- function(...) zuxml:::zux_event_log(...)$status
-
 # These are permanent regression tests. If one of them starts passing for a
 # different reason than the one stated, that is a finding, not a convenience.
 

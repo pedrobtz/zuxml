@@ -47,22 +47,6 @@ test_that("a truncated multibyte sequence is rejected", {
   expect_error(xml_parse(bad), class = "zuxml_error")
 })
 
-# The bug these guard only shows outside a UTF-8 locale, where paste() has to
-# fall back to the native encoding. Both strings are built from explicit bytes
-# so the fixture does not depend on how this file itself is decoded.
-latin1_str <- function(bytes) {
-  s <- rawToChar(as.raw(bytes))
-  Encoding(s) <- "latin1"
-  s
-}
-
-in_c_locale <- function(code) {
-  old <- Sys.getlocale("LC_CTYPE")
-  if (identical(Sys.setlocale("LC_CTYPE", "C"), "")) skip("cannot set the C locale")
-  on.exit(Sys.setlocale("LC_CTYPE", old), add = TRUE)
-  force(code)
-}
-
 test_that("a latin1-marked string parses to the same bytes in any locale", {
   # charToRaw() hands back bytes in the string's own encoding, and paste()
   # falls back to the native one when it has to pick, so declaring the result

@@ -1,5 +1,3 @@
-ev <- function(...) zuxml:::zux_event_log(...)
-
 test_that("a handler can cancel the parse, and the status survives", {
   doc <- '<?xml version="1.0"?><a x="1">t<!--c--><?p d?><b/></a>'
   # Attribute lines are recorded for inspection but are not themselves

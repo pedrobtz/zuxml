@@ -1,9 +1,3 @@
-ev <- function(...) zuxml:::zux_event_log(...)
-st <- function(...) zuxml:::zux_event_log(...)$status
-
-nest <- function(n) paste0(paste(rep("<a>", n), collapse = ""),
-                           paste(rep("</a>", n), collapse = ""))
-
 test_that("each limit reports its own distinct status", {
   expect_identical(st(nest(50), max_depth = 10), "maximum nesting depth exceeded")
 

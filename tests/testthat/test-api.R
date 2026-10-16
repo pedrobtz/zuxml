@@ -1,12 +1,3 @@
-ATOM <- "http://www.w3.org/2005/Atom"
-
-atom_doc <- function() xml_parse(sprintf('<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="%s" xmlns:x="urn:extra">
-  <title>Example Feed</title>
-  <entry x:rank="1"><title>First</title><link href="/1"/></entry>
-  <entry x:rank="2"><title>Second</title><link href="/2"/></entry>
-</feed>', ATOM))
-
 test_that("the worked Atom example from the design runs", {
   doc <- atom_doc()
   entries <- xml_elements(xml_root(doc), "entry", ns = ATOM)
