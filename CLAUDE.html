@@ -138,8 +138,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <td>no compiled object references <code>stderr</code>/<code>stdout</code>/<code>printf</code>
 </td>
 </tr><tr><td><code>tools/check-authors</code></td>
-<td>every person Expat’s copyright lines and AUTHORS name is in <code>Authors@R</code> and <code>inst/COPYRIGHTS</code>
-</td>
+<td>every person Expat’s copyright lines name is in <code>inst/COPYRIGHTS</code>, and its AUTHORS in <code>Authors@R</code> too</td>
 </tr><tr><td><code>tools/run-sanitizers</code></td>
 <td>the event seam under ASan + UBSan, no R in the way</td>
 </tr><tr><td><code>tools/run-fuzz</code></td>
@@ -175,7 +174,7 @@ tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable
 <li>
 <code>vignettes/articles/</code> is pkgdown-only and <code>.Rbuildignore</code>d; <code>vignettes/*.Rmd</code> is built <em>and executed</em> by <code>R CMD check</code>, including under the sanitizers.</li>
 <li>
-<strong>Every individually named Expat author is in <code>Authors@R</code></strong> (<code>ctb</code>, <code>cph</code>) and in <code>inst/COPYRIGHTS</code>. CRAN’s review of 0.1.0 asked for them by name; <code>tools/check-authors</code> fails a re-vendor that brings in a new copyright line until both are updated.</li>
+<strong>Expat’s AUTHORS are in <code>Authors@R</code></strong> (<code>ctb</code>), and <strong>every individual named in a vendored copyright line is in <code>inst/COPYRIGHTS</code></strong>, which the <code>Copyright:</code> field points to. CRAN’s review of 0.1.0 asked for them by name; listing all 60 in <code>Authors@R</code> was judged too much. <code>tools/check-authors</code> fails a re-vendor that brings in a new name until the right file is updated.</li>
 <li>Expat and its notices are redistributed here: <code>inst/COPYRIGHTS</code>, <code>src/vendor/PROVENANCE</code>, <code>LICENSE.note</code>, and Expat’s <code>COPYING</code>, which <code>install.libs.R</code> installs as <code>licenses/expat-COPYING</code>. That copy is a licensing obligation: an installed zuxml carries Expat compiled and as <code>expat.h</code>, and nothing outside <code>inst/</code> is installed otherwise. Static linking in a consumer redistributes them too.</li>
 </ul></div>
 </div>
