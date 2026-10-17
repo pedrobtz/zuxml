@@ -1,14 +1,13 @@
 ## Resubmission
 
 This is a resubmission. In response to the review of 0.1.0, `Authors@R` now
-names the authors of the bundled Expat sources as listed in Expat's own
-AUTHORS file
+names all the authors listed in the AUTHORS file of the bundled Expat
+release
 (<https://raw.githubusercontent.com/libexpat/libexpat/R_2_8_4/expat/AUTHORS>),
-and the authors of the bundled SipHash header, all as `ctb`. As the CRAN
-policy allows, the copyright holders are given through the `Copyright`
-field, which refers to `inst/COPYRIGHTS`: it lists Expat's copyright
-notices and every one of the 60 individuals and the organisations named in
-the copyright lines of the bundled source files.
+and the authors of the bundled SipHash header, as `ctb`. The `Copyright`
+field refers to `inst/COPYRIGHTS`, which lists Expat's copyright notices and
+every individual and organisation named in the copyright lines of the
+bundled source files.
 
 The Title and Description no longer call the parser "secure"; they keep the
 specific claims (document type declarations rejected, external entities not
