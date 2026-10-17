@@ -1,8 +1,9 @@
 #!/bin/sh
 # Every individual the vendored Expat names as a copyright holder or author
-# must be credited in Authors@R and in inst/COPYRIGHTS. CRAN's review of
-# 0.1.0 asked for all of them by name; a re-vendor that brings in a new
-# copyright line must not pass. Run from the package root.
+# must be listed in inst/COPYRIGHTS, which DESCRIPTION's Copyright field
+# points to; the people in Expat's AUTHORS file must also be in Authors@R.
+# A re-vendor that brings in a new copyright line or author must not pass.
+# Run from the package root.
 #
 #   tools/check-authors            the gate
 #   tools/check-authors --canary   add a made-up copyright line and require
@@ -38,6 +39,9 @@ names=$(
 )
 [ -n "$names" ] || { echo "FAIL: found no names in $VENDOR; the extraction is broken" >&2; exit 1; }
 
+authors=$(sed -n '3,$p' "$VENDOR/AUTHORS" | grep -v '^[[:space:]]*$')
+[ -n "$authors" ] || { echo "FAIL: found no names in $VENDOR/AUTHORS" >&2; exit 1; }
+
 status=0
 n=0
 for who in $(printf '%s\n' "$names" | tr ' ' '_'); do
@@ -50,8 +54,9 @@ for who in $(printf '%s\n' "$names" | tr ' ' '_'); do
     *" "*) ;;
     *) family=$who ;;
   esac
-  if ! grep -qF "\"$family\"" DESCRIPTION && ! grep -qF "\"$who\"" DESCRIPTION; then
-    printf 'FAIL: %s is named in %s but not in Authors@R\n' "$who" "$VENDOR" >&2
+  if printf '%s\n' "$authors" | grep -qxF "$who" &&
+     ! grep -qF "\"$family\"" DESCRIPTION && ! grep -qF "\"$who\"" DESCRIPTION; then
+    printf 'FAIL: %s is in %s/AUTHORS but not in Authors@R\n' "$who" "$VENDOR" >&2
     status=1
   fi
   if ! grep -qF "$who" inst/COPYRIGHTS; then
@@ -59,5 +64,5 @@ for who in $(printf '%s\n' "$names" | tr ' ' '_'); do
     status=1
   fi
 done
-[ "$status" -eq 0 ] && echo "==> all $n named Expat authors are credited"
+[ "$status" -eq 0 ] && echo "==> all $n named Expat holders are in inst/COPYRIGHTS, its AUTHORS in Authors@R"
 exit "$status"

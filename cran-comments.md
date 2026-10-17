@@ -1,10 +1,18 @@
 ## Resubmission
 
 This is a resubmission. In response to the review of 0.1.0, `Authors@R` now
-names every author, contributor and copyright holder of the bundled Expat
-sources: the 60 individuals named in Expat's copyright lines and AUTHORS
-file (`ctb`, `cph`), Sony Corporation (`cph`), and the authors of the
-bundled SipHash header (`ctb`). `inst/COPYRIGHTS` lists the same people.
+names the authors of the bundled Expat sources as listed in Expat's own
+AUTHORS file
+(<https://raw.githubusercontent.com/libexpat/libexpat/R_2_8_4/expat/AUTHORS>),
+and the authors of the bundled SipHash header, all as `ctb`. As the CRAN
+policy allows, the copyright holders are given through the `Copyright`
+field, which refers to `inst/COPYRIGHTS`: it lists Expat's copyright
+notices and every one of the 60 individuals and the organisations named in
+the copyright lines of the bundled source files.
+
+The Title and Description no longer call the parser "secure"; they keep the
+specific claims (document type declarations rejected, external entities not
+compiled in, resource limits).
 
 Earlier, the 2026-09-25 upload was archived by the incoming pretest because of
 
@@ -22,8 +30,8 @@ This is a new submission.
 
 zuxml bundles the Expat XML parser, version 2.8.4
 (<https://libexpat.github.io/>), in `src/vendor/expat/`, with that one patch
-and no other change. Its copyright holders are listed in `Authors@R` and
-`inst/COPYRIGHTS`.
+and no other change. Its authors are listed in `Authors@R` and its copyright
+holders in `inst/COPYRIGHTS`.
 
 ## Test environments
 
