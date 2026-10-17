@@ -21,7 +21,8 @@ Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
 Copyright (c) 2001-2025 Expat maintainers
 
 Full text in src/vendor/expat/COPYING, which is installed as
-licenses/expat-COPYING; contributors in src/vendor/expat/AUTHORS. An
+licenses/expat-COPYING; authors in src/vendor/expat/AUTHORS
+(<https://raw.githubusercontent.com/libexpat/libexpat/R_2_8_4/expat/AUTHORS>). An
 installed zuxml carries Expat compiled into its shared object and into
 lib${R_ARCH}/libzuxml.a (lib/libzuxml.a on most platforms), and carries Expat's public headers in include/. Upstream is https://github.com/libexpat/libexpat
 and the pinned release, its checksum and the import date are recorded in
@@ -37,10 +38,11 @@ src/expat_config.h. The script that proves the tree is exactly upstream plus
 that patch, tools/verify-vendor, is not part of the distributed package; it
 lives in the source repository at <https://github.com/pedrobtz/zuxml>.
 
-Individually named authors and copyright holders. Besides the holders
-above, the bundled source files carry copyright lines, or an AUTHORS entry,
-naming the following people, and Sony Corporation (with Snild Dolkow). All
-are listed in Authors@R:
+Additional individually named contributors and copyright holders. Besides
+the holders above, the bundled source files carry copyright lines, or an
+AUTHORS entry, naming the following people, and Sony Corporation (with
+Snild Dolkow). Expat's canonical authors are credited in Authors@R; this
+more detailed list preserves the source-level copyright record:
 
   Rolf Eike Beer
   Nick Begg
