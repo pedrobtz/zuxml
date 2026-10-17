@@ -10,6 +10,10 @@ field, which refers to `inst/COPYRIGHTS`: it lists Expat's copyright
 notices and every one of the 60 individuals and the organisations named in
 the copyright lines of the bundled source files.
 
+The Title and Description no longer call the parser "secure"; they keep the
+specific claims (document type declarations rejected, external entities not
+compiled in, resource limits).
+
 Earlier, the 2026-09-25 upload was archived by the incoming pretest because of
 
     Found 'stderr', possibly from 'stderr' (C)

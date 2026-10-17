@@ -1,5 +1,5 @@
 Package: zuxml
-Title: Small and Secure XML Parser and Document Tree
+Title: Small XML Parser and Document Tree
 Version: 0.1.0
 Authors@R: c(
     person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
@@ -32,7 +32,7 @@ Description: Reads, navigates, and writes XML documents using a bundled
     copy of the 'Expat' parser (<https://libexpat.github.io/>), so that no
     system XML library is required. Documents are parsed into a faithful
     immutable tree exposed through a small vectorized navigation
-    interface. Parsing is strict and secure by default: document type
+    interface. Parsing is strict by default: document type
     declarations are rejected, external entity resolution is not compiled
     in, and configurable limits bound nesting depth and memory use. A
     registered C interface allows other packages to parse XML without
