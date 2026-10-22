@@ -41,7 +41,12 @@ zu_open_input <- function(x, what = "path", prefix = "zuxml",
       x <- file(x)
     }
   }
-  if (!isOpen(x)) {
+  # A connection that was closed is destroyed, and isOpen() raises a base
+  # error for it.
+  opened <- tryCatch(isOpen(x), error = function(e) NA)
+  if (is.na(opened))
+    abort(what, "an invalid connection: it may have been closed")
+  if (!opened) {
     zu_open_rb(x, fail)
     return(list(con = x, close = TRUE))
   }

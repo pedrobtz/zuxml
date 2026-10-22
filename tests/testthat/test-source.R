@@ -93,13 +93,13 @@ test_that("a non-blocking connection is rejected", {
   expect_error(read_input(con), msg("the connection must be blocking"))
 })
 
-test_that("a closed connection handle is an error, not a crash", {
+test_that("a closed connection handle is a prefixed error, not a crash", {
   f <- tempfile(fileext = ".xml")
   on.exit(unlink(f), add = TRUE)
   writeLines("<r/>", f)
   con <- file(f, "rb")
   close(con)
-  expect_error(read_input(con), "invalid connection")
+  expect_error(read_input(con), msg("an invalid connection"))
 })
 
 test_that("a bad input is a classed, prefixed error", {
