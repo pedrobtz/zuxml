@@ -43,7 +43,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/pedrobtz/zuxml/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/pedrobtz/zuxml/blob/0.1.0/DESCRIPTION)
 
 Baltazar P (2026). *zuxml: Small XML Parser and Document Tree*. R
 package version 0.1.0, <https://github.com/pedrobtz/zuxml>.
