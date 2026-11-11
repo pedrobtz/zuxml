@@ -1,10 +1,8 @@
 on:
-  push:
-    branches: [main, master]
-    # The workflow commits the rendered badge back to this branch; without
-    # this the commit triggers another run, which commits again.
-    paths-ignore:
-      - ".github/badges/coverage.svg"
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
+  schedule:
+    - cron: "41 4 * * 1"
   pull_request:
   workflow_dispatch:
 

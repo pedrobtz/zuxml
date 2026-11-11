@@ -10,14 +10,8 @@
 # YAML anchors would express the repetition once; GitHub Actions does not
 # support them.
 on:
-  push:
-    branches: [main, master, develop]
-    paths-ignore:
-      - '**.md'
-      - 'vignettes/**'
-      - '_pkgdown.yml'
-      - '.agents/**'
-      - 'docs/**'
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
   pull_request:
     paths-ignore:
       - '**.md'
@@ -28,7 +22,7 @@ on:
   schedule:
     # Long fuzz run, nightly. XML parsers are security-sensitive and the
     # per-push budget is deliberately small.
-    - cron: "17 3 * * *"
+    - cron: "46 4 * * *"
 
 name: hardening.yaml
 

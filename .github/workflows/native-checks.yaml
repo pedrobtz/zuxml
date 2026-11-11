@@ -30,14 +30,11 @@
 #
 # YAML anchors would express this once; GitHub Actions does not support them.
 on:
-  push:
-    branches: [main, master, develop]
-    paths-ignore:
-      - '**.md'
-      - 'vignettes/articles/**'
-      - '_pkgdown.yml'
-      - '.agents/**'
-      - 'docs/**'
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
+  schedule:
+    - cron: "51 4 * * 1"
+  workflow_dispatch:
   pull_request:
     paths-ignore:
       - '**.md'
