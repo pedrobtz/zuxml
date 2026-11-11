@@ -43,8 +43,11 @@
 # submission unnecessary before release: it covers the same flavor, once,
 # by hand.
 on:
-  push:
-    branches: [main, master, develop]
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
+  schedule:
+    - cron: "36 4 * * 1"
+  workflow_dispatch:
   pull_request:
 
 name: R-CMD-check.yaml
