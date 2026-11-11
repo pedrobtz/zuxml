@@ -1,9 +1,20 @@
-# zuxml
+# CLAUDE.md
 
-Read this first, then [.agents/zuxml-design.md](.agents/zuxml-design.md) for the
-reasoning behind any decision below. [.agents/roadmap.md](.agents/roadmap.md) is
-the stage-by-stage history, including what went wrong and what was learned —
-check it before re-litigating a choice.
+<!-- markdownlint-disable-next-line MD013 -->
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Shared conventions
+
+The portfolio's shared rules are synced into `.claude/shared/` from
+`pedrobtz/packages:claude/shared/`. Never edit them here. Where this file and
+a shared file disagree, this file wins for this package.
+
+@.claude/shared/workflow.md
+@.claude/shared/r-package.md
+@.claude/shared/ci.md
+@.claude/shared/native-code.md
+@.claude/shared/correctness.md
+@.claude/shared/assurance.md
 
 ## What this is
 
@@ -18,33 +29,46 @@ them: the parser's **feature policy is deliberately stricter than a distro
 Expat**, and zuxml is a **provider for other packages' C code**, with two
 distinct consumption modes that are easy to confuse.
 
-## Current state (2026-09-24)
+Read this first, then [.agents/zuxml-design.md](.agents/zuxml-design.md) for
+the reasoning behind any decision below; the design outranks this file.
+[.agents/roadmap.md](.agents/roadmap.md) is the stage-by-stage history,
+including what went wrong and what was learned. Check it before
+re-litigating a choice.
 
-Version 0.1.0, not yet on CRAN. The **Status:** line under each stage in the
-roadmap is authoritative; this is the summary.
+## Current state
 
-* Stages 0–6 are complete. Stage 6's table criteria went unverified from
-  f3392b2, which retargeted the only fixture at the archive, until #36 added
-  `tools/zuxmltable` beside it.
-* Stage 7 (#32) is closed; its remaining items (cumulative fuzzing hours,
-  MSan, clang-tidy, three fuzz targets) are #54, which does not gate 0.1.0.
-  The grown fuzz corpus is cached between CI runs, so fuzzing time accumulates.
-* Stage 8 (#33) is complete. No win-builder run is needed: the
-  `windows-latest`/R-devel row in `R-CMD-check.yaml` covers that flavor on
-  every push.
-* Stage 9 (#34) has no mechanical blocker left: tag `v0.1.0` and submit.
+Verified 2026-11-11: 0.1.0 is on CRAN, published 2026-10-27 and tagged
+`0.1.0`; `main` is at `0.1.0.9000`. The **Status:** line under each stage in
+the roadmap is authoritative for the road to 0.1.0; this is the summary.
+
+* The first 0.1.0 submission (2026-09-25) was archived by CRAN's automatic
+  pretest for the `stderr` NOTE from vendored Expat, which Stage 8 had chosen
+  to justify rather than patch. Patched in #72.
+* Stage 6's table criteria went unverified from f3392b2, which retargeted the
+  only fixture at the archive, until #36 added `tools/zuxmltable` beside it.
+* Stage 7's remaining items (cumulative fuzzing hours, MSan, clang-tidy,
+  three fuzz targets) are #54, now planned for v0.1.1. The grown fuzz corpus
+  is cached between CI runs, so fuzzing time accumulates.
+* No win-builder run is needed: the `windows-latest`/R-devel row in
+  `R-CMD-check.yaml` covers that flavor on every push.
 * The R API has 24 exports: `xml_table()`, `xml_list()` (#57) and
   `xml_find_first()` (#59) were added for 0.1.0 after the 2026-09-22 review.
   `xml_find_first()` introduced the *missing node*, whose contract (every
   accessor gives `NA`) is in the design and is breaking to change later.
-* **Consumers:** `zuxlsx` is the only one, and it uses the archive. The
-  registered table has no consumer yet — `zuhttp` plans no XML support — so
-  `tools/zuxmltable` stands in for one and calls all 26 members.
 * An archive consumer does not inherit the seam's DOCTYPE rejection or its
   limits (#41).
-* Progress is tracked in #24 (v0.1.0): one `stage`-labelled sub-issue per
-  roadmap stage (#25–#34), each linking to its stage's heading anchor. That is
-  why status stays out of the headings.
+
+## Versions and dependents
+
+The current version's parent issue is
+[v0.1.1 (#82)](https://github.com/pedrobtz/zuxml/issues/82); the 0.1.0 one
+was #24, with one `stage`-labelled sub-issue per roadmap stage (#25–#34),
+each linking to its stage's heading anchor. That is why status stays out of
+the headings.
+
+**Consumers:** `zuxlsx` is the only one, and it uses the archive. The
+registered table has no consumer yet (`zuhttp` plans no XML support), so
+`tools/zuxmltable` stands in for one and calls all 26 members.
 
 ## Feature policy — non-negotiable
 
@@ -74,6 +98,7 @@ suite against the mutant.
 
 ## Consumers — two modes, do not conflate
 
+<!-- markdownlint-disable MD013 -->
 |                   | table (`zuxml_api`)             | archive (`libzuxml.a`)        |
 |-------------------|---------------------------------|-------------------------------|
 | Consumer declares | `Imports:` **and** `LinkingTo:` | `LinkingTo:` only             |
@@ -81,6 +106,7 @@ suite against the mutant.
 | Header            | `inst/include/zuxml.h`          | `expat.h`, installed          |
 | Resolved          | `R_GetCCallable()`, at run time | linked into the consumer      |
 | Needs zuxml live  | yes, installed **and** loaded   | no, not even installed        |
+<!-- markdownlint-enable MD013 -->
 
 **The table** is the path for new C code. It has no real consumer yet;
 `tools/zuxmltable` calls every member on every push, and a frozen copy of the
@@ -109,9 +135,10 @@ itself, so its first block is load-bearing, not boilerplate.
 `tools/zuxmltest/` is a worked example of it and `tools/zuxmltable/` of the
 table, and `tools/run-downstream-check` is the gate for both.
 
-## Layout
+## Architecture
 
-```
+<!-- markdownlint-disable MD013 -->
+```text
 R/                 parse.R, node.R, nodeset.R, events.R, write.R, conditions.R, info.R
                    zu_source.R   input dispatch, copied verbatim to sibling packages
 src/               init.c, r_api.c, r_document.c   R-facing glue
@@ -123,47 +150,48 @@ inst/include/      zuxml.h — the only header in the sources
 tools/             gates and maintenance scripts, plus zuxmltest/ and zuxmltable/
 .agents/           design document and roadmap
 ```
+<!-- markdownlint-enable MD013 -->
 
 The core (`zux_parser.c`, `zux_tree.c`, `zux_write.c`) contains no R. Keep it
 that way: it is what the sanitizer and fuzz drivers compile standalone.
 
 ## Commands
 
+The everyday `devtools` loop is in `.claude/shared/r-package.md`.
+
 ```sh
-Rscript -e 'devtools::document()'   # roxygen -> NAMESPACE + man/
-Rscript -e 'devtools::load_all()'   # compile + load for interactive work
-Rscript -e 'devtools::test()'
-Rscript -e 'devtools::check()'      # full R CMD check
 R CMD INSTALL .                     # an installed layout, for test-linking.R
 ```
 
 `tests/testthat/test-linking.R` audits the *installed* package
-(`lib${R_ARCH}/libzuxml.a`, `include/expat.h`), so it skips under `load_all()`. It has
-teeth only under `R CMD check` or against a real install, and there a missing
-artifact fails rather than skips: whether the layout is installed is read from
-`Meta/package.rds`, never from the artifact under test.
+(`lib${R_ARCH}/libzuxml.a`, `include/expat.h`), so it skips under
+`load_all()`. It has teeth only under `R CMD check` or against a real
+install, and there a missing artifact fails rather than skips: whether the
+layout is installed is read from `Meta/package.rds`, never from the artifact
+under test.
 
-## Gates
+### Gates
 
 Run these from the package root. All but `tools/run-benchmarks` and
-`tools/update-expat` are wired into CI (`.github/workflows/`: `R-CMD-check`,
-`hardening`, `native-checks`, `coverage`, `pkgdown`). The benchmarks are
-deliberately not, since shared-runner timings are too noisy to gate on, and
-`update-expat` is a maintenance script.
+`tools/update-expat` are wired into CI (see Continuous integration). The
+benchmarks are deliberately not, since shared-runner timings are too noisy to
+gate on, and `update-expat` is a maintenance script.
 
-| script                     | what it proves                                        |
-|----------------------------|-------------------------------------------------------|
-| `tools/run-lint`           | project-owned code compiles warning-free (`-Werror`)  |
-| `tools/verify-vendor`      | `src/vendor/expat` is the pinned release plus `tools/patches/`, exactly |
-| `tools/check-no-stdio`     | no compiled object references `stderr`/`stdout`/`printf` |
-| `tools/check-authors`      | every person Expat's copyright lines name is in `inst/COPYRIGHTS`, and its AUTHORS in `Authors@R` too |
-| `tools/run-sanitizers`     | the event seam under ASan + UBSan, no R in the way    |
-| `tools/run-fuzz`           | libFuzzer over the parser seam, after a canary that must crash |
-| `tools/run-mutation-check` | each security guard is load-bearing                   |
-| `tools/run-conformance`    | the W3C XML Conformance Test Suite                    |
-| `tools/run-downstream-check` | both consumption modes work for a real consumer package |
-| `tools/run-benchmarks`     | the design §21 performance targets                    |
-| `tools/update-expat <ver>` | re-vendor Expat (then re-run `verify-vendor`)         |
+<!-- markdownlint-disable MD013 -->
+| script                       | what it proves                                                                                        |
+|------------------------------|-------------------------------------------------------------------------------------------------------|
+| `tools/run-lint`             | project-owned code compiles warning-free (`-Werror`)                                                  |
+| `tools/verify-vendor`        | `src/vendor/expat` is the pinned release plus `tools/patches/`, exactly                               |
+| `tools/check-no-stdio`       | no compiled object references `stderr`/`stdout`/`printf`                                              |
+| `tools/check-authors`        | every person Expat's copyright lines name is in `inst/COPYRIGHTS`, and its AUTHORS in `Authors@R` too |
+| `tools/run-sanitizers`       | the event seam under ASan + UBSan, no R in the way                                                    |
+| `tools/run-fuzz`             | libFuzzer over the parser seam, after a canary that must crash                                        |
+| `tools/run-mutation-check`   | each security guard is load-bearing                                                                   |
+| `tools/run-conformance`      | the W3C XML Conformance Test Suite                                                                    |
+| `tools/run-downstream-check` | both consumption modes work for a real consumer package                                               |
+| `tools/run-benchmarks`       | the design §21 performance targets                                                                    |
+| `tools/update-expat <ver>`   | re-vendor Expat (then re-run `verify-vendor`)                                                         |
+<!-- markdownlint-enable MD013 -->
 
 One trap when running them by hand:
 
@@ -172,22 +200,7 @@ One trap when running them by hand:
   `R_LIBS_USER`/`R_LIBS_SITE` at nothing for that reason; anything else
   resolving `system.file(package = "zuxml")` in a test needs the same care.
 
-## Definition of done
-
-* A stage is done when its exit criteria pass in CI on all three platforms,
-  not when the code is written. A criterion met differently from how it is
-  worded goes in the stage's **Status:** line. So does one that a later
-  change invalidates: re-check a closed stage when you touch its subject.
-* A gate counts once it has been seen to fail — a deliberate warning, a
-  removed guard, a target that must crash. `tools/run-lint` and
-  `tools/run-fuzz` both passed vacuously until someone checked (#35).
-* A change to a contract (`zuxml.h`, the table, the archive layout, the
-  feature policy) amends the design in the same commit.
-* `devtools::document()` leaves no diff, and `R CMD check --as-cran` shows only
-  the NOTEs that `cran-comments.md` explains. A user-facing change also needs
-  a test, roxygen documentation and a `NEWS.md` entry.
-
-## Conventions
+## Invariants that are easy to break
 
 * **Portable make only** in `src/Makevars`: no GNU-make conditionals, no
   `$(shell ...)`, no `-W*` overrides. Any of them costs
@@ -201,6 +214,52 @@ One trap when running them by hand:
   bug if ignored.
 * `vignettes/articles/` is pkgdown-only and `.Rbuildignore`d; `vignettes/*.Rmd`
   is built *and executed* by `R CMD check`, including under the sanitizers.
+
+## Definition of done, beyond the shared one
+
+* A stage is done when its exit criteria pass in CI on all three platforms,
+  not when the code is written. A criterion met differently from how it is
+  worded goes in the stage's **Status:** line. So does one that a later
+  change invalidates: re-check a closed stage when you touch its subject.
+* A gate counts once it has been seen to fail — a deliberate warning, a
+  removed guard, a target that must crash. `tools/run-lint` and
+  `tools/run-fuzz` both passed vacuously until someone checked (#35).
+* A change to a contract (`zuxml.h`, the table, the archive layout, the
+  feature policy) amends the design in the same commit.
+
+## Continuous integration
+
+* `R-CMD-check.yaml` calls `r-cmd-check.yml@v1` with one row added to the
+  default runners, Windows on R-devel (CRAN's incoming flavour), plus the
+  CRAN-like containers. It drops the plain Ubuntu R-devel row and
+  `upload-snapshots` on purpose; the file says why.
+* `hardening.yaml` holds the gates R CMD check cannot express, with no R in
+  the way: strict warnings, no-stdio and author checks with their canaries,
+  ASan + UBSan + LSan on the seam, mutation testing, the downstream check,
+  and libFuzzer, with a long fuzz run nightly.
+* `native-checks.yaml` calls r-actions' `vendor`, `sanitizers`, `valgrind`,
+  `lto`, `gctorture`, `rchk` and `cran-special` workflows: the instrumented
+  runs through R, and the only place the R-facing sources are instrumented.
+* `coverage.yaml` calls `coverage.yml`, pinned to a commit (`v1.18.0`);
+  `pkgdown.yaml` builds the site, and on `develop` only proves the articles
+  knit.
+
+**Deviation from `.claude/shared/ci.md`, as of 2026-11-11:** no workflow
+calls `changes.yml`. `hardening.yaml`, `native-checks.yaml` and
+`coverage.yaml` skip prose-only changes with `paths-ignore`, and
+`R-CMD-check.yaml` deliberately has none, because `--as-cran` checks the URLs
+in `README.md`, which ships in the tarball. #51 plans the CI rework.
+
+## Vendored native code
+
+Expat (libexpat) 2.8.4, MIT, release tag `R_2_8_4`, imported 2026-09-08 from
+the release tarball, whose SHA-256 is in `src/vendor/PROVENANCE`. 2.8.4 is
+the floor because it is a security release; `PROVENANCE` says why. Only the
+parser library is imported, the files listed in `tools/expat-files.txt`.
+Build configuration is not vendored: it is the project-owned
+`src/expat_config.h` (see Feature policy). The one local patch is
+`tools/patches/0001-no-stdio-entropy-debug.patch`.
+
 * **Expat's AUTHORS are in `Authors@R`** (`ctb`), and **every individual
   named in a vendored copyright line is in `inst/COPYRIGHTS`**, which the
   `Copyright:` field points to. CRAN's review of 0.1.0 asked for them by
