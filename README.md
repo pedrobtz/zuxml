@@ -6,7 +6,7 @@
 [![R-CMD-check](https://github.com/pedrobtz/zuxml/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pedrobtz/zuxml/actions/workflows/R-CMD-check.yaml)
 [![hardening](https://github.com/pedrobtz/zuxml/actions/workflows/hardening.yaml/badge.svg)](https://github.com/pedrobtz/zuxml/actions/workflows/hardening.yaml)
 [![native-checks](https://github.com/pedrobtz/zuxml/actions/workflows/native-checks.yaml/badge.svg)](https://github.com/pedrobtz/zuxml/actions/workflows/native-checks.yaml)
-[![coverage](https://raw.githubusercontent.com/pedrobtz/zuxml/main/.github/badges/coverage.svg)](https://github.com/pedrobtz/zuxml/actions/workflows/coverage.yaml)
+[![coverage](https://raw.githubusercontent.com/pedrobtz/zuxml/gh-pages/badges/coverage.svg)](https://github.com/pedrobtz/zuxml/actions/workflows/coverage.yaml)
 <!-- badges: end -->
 
 zuxml reads, navigates and writes XML in R, using a bundled copy of the
