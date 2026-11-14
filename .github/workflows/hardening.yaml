@@ -22,7 +22,7 @@ on:
   schedule:
     # Long fuzz run, nightly. XML parsers are security-sensitive and the
     # per-push budget is deliberately small.
-    - cron: "46 4 * * *"
+    - cron: "46 4 * * 5"  # weekly, Fridays
 
 name: hardening.yaml
 
